@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Databases / local state
+*.sqlite3
+*.db
+kps_erp_v4.db
+tally_connector.sqlite3
+
+# Vite cache
+.vite/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Uploads / exports (runtime-generated)
+backend/app/uploads/
+exports/
+
+# Env / secrets
+.env
+.env.local
+*.pem
