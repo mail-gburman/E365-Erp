@@ -764,7 +764,7 @@ export default function AccountsPage() {
             </div>
 
             <div className="modalFooter">
-              <button className="ghostBtn" type="button" onClick={() => loadEstimate(selectedBookingId, form.off_days_payable, true)}>Recalculate</button>
+              <button className="ghostBtn" type="button" onClick={() => { setForm(prev => ({ ...prev, billing_mode: "line_item" })); loadEstimate(selectedBookingId, form.off_days_payable, true); }}>Recalculate</button>
               <button className="ghostBtn" type="button" onClick={() => setActiveSection("ledger")}>Part Payment</button>
               <button className="ghostBtn" type="button" disabled={!existingInvoice} onClick={() => viewInvoice(existingInvoice)}>View PDF</button>
               <button className="downloadBtn" type="button" disabled={!existingInvoice} onClick={() => downloadInvoice(existingInvoice)}>Download PDF</button>

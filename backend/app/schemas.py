@@ -311,6 +311,7 @@ class BookingCreate(BaseModel):
     contacts: List[BookingContact] = Field(default_factory=list)
     call_time: Optional[datetime] = None
     pickup_time: Optional[datetime] = None
+    packup_time: Optional[datetime] = None
 
     @model_validator(mode="after")
     def check_any_resources(self):
@@ -336,6 +337,7 @@ class BookingRead(BaseModel):
     contacts: List[BookingContact] = Field(default_factory=list)
     call_time: Optional[datetime] = None
     pickup_time: Optional[datetime] = None
+    packup_time: Optional[datetime] = None
     class Config:
         from_attributes = True
 
