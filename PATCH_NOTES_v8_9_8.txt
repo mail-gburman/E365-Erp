@@ -1,0 +1,33 @@
+KPS ERP Enterprise v8.9.8 patch notes
+
+Included fixes:
+1. Service booking / service job form now supports business dispatch fields:
+   - transport mode
+   - courier partner
+   - AWB / docket number
+   - primary and alternate contact name/mobile
+   - contact email
+   - pickup and delivery address
+   - package count
+   - declared value
+   - package notes
+
+2. Service PDFs now include the new logistics and contact information.
+
+3. Audit PDF export redesigned for readable wrapped sections.
+   - no overlapping rows
+   - business-friendly details formatting
+   - better print/save to PDF output
+
+4. Audit exports now respect on-screen search/entity/action filters.
+
+5. Audit ZIP now includes readable details columns in addition to raw JSON.
+
+6. Audit page download flow changed to direct download for PDF/ZIP to reduce hanging.
+
+Validation done in container:
+- Python backend files compiled successfully.
+- PDF utility generation tested successfully.
+
+Known environment caveat in this container:
+- frontend production build could not be run because the bundled node_modules in the uploaded project contain macOS-native Rollup/esbuild binaries, while this container is Linux. Reinstall dependencies on the target machine before running a fresh build if needed.

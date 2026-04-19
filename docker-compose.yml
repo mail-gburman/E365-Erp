@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: kps_erp
+      POSTGRES_USER: kps_user
+      POSTGRES_PASSWORD: kps_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - kps_pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://kps_user:kps_password@db:5432/kps_erp
+      JWT_SECRET: change_me_for_production
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  kps_pgdata:

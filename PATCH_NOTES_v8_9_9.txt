@@ -1,0 +1,15 @@
+KPS ERP Enterprise v8.9.9
+
+Changes made:
+1. Audit PDF/details now use readable business language instead of raw JSON or permission dumps.
+2. Audit PDF text now wraps inside each box to avoid spilling outside the layout.
+3. Audit ZIP now exports readable details only.
+4. Service jobs now support attaching one or more damage photos.
+5. Service job screen now includes layman guidance and examples for each section.
+6. Frontend package scripts now call Vite directly from node_modules/vite/bin/vite.js.
+
+For local frontend on macOS/Linux:
+- cd frontend
+- rm -rf node_modules .vite
+- npm install
+- npm run dev

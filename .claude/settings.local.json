@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ':*)",
+      "Bash(python3 -c \"from app.main import app; print\\('Import OK'\\)\")",
+      "Bash(pip install:*)",
+      "Bash(wc -l /Users/gauravburman/Desktop/KPS/kps_erp_enterprise_v8_9_2/backend/app/routers/*.py)",
+      "Bash(wc -l /Users/gauravburman/Desktop/KPS/kps_erp_enterprise_v8_9_2/frontend/src/pages/*.jsx)",
+      "Bash(python -m uvicorn app.main:app --host 0.0.0.0 --port 8000)",
+      "Bash(curl -s http://localhost:8000/)",
+      "Bash(curl -s -X POST http://localhost:8000/auth/login -d \"username=admin&password=admin123\")",
+      "Bash(curl -s 'http://localhost:8000/dashboard?range_start=2026-04-01&range_end=2026-04-30' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc3NjE1NDg4NX0.LDiDmX465ciNMlj52-kcw4uwJkmU6CJeDuR37kDJuWo')",
+      "Bash(python3 -m json.tool)",
+      "Bash(pkill -f \"uvicorn app.main:app\")",
+      "Bash(python3 -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('range_bookings:', d.get\\('range_bookings'\\)\\);print\\('range_projects:', d.get\\('range_projects'\\)\\)\")",
+      "Bash(npx vite:*)",
+      "Read(//Users/gauravburman/Downloads/**)",
+      "Bash(pandoc \"ADDRESS SAMPLE.docx\" -o /tmp/address_sample.md)",
+      "Read(//tmp/**)",
+      "Bash(pip3 install:*)",
+      "Bash(rm -f kps_erp_v4.db)",
+      "Bash(python -c \"from app.routers import masters; print\\('OK'\\)\")",
+      "Bash(python -c \"from app.universal_parser import smart_preview, apply_mapping_and_import, ENTITY_SCHEMAS; print\\('Parser OK, entities:', list\\(ENTITY_SCHEMAS.keys\\(\\)\\)\\)\")",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(python -c ':*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d['status']\\)\")",
+      "Bash(curl -s http://localhost:5173/)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:5175/)",
+      "Bash(curl -s http://127.0.0.1:5175/)",
+      "Bash(curl -v http://localhost:5175/)",
+      "Bash(kill 28225)",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -f vite)",
+      "Bash(python -c \"from app.universal_parser import apply_mapping_and_import; print\\('OK'\\)\")"
+    ]
+  }
+}
