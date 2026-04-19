@@ -498,6 +498,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
         ("Location", booking.destination or "-"),
         ("Call Time", booking.call_time.strftime("%d/%m/%Y %H:%M") if booking.call_time else "-"),
         ("Pickup Time", booking.pickup_time.strftime("%d/%m/%Y %H:%M") if booking.pickup_time else "-"),
+        ("Packup Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
     ]
     if booking.transport_mode:
         meta.append(("Transport Mode", booking.transport_mode))
@@ -1001,8 +1002,18 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
     notes = payload.get("notes") or ""
     project = parent.project
 
-    # Conflict check: any active bookings (excluding this family) that use same equipment on added_dates
+    # Conflict check: item status first (servicing / inactive / forever_damaged cannot appear in any new booking)
     conflicts = []
+    for inv_id in equipment_ids:
+        inv_item = db.query(models.InventoryItem).filter(models.InventoryItem.id == inv_id).first()
+        if inv_item and (inv_item.status in ["servicing", "inactive", "cancelled"] or inv_item.service_status in ["in_service", "forever_damaged"]):
+            conflicts.append({
+                "date": "all_dates",
+                "inventory_item_id": inv_id,
+                "reason": f"Item unavailable — status: {inv_item.status}, service: {inv_item.service_status}",
+                "conflict_booking_id": None,
+            })
+
     added_dates = []
     removed_dates = []
     for dstr in added:

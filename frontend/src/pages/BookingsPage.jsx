@@ -440,6 +440,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
         contact_person_aadhar: booking.contact_person_aadhar || "",
         call_time: extractTimeValue(booking.call_time),
         pickup_time: extractTimeValue(booking.pickup_time),
+        packup_time: extractTimeValue(booking.packup_time),
       });
       const normalized = booking.contacts?.length ? booking.contacts : [{ name: booking.contact_person_name || "", mobile: booking.contact_person_mobile || "", aadhar: booking.contact_person_aadhar || "" }];
       setContacts(normalized);
@@ -467,7 +468,8 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           ...form,
           contacts,
           call_time: composeDateTime(travelDate, form.call_time),
-          pickup_time: composeDateTime(returnDate, form.pickup_time),
+          pickup_time: composeDateTime(travelDate, form.pickup_time),
+          packup_time: composeDateTime(returnDate, form.packup_time),
         });
         onClose();
       } catch (e) { alert(String(e.message || e)); }
@@ -511,8 +513,10 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           </div>
           <label className="fieldLabel">Call Time {travelDate ? `(${travelDate})` : ""}</label>
           <input type="time" value={form.call_time || ""} onChange={e => setForm({...form, call_time: e.target.value})} />
-          <label className="fieldLabel">Packup Time {returnDate ? `(${returnDate})` : ""}</label>
+          <label className="fieldLabel">Pickup Time {travelDate ? `(${travelDate})` : ""}</label>
           <input type="time" value={form.pickup_time || ""} onChange={e => setForm({...form, pickup_time: e.target.value})} />
+          <label className="fieldLabel">Packup Time {returnDate ? `(${returnDate})` : ""}</label>
+          <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
           <label className="fieldLabel full">Remarks</label>
           <textarea className="full" value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} placeholder="Remarks" />
         </div>
@@ -585,7 +589,18 @@ export default function BookingsPage() {
   const [contacts, setContacts] = useState([{ ...blankContact }]);
   const [callTime, setCallTime] = useState("");
   const [pickupTime, setPickupTime] = useState("");
+  const [packupTime, setPackupTime] = useState("");
   const [parentBookingId, setParentBookingId] = useState("");
+
+  // Modify Shoot modal state
+  const [modifyShootModal, setModifyShootModal] = useState(false);
+  const [modifyShootBooking, setModifyShootBooking] = useState(null);
+  const [modifyAddDates, setModifyAddDates] = useState([]);
+  const [modifyRemoveDates, setModifyRemoveDates] = useState([]);
+  const [modifyNotes, setModifyNotes] = useState("");
+  const [modifyNewDate, setModifyNewDate] = useState("");
+  const [modifyResult, setModifyResult] = useState(null);
+  const [modifySaving, setModifySaving] = useState(false);
 
   // Modal states
   const [equipModal, setEquipModal] = useState(false);
@@ -897,7 +912,8 @@ export default function BookingsPage() {
         contact_person_aadhar: contactAadhar || null,
         contacts: normalizedContacts(),
         call_time: composeDateTime(travelDay, callTime),
-        pickup_time: composeDateTime(returnDay, pickupTime),
+        pickup_time: composeDateTime(travelDay, pickupTime),
+        packup_time: composeDateTime(returnDay, packupTime),
       });
       setMessage(projectMode === "new" ? "Project and booking created together. Job card & challan are ready." : "Booking created. Job card & challan available for download.");
       setProjectMode("existing");
@@ -923,7 +939,7 @@ export default function BookingsPage() {
 
   async function doDispatch(id) { try { await api.dispatchBooking(id); setMessage("Booking dispatched."); load(); } catch(e){ setMessage(String(e.message||e)); } }
 
-  async function submitModifyShoot() {
+  async function submitModifyShootCard() {
     if (!modifyShoot.booking_id) {
       setMessage("Select original job card to modify.");
       return;
@@ -1117,11 +1133,47 @@ export default function BookingsPage() {
     setContacts(b.contacts?.length ? b.contacts : [{ name: b.contact_person_name || "", mobile: b.contact_person_mobile || "", aadhar: b.contact_person_aadhar || "" }]);
     setCallTime(extractTimeValue(b.call_time));
     setPickupTime(extractTimeValue(b.pickup_time));
+    setPackupTime(extractTimeValue(b.packup_time));
     setEquipmentSelected(oldMainEquipment);
     setAccessorySelected(oldAccessories);
     setCrewSelected(oldCrew);
     setMessage(`Pre-filled from ${b.job_card_id}: ${oldMainEquipment.length} equipment, ${oldAccessories.length} accessories, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openModifyShoot(b) {
+    setModifyShootBooking(b);
+    setModifyAddDates([]);
+    setModifyRemoveDates([]);
+    setModifyNotes("");
+    setModifyNewDate("");
+    setModifyResult(null);
+    setModifyShootModal(true);
+  }
+
+  async function submitModifyShoot() {
+    if (!modifyShootBooking) return;
+    if (!modifyAddDates.length && !modifyRemoveDates.length) {
+      alert("Add at least one date change (add or remove a date).");
+      return;
+    }
+    setModifySaving(true);
+    try {
+      const result = await api.createSupplementaryBooking(modifyShootBooking.id, {
+        added_dates: modifyAddDates,
+        removed_dates: modifyRemoveDates,
+        notes: modifyNotes,
+        equipment_ids: (modifyShootBooking.equipment || []).map(e => e.id),
+        crew_ids: (modifyShootBooking.crew || []).map(c => c.id),
+      });
+      setModifyResult(result);
+      load();
+    } catch (e) {
+      setMessage(String(e.message || e));
+      setModifyShootModal(false);
+    } finally {
+      setModifySaving(false);
+    }
   }
 
   const selectedProjectTitle = projectMode === "new" ? projectForm.title || "-" : (projects.find(p => String(p.id) === String(bookingProjectId))?.title || "-");
@@ -1302,8 +1354,10 @@ export default function BookingsPage() {
             </div>
             <label className="fieldLabel">Call Time {travelDay ? `(${travelDay})` : ""}</label>
             <input type="time" value={callTime} onChange={e=>setCallTime(e.target.value)} />
-            <label className="fieldLabel">Packup Time {returnDay ? `(${returnDay})` : ""}</label>
+            <label className="fieldLabel">Pickup Time {travelDay ? `(${travelDay})` : ""}</label>
             <input type="time" value={pickupTime} onChange={e=>setPickupTime(e.target.value)} />
+            <label className="fieldLabel">Packup Time {returnDay ? `(${returnDay})` : ""}</label>
+            <input type="time" value={packupTime} onChange={e=>setPackupTime(e.target.value)} />
             <label className="fieldLabel full">Remarks</label>
             <textarea className="full" placeholder="Remarks / special instructions" value={remarks} onChange={e=>setRemarks(e.target.value)}></textarea>
           </div>
@@ -1348,7 +1402,7 @@ export default function BookingsPage() {
           <label className="fieldLabel full">Notes</label>
           <textarea className="full" value={modifyShoot.notes} onChange={e => setModifyShoot({ ...modifyShoot, notes: e.target.value })} placeholder="Client changed 18th to off day and added 20th." />
           <div className="helperText full">Use Off Day for dates removed from shoot. Use Shoot Day for newly added dates. Creates supplementary job card, updates project dates, and checks added shoot dates for equipment conflicts.</div>
-          <button type="button" className="primaryBtn full" onClick={submitModifyShoot}>Create Supplementary Modification</button>
+          <button type="button" className="primaryBtn full" onClick={submitModifyShootCard}>Create Supplementary Modification</button>
         </div>
       </Card>
 
@@ -1429,7 +1483,8 @@ export default function BookingsPage() {
                     {b.transport_mode ? <span className="badge">{b.transport_mode}</span> : "-"}
                     {b.awb_number ? <div style={{fontSize:11,color:"#999"}}>AWB: {b.awb_number}</div> : null}
                     {b.call_time ? <div style={{fontSize:11,color:"#999"}}>Call: {new Date(b.call_time).toLocaleString()}</div> : null}
-                    {b.pickup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.pickup_time).toLocaleString()}</div> : null}
+                    {b.pickup_time ? <div style={{fontSize:11,color:"#999"}}>Pickup: {new Date(b.pickup_time).toLocaleString()}</div> : null}
+                    {b.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.packup_time).toLocaleString()}</div> : null}
                   </td>
                   <td>
                     {(b.equipment_summary || groupEquipment(b.equipment)).map((item) => (
@@ -1473,6 +1528,7 @@ export default function BookingsPage() {
                       <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage</button>
                       <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>
                       <button className="ghostBtn compactBtn" onClick={()=>prefillFromBooking(b)}>Supplementary</button>
+                      {["confirmed","blocked","dispatched"].includes(b.status) && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
                       {b.status !== "returned" && b.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(b.id);setCancelModal(true);}}>Cancel</button>}
                     </div>
                   </td>
@@ -1530,6 +1586,97 @@ export default function BookingsPage() {
 
       <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? bookingDetails.find(b => String(b.id) === String(parentBookingId))?.reference_job_card_id || bookingDetails.find(b => String(b.id) === String(parentBookingId))?.job_card_id : null} contacts={normalizedContacts()} />
       <QuickProjectModal open={quickProjectOpen} onClose={() => setQuickProjectOpen(false)} onSave={handleQuickProjectCreate} saving={quickProjectSaving} clientSuggestions={clientNameSuggestions} />
+
+      {/* ──── MODIFY SHOOT MODAL ──── */}
+      {modifyShootModal && modifyShootBooking && (
+        <div className="modalOverlay" onClick={() => setModifyShootModal(false)}>
+          <div className="modalCard" style={{ width: "min(560px,96vw)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2>Modify Shoot Dates — {modifyShootBooking.job_card_id}</h2>
+              <button className="ghostBtn modalCloseBtn" onClick={() => setModifyShootModal(false)}>Close</button>
+            </div>
+            <p className="helperText" style={{ margin: "4px 0 12px" }}>{modifyShootBooking.project_title}</p>
+
+            <div style={{ marginBottom: 14 }}>
+              <strong style={{ fontSize: 13 }}>Existing Dates</strong>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                {(modifyShootBooking.dates || []).length
+                  ? (modifyShootBooking.dates || []).map(d => (
+                      <span key={d.date + d.type} style={{ display: "inline-block", marginRight: 8, marginBottom: 4 }}>
+                        <span className="badge badgeOptional">{d.date} ({d.type?.replace("_", " ")})</span>
+                        {!modifyRemoveDates.includes(d.date) && (
+                          <button type="button" className="dangerBtn compactBtn" style={{ marginLeft: 4, padding: "1px 6px", fontSize: 11 }}
+                            onClick={() => setModifyRemoveDates(prev => [...prev, d.date])}>Remove</button>
+                        )}
+                        {modifyRemoveDates.includes(d.date) && (
+                          <span style={{ marginLeft: 4, color: "#e55", fontSize: 11 }}>✕ removing
+                            <button type="button" className="ghostBtn compactBtn" style={{ marginLeft: 4, padding: "1px 6px", fontSize: 11 }}
+                              onClick={() => setModifyRemoveDates(prev => prev.filter(x => x !== d.date))}>Undo</button>
+                          </span>
+                        )}
+                      </span>
+                    ))
+                  : <span style={{ color: "#aaa" }}>No dates on record</span>}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <strong style={{ fontSize: 13 }}>Add New Shoot Dates</strong>
+              <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <input type="date" value={modifyNewDate} onChange={e => setModifyNewDate(e.target.value)}
+                  style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
+                <button type="button" className="primaryBtn compactBtn"
+                  onClick={() => {
+                    if (modifyNewDate && !modifyAddDates.includes(modifyNewDate)) {
+                      setModifyAddDates(prev => [...prev, modifyNewDate]);
+                      setModifyNewDate("");
+                    }
+                  }}>+ Add Date</button>
+              </div>
+              {modifyAddDates.length > 0 && (
+                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {modifyAddDates.map(d => (
+                    <span key={d} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <span className="badge" style={{ background: "#d4edda", color: "#155724" }}>{d}</span>
+                      <button type="button" className="dangerBtn compactBtn" style={{ padding: "1px 6px", fontSize: 11 }}
+                        onClick={() => setModifyAddDates(prev => prev.filter(x => x !== d))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label className="fieldLabel">Notes</label>
+              <textarea rows={2} className="full" value={modifyNotes} onChange={e => setModifyNotes(e.target.value)}
+                placeholder="e.g. Client removed 18th, added 20th for extra shoot day" />
+            </div>
+
+            {modifyResult && (
+              <div style={{ background: modifyResult.conflicts?.length ? "#fff3cd" : "#d4edda", border: "1px solid", borderColor: modifyResult.conflicts?.length ? "#ffc107" : "#28a745", borderRadius: 6, padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>
+                <strong>Supplementary created: {modifyResult.job_card_id}</strong>
+                {modifyResult.conflicts?.length > 0 && (
+                  <div style={{ marginTop: 6 }}>
+                    <strong style={{ color: "#856404" }}>Conflicts ({modifyResult.conflicts.length}):</strong>
+                    <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
+                      {modifyResult.conflicts.map((c, i) => (
+                        <li key={i} style={{ fontSize: 12 }}>{c.date} — item #{c.inventory_item_id}: {c.reason || "conflict"}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="modalFooter">
+              <button type="button" className="ghostBtn" onClick={() => setModifyShootModal(false)}>Cancel</button>
+              <button type="button" className="primaryBtn" onClick={submitModifyShoot} disabled={modifySaving}>
+                {modifySaving ? "Saving..." : "Create Supplementary Modification"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

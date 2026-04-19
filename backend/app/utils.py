@@ -638,8 +638,8 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     y = height - 88
     c.setFont("Helvetica", 9)
     colx = [left_margin + 2, 300]
-    # Filter out any pickup/packup meta pairs (per spec: don't print a Packup line)
-    _filtered_meta = [(k, v) for (k, v) in meta_pairs if "pickup" not in str(k).lower() and "packup" not in str(k).lower()]
+    # Packup Time is not printed on the job card; Pickup Time is kept.
+    _filtered_meta = [(k, v) for (k, v) in meta_pairs if "packup" not in str(k).lower()]
     for idx, (k, v) in enumerate(_filtered_meta):
         # Guard: if meta section itself overflows (many pairs), break to new page
         if y < 120:
@@ -705,18 +705,24 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     if y < 60:
         y = _new_page()
 
-    # CALL time (retained). Packup/Pickup is intentionally NOT printed.
+    # CALL time and PICKUP time printed in header. Packup time intentionally excluded.
     call_time = ""
     call_date = ""
+    pickup_time_val = ""
     for k, v in meta_pairs:
         kl = k.lower()
-        if "call" in kl:
+        if "call" in kl and "time" in kl:
             call_time = v
-        if "date" in kl:
+        if kl == "date":
             call_date = v
-    if call_time or call_date:
+        if "pickup" in kl and "time" in kl:
+            pickup_time_val = v
+    if call_time or call_date or pickup_time_val:
         c.setFont("Helvetica-Bold", 8)
-        c.drawString(left_margin + 2, y - 10, f"CALL: {call_time}    DATE: {call_date}")
+        header_line = f"CALL: {call_time}    DATE: {call_date}"
+        if pickup_time_val:
+            header_line += f"    PICKUP: {pickup_time_val}"
+        c.drawString(left_margin + 2, y - 10, header_line)
         y -= 14
 
     y = _draw_table_header(y)
