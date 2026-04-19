@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
@@ -12,6 +12,8 @@ const blankForm = {
   discount_amount: 0,
   tax_percent: 18,
   other_amount: 0,
+  damage_charge_amount: 0,
+  damage_charge_note: "",
   off_days_payable: false,
   amount_received: 0,
   payment_received_at: "",
@@ -64,6 +66,17 @@ export default function AccountsPage() {
   const [ledgerSearch, setLedgerSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [inboundSearch, setInboundSearch] = useState("");
+  const workspaceRef = useRef(null);
+
+  function scrollWorkspaceIntoFocus() {
+    window.setTimeout(() => {
+      const node = workspaceRef.current || document.getElementById("accounts-workspace");
+      if (node) {
+        node.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (typeof node.focus === "function") node.focus({ preventScroll: true });
+      }
+    }, 80);
+  }
 
   const billingBookings = useSearch(bookings, billingSearch);
   const workspaceBookings = useSearch(bookings, workspaceSearch);
@@ -179,7 +192,7 @@ export default function AccountsPage() {
 
   const totals = useMemo(() => {
     const lineSubtotal = form.billing_mode === "package" ? Number(form.package_amount || 0) : totalLineItems(lineItems);
-    const subtotal = Math.max(0, lineSubtotal + Number(form.other_amount || 0) - Number(form.discount_amount || 0));
+    const subtotal = Math.max(0, lineSubtotal + Number(form.other_amount || 0) + Number(form.damage_charge_amount || 0) - Number(form.discount_amount || 0));
     const tax = subtotal * (Number(form.tax_percent || 0) / 100);
     const total = subtotal + tax;
     const payout = payoutItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -200,13 +213,16 @@ export default function AccountsPage() {
   async function loadEstimate(bookingId, offDaysPayable = form.off_days_payable, useFreshEstimate = false) {
     setSelectedBookingId(String(bookingId));
     setActiveSection("billing");
+    scrollWorkspaceIntoFocus();
     setLoading(true);
     try {
       const data = await api.accountEstimate(bookingId, offDaysPayable);
       setEstimate(data);
       const invoice = data.invoice;
       if (invoice && !useFreshEstimate) {
-        setLineItems(invoice.line_items || []);
+        const savedItems = invoice.line_items || [];
+        const damageCharge = savedItems.find(item => item.category === "damage_missing");
+        setLineItems(savedItems.filter(item => item.category !== "damage_missing"));
         setPayoutItems(invoice.payout_items || []);
         setForm({
           billing_mode: invoice.billing_mode || "line_item",
@@ -215,6 +231,8 @@ export default function AccountsPage() {
           discount_amount: invoice.discount_amount || 0,
           tax_percent: invoice.tax_percent ?? 18,
           other_amount: invoice.other_amount || 0,
+          damage_charge_amount: Number(damageCharge?.amount || 0),
+          damage_charge_note: damageCharge?.label || "",
           off_days_payable: Boolean(invoice.off_days_payable),
           amount_received: invoice.amount_received || 0,
           payment_received_at: invoice.payment_received_at || "",
@@ -308,11 +326,18 @@ export default function AccountsPage() {
   }
 
   function openPayment(entryType, reference, label, balanceDue) {
+    const maxAmount = Math.max(0, Number(balanceDue || 0));
+    if (maxAmount <= 0) {
+      setMessage("No pending balance is left against this reference. Payment entry is not required.");
+      return;
+    }
     setPaymentDraft({
       entry_type: entryType,
       reference,
       label,
-      amount: Math.max(0, Number(balanceDue || 0)),
+      max_amount: maxAmount,
+      payment_kind: "part",
+      amount: 0,
       payment_date: new Date().toISOString().slice(0, 10),
       payment_mode: "",
       details: "",
@@ -321,12 +346,16 @@ export default function AccountsPage() {
 
   async function saveLedgerPayment() {
     if (!paymentDraft) return;
+    const maxAmount = Math.max(0, Number(paymentDraft.max_amount || 0));
+    const requestedAmount = paymentDraft.payment_kind === "full" ? maxAmount : Number(paymentDraft.amount || 0);
+    if (requestedAmount <= 0) { setMessage("Enter a payment amount greater than zero."); return; }
+    if (requestedAmount > maxAmount) { setMessage(`Payment cannot exceed pending balance INR ${money(maxAmount)}.`); return; }
     try {
-      const data = await api.recordLedgerPayment(paymentDraft);
+      const data = await api.recordLedgerPayment({ ...paymentDraft, amount: requestedAmount });
       setLedger(data);
       setPaymentDraft(null);
       load();
-      setMessage("Part payment entry saved.");
+      setMessage(`${paymentDraft.payment_kind === "full" ? "Full" : "Part"} payment entry saved.`);
     } catch (error) {
       setMessage(String(error.message || error));
     }
@@ -391,8 +420,16 @@ export default function AccountsPage() {
       setMessage("This bill already exists. Only admin can modify it.");
       return;
     }
+    const finalStatuses = ["approved", "sent", "paid", "full_invoice", "final_invoice"];
+    if (finalStatuses.includes(String(form.status || "").toLowerCase()) && !["returned", "closed", "completed"].includes(String(estimate?.booking_status || "").toLowerCase())) {
+      setMessage("Full/final invoice is blocked until the booking is returned or closed. Use Draft / Part Invoice before return.");
+      return;
+    }
     setSaving(true);
     try {
+      const billingLineItems = Number(form.damage_charge_amount || 0) > 0
+        ? [...lineItems, { category: "damage_missing", label: form.damage_charge_note || "Damage / missing item charge", quantity: 1, rate: Number(form.damage_charge_amount || 0), amount: Number(form.damage_charge_amount || 0) }]
+        : lineItems;
       const payload = {
         booking_id: Number(selectedBookingId),
         billing_mode: form.billing_mode,
@@ -411,7 +448,7 @@ export default function AccountsPage() {
         payment_mode: form.payment_mode || null,
         payment_details: form.payment_details || null,
         payment_committed_date: form.payment_committed_date || null,
-        line_items: lineItems,
+        line_items: billingLineItems,
         payout_items: payoutItems,
         notes: form.notes,
       };
@@ -497,17 +534,29 @@ export default function AccountsPage() {
       </div> : null}
 
       {paymentDraft ? <div className="modalOverlay">
-        <div className="modalCard profileModal">
+        <div className="modalCard profileModal accountsPaymentModal">
           <div className="modalHeader">
-            <h2>Record Part Payment</h2>
+            <h2>{paymentDraft.entry_type === "client" ? "Receive Payment" : "Make Payment"}</h2>
             <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentDraft(null)}>Close</button>
           </div>
           <p className="helperText">{paymentDraft.label}</p>
-          <div className="formGrid">
-            <label className="fieldLabel">Reference</label>
-            <input value={paymentDraft.reference} disabled />
+          <div className="accountsSummaryGrid paymentSummaryGrid">
+            <div><span>Reference</span><strong>{paymentDraft.reference}</strong></div>
+            <div><span>Pending Balance</span><strong>INR {money(paymentDraft.max_amount)}</strong></div>
+            <div><span>Action</span><strong>{paymentDraft.entry_type === "client" ? "Receive from client" : "Pay vendor / manpower"}</strong></div>
+          </div>
+          <div className="formGrid paymentFormGrid">
+            <label className="fieldLabel">Payment Type</label>
+            <select value={paymentDraft.payment_kind || "part"} onChange={event => setPaymentDraft({ ...paymentDraft, payment_kind: event.target.value, amount: event.target.value === "full" ? paymentDraft.max_amount : paymentDraft.amount })}>
+              <option value="part">Part Payment</option>
+              <option value="full">Full Payment</option>
+            </select>
             <label className="fieldLabel">Amount</label>
-            <input type="number" value={paymentDraft.amount} onChange={event => setPaymentDraft({ ...paymentDraft, amount: Number(event.target.value || 0) })} />
+            <input type="number" min="0" max={paymentDraft.max_amount || 0} disabled={paymentDraft.payment_kind === "full"} value={paymentDraft.payment_kind === "full" ? paymentDraft.max_amount : paymentDraft.amount} onChange={event => {
+              const maxAmount = Number(paymentDraft.max_amount || 0);
+              const value = Math.min(maxAmount, Math.max(0, Number(event.target.value || 0)));
+              setPaymentDraft({ ...paymentDraft, amount: value });
+            }} />
             <label className="fieldLabel">Payment Date</label>
             <input type="date" value={paymentDraft.payment_date || ""} onChange={event => setPaymentDraft({ ...paymentDraft, payment_date: event.target.value })} />
             <label className="fieldLabel">Mode</label>
@@ -517,9 +566,10 @@ export default function AccountsPage() {
             <label className="fieldLabel full">Details</label>
             <input className="full" value={paymentDraft.details || ""} onChange={event => setPaymentDraft({ ...paymentDraft, details: event.target.value })} placeholder="UTR / voucher / cheque no. / approval note" />
           </div>
+          <div className="qcWarning">System will not allow receipt/payment above INR {money(paymentDraft.max_amount)}.</div>
           <div className="modalFooter">
             <button className="ghostBtn" type="button" onClick={() => setPaymentDraft(null)}>Cancel</button>
-            <button className="primaryBtn" type="button" onClick={saveLedgerPayment}>Save Part Payment</button>
+            <button className="primaryBtn" type="button" onClick={saveLedgerPayment} disabled={Number(paymentDraft.max_amount || 0) <= 0}>Save {paymentDraft.payment_kind === "full" ? "Full" : "Part"} Payment</button>
           </div>
         </div>
       </div> : null}
@@ -643,7 +693,7 @@ export default function AccountsPage() {
         </Card>
       </div>
 
-      <div id="accounts-workspace">
+      <div id="accounts-workspace" ref={workspaceRef} tabIndex="-1">
       <Card title={estimate ? `Billing: ${estimate.job_card_id} - ${estimate.project_title}` : "Billing Workspace"}>
         {!estimate ? (
           <div className="accountsWorkspace">
@@ -685,6 +735,7 @@ export default function AccountsPage() {
         ) : (
           <div className="accountsWorkspace">
             {lockedForUser ? <div className="qcWarning">This bill already exists. Modification is locked for non-admin users.</div> : null}
+            {estimate && !["returned", "closed", "completed"].includes(String(estimate.booking_status || "").toLowerCase()) ? <div className="qcWarning">Booking is not returned/closed yet. Full invoice is blocked; only Draft / Part Invoice is allowed.</div> : null}
             {loading ? <div className="helperText">Loading estimate...</div> : null}
 
             <div className="accountsSummaryGrid">
@@ -716,12 +767,21 @@ export default function AccountsPage() {
               </select>
               <label className="fieldLabel">Bill Status</label>
               <select value={form.status} disabled={lockedForUser} onChange={event => setForm({ ...form, status: event.target.value })}>
-                <option>draft</option><option>approved</option><option>sent</option><option>paid</option><option>cancelled</option>
+                <option value="draft">Draft / Working Bill</option>
+                <option value="part_invoice">Part Invoice</option>
+                <option value="approved">Full Invoice - Approved</option>
+                <option value="sent">Full Invoice - Sent</option>
+                <option value="paid">Paid / Closed Invoice</option>
+                <option value="cancelled">Cancelled</option>
               </select>
               <label className="fieldLabel">Package Amount</label>
               <input type="number" value={form.package_amount} disabled={lockedForUser || form.billing_mode !== "package"} onChange={event => setForm({ ...form, package_amount: event.target.value })} />
               <label className="fieldLabel">Other Charges</label>
               <input type="number" value={form.other_amount} disabled={lockedForUser} onChange={event => setForm({ ...form, other_amount: event.target.value })} />
+              <label className="fieldLabel">Damage / Missing Charge</label>
+              <input type="number" value={form.damage_charge_amount || 0} disabled={lockedForUser} onChange={event => setForm({ ...form, damage_charge_amount: event.target.value })} />
+              <label className="fieldLabel full">Damage / Missing Charge Note</label>
+              <input className="full" value={form.damage_charge_note || ""} disabled={lockedForUser} onChange={event => setForm({ ...form, damage_charge_note: event.target.value })} placeholder="Example: Lens cap missing / Tripod damaged / Client-approved charge" />
               <label className="fieldLabel">Discount</label>
               <input type="number" value={form.discount_amount} disabled={lockedForUser} onChange={event => setForm({ ...form, discount_amount: event.target.value })} />
               <label className="fieldLabel">Tax %</label>
@@ -847,7 +907,7 @@ export default function AccountsPage() {
                               <button className="ghostBtn compactBtn" type="button" disabled={!invoice} onClick={() => viewLedgerInvoice(row.invoice_number)}>View PDF</button>
                               <button className="downloadBtn compactBtn" type="button" disabled={!invoice} onClick={() => downloadLedgerInvoice(row.invoice_number)}>Download</button>
 	                              <button className="ghostBtn compactBtn" type="button" disabled={!invoice} onClick={() => showTallyStatus(invoice)}>Voucher {invoice?.tally_status?.voucher_number || "-"}</button>
-	                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("client", row.invoice_number, `${row.client_name} / ${row.invoice_number}`, row.amount_due)}>Part Receipt</button>
+	                              <button className="primaryBtn compactBtn" type="button" disabled={Number(row.amount_due || 0) <= 0} onClick={() => openPayment("client", row.invoice_number, `${row.client_name} / ${row.invoice_number}`, row.amount_due)}>{Number(row.amount_due || 0) <= 0 ? "Paid" : "Receive"}</button>
 	                              <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.client_name} / ${row.invoice_number}`, payments: row.payments || [] })}>History</button>
 	                            </div>
                           </td>
@@ -873,7 +933,7 @@ export default function AccountsPage() {
                           <td>INR {money(row.amount_due)}</td><td>INR {money(row.amount_paid)}</td><td>INR {money(row.balance_due)}</td><td>{row.payment_mode} · {row.details}</td>
                           <td>
 	                            <div className="invoiceActionGroup ledgerRowActions">
-	                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("manpower", row.reference, `${row.role} / ${row.job_card_id}`, row.balance_due)}>Part Payout</button>
+	                              <button className="primaryBtn compactBtn" type="button" disabled={Number(row.balance_due || 0) <= 0} onClick={() => openPayment("manpower", row.reference, `${row.role} / ${row.job_card_id}`, row.balance_due)}>{Number(row.balance_due || 0) <= 0 ? "Paid" : "Pay"}</button>
 	                              <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.role} / ${row.job_card_id}`, payments: row.payments || [] })}>History</button>
 	                            </div>
                           </td>
@@ -895,7 +955,7 @@ export default function AccountsPage() {
                       <tr key={row.reference}>
                         <td>{row.reference}</td><td>{row.vendor_name}</td><td>{row.category}</td><td>{row.status}</td>
                         <td>INR {money(row.bill_amount)}</td><td>INR {money(row.paid_amount)}</td><td>INR {money(row.due_amount)}</td><td>{row.payment_mode} · {row.details}</td>
-                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("vendor", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Vendor</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
+                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" disabled={Number(row.due_amount || 0) <= 0} onClick={() => openPayment("vendor", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>{Number(row.due_amount || 0) <= 0 ? "Paid" : "Pay Vendor"}</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -913,7 +973,7 @@ export default function AccountsPage() {
                       <tr key={row.reference}>
                         <td>{row.reference}</td><td>{row.vendor_name}</td><td>{row.status}</td>
                         <td>INR {money(row.bill_amount)}</td><td>INR {money(row.paid_amount)}</td><td>INR {money(row.due_amount)}</td><td>{row.payment_mode} · {row.details}</td>
-                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("service", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Service</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
+                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" disabled={Number(row.due_amount || 0) <= 0} onClick={() => openPayment("service", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>{Number(row.due_amount || 0) <= 0 ? "Paid" : "Pay Service"}</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
                       </tr>
                     ))}
                   </tbody>

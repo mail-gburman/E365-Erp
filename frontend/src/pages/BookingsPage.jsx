@@ -33,6 +33,14 @@ function formatEquipmentSummary(items = []) {
   return grouped.map((item) => `${item.name} x${item.count}`).join(", ");
 }
 
+function getPendingReturnCount(booking) {
+  const check = booking?.completion_check || {};
+  const pending = Number(check.pending_count);
+  if (Number.isFinite(pending) && pending >= 0) return pending;
+  if (Array.isArray(check.missing_items)) return check.missing_items.length;
+  return 0;
+}
+
 function pluralizeCount(count, singular, plural) {
   const resolvedPlural = plural || (singular.endsWith("y") ? `${singular.slice(0, -1)}ies` : `${singular}s`);
   return `${count} ${count === 1 ? singular : resolvedPlural}`;
@@ -414,6 +422,288 @@ function DamageLogModal({ open, onClose, booking, onSave }) {
   );
 }
 
+
+/* ───────── PARTIAL RETURN MODAL ───────── */
+function PartialReturnModal({ open, onClose, booking, onSave, onServiceRequired }) {
+  const [returnedBy, setReturnedBy] = useState("Store QC");
+  const [rows, setRows] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open || !booking) return;
+    const existingCounts = {};
+    (booking.partial_returns || []).forEach((row) => {
+      const id = Number(row.inventory_item_id);
+      existingCounts[id] = (existingCounts[id] || 0) + 1;
+    });
+    const consumedExisting = {};
+    const next = {};
+    (booking.equipment || []).forEach((item, index) => {
+      const inventoryId = Number(item.id);
+      const alreadyConsumed = consumedExisting[inventoryId] || 0;
+      const alreadyReturned = existingCounts[inventoryId] || 0;
+      consumedExisting[inventoryId] = alreadyConsumed + 1;
+      if (alreadyConsumed < alreadyReturned) return;
+      const rowKey = `${item.booking_equipment_id || `${inventoryId}-${index}`}`;
+      next[rowKey] = {
+        selected: false,
+        inventory_item_id: inventoryId,
+        item,
+        condition_status: "good",
+        notes: "",
+      };
+    });
+    setRows(next);
+    setReturnedBy("Store QC");
+  }, [open, booking]);
+
+  if (!open || !booking) return null;
+  const pendingItems = Object.entries(rows).map(([rowKey, row]) => ({ rowKey, ...row.item }));
+  const selectedRows = Object.entries(rows).filter(([, value]) => value.selected);
+
+  async function submit() {
+    if (!returnedBy.trim()) return alert("Returned By is required.");
+    if (!selectedRows.length) return alert("Select at least one item to return/account for.");
+    const serviceIssues = selectedRows
+      .map(([, row]) => {
+        const item = row.item;
+        return item ? { ...item, id: row.inventory_item_id, booking_id: booking.id, job_card_id: booking.job_card_id, condition_status: row.condition_status, notes: row.notes || "" } : null;
+      })
+      .filter(item => item && ["damaged", "incomplete"].includes(String(item.condition_status || "").toLowerCase()));
+    setSaving(true);
+    try {
+      for (const [, row] of selectedRows) {
+        await api.createPartialReturn({
+          booking_id: booking.id,
+          inventory_item_ids: [Number(row.inventory_item_id)],
+          returned_by: returnedBy,
+          condition_status: row.condition_status,
+          notes: row.notes || "",
+        });
+      }
+      onSave();
+      onClose();
+      if (serviceIssues.length && typeof onServiceRequired === "function") {
+        onServiceRequired(serviceIssues);
+      }
+    } catch (e) {
+      alert(String(e.message || e));
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modalCard" onClick={e => e.stopPropagation()} style={{maxWidth:760}}>
+        <div className="modalHeader"><h2>Partial Return / Item Accounting - {booking.job_card_id}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
+        <p className="helperText">Select returned/accounted items. Booking cannot be completed until every booked item is either returned, damaged, missing, or incomplete.</p>
+        <div className="formGrid" style={{marginTop:12}}>
+          <label className="fieldLabel">Returned / Accounted By</label>
+          <input value={returnedBy} onChange={e => setReturnedBy(e.target.value)} placeholder="Store / Accounts user" />
+        </div>
+        <div className="tableWrap" style={{marginTop:12}}>
+          <table>
+            <thead><tr><th>Select</th><th>Asset</th><th>Item</th><th>Condition</th><th>Issue / Notes</th></tr></thead>
+            <tbody>
+              {pendingItems.length === 0 ? <tr><td colSpan="5" className="helperText">All items are already accounted for.</td></tr> : pendingItems.map(item => (
+                <tr key={item.rowKey}>
+                  <td><input type="checkbox" checked={Boolean(rows[item.rowKey]?.selected)} onChange={e => setRows(prev => ({ ...prev, [item.rowKey]: { ...prev[item.rowKey], selected: e.target.checked } }))} /></td>
+                  <td>{item.asset_code}</td>
+                  <td>{item.name}</td>
+                  <td>
+                    <select className="tableInput" value={rows[item.rowKey]?.condition_status || "good"} onChange={e => setRows(prev => ({ ...prev, [item.rowKey]: { ...prev[item.rowKey], condition_status: e.target.value, selected: true } }))}>
+                      <option value="good">Returned - Good</option>
+                      <option value="damaged">Returned - Damaged</option>
+                      <option value="missing">Missing</option>
+                      <option value="incomplete">Incomplete Kit / Accessory Missing</option>
+                    </select>
+                  </td>
+                  <td><input className="tableInput" value={rows[item.rowKey]?.notes || ""} onChange={e => setRows(prev => ({ ...prev, [item.rowKey]: { ...prev[item.rowKey], notes: e.target.value, selected: true } }))} placeholder="Issue details / client charge note" /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="modalFooter" style={{marginTop:12}}>
+          <button className="ghostBtn" onClick={onClose}>Cancel</button>
+          <button className="primaryBtn" onClick={submit} disabled={saving || !selectedRows.length}>{saving ? "Saving..." : "Save Partial Return"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── RETURN ISSUE → SERVICE ROUTING MODAL ───────── */
+function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const current = open && issues?.length ? issues[0] : null;
+  const [form, setForm] = useState({});
+  const [photoFiles, setPhotoFiles] = useState([]);
+  const [photoCaption, setPhotoCaption] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!current) return;
+    const issueText = `${current.condition_status === "incomplete" ? "Incomplete kit/accessory issue" : "Damage reported"}${current.notes ? `: ${current.notes}` : ""}`;
+    setForm({
+      service_scope: "inhouse",
+      vendor_id: "",
+      vendor_name: "",
+      sent_date: today,
+      expected_return_date: "",
+      transport_mode: "courier",
+      courier_partner: "",
+      awb_number: "",
+      contact_person_name: "",
+      contact_person_mobile: "",
+      alternate_contact_name: "",
+      alternate_contact_mobile: "",
+      contact_email: "",
+      pickup_address: "KPS Kolkata Office",
+      delivery_address: "",
+      package_count: 1,
+      declared_value: "",
+      package_notes: "",
+      problem_reported: issueText,
+      remarks: `Auto-routed from partial return of ${current.job_card_id || "booking"}.`,
+      service_bill_amount: 0,
+    });
+    setPhotoFiles([]);
+    setPhotoCaption("");
+  }, [current?.id, current?.condition_status, current?.notes]);
+
+  if (!open || !current) return null;
+  const isInhouse = form.service_scope !== "vendor";
+
+  async function saveService() {
+    if (!form.problem_reported?.trim()) return alert("Problem reported is required.");
+    if (!isInhouse && !form.vendor_name?.trim()) return alert("Vendor name is required for external service.");
+    setSaving(true);
+    try {
+      const damage = await api.createDamage({
+        booking_id: current.booking_id,
+        inventory_item_id: Number(current.id),
+        damage_description: form.problem_reported,
+        severity: current.condition_status === "incomplete" ? "major" : "minor",
+        reported_by: "Store QC",
+        stage: "return",
+        auto_create_service_job: false,
+      });
+      const created = await api.createServiceJob({
+        ...form,
+        service_scope: undefined,
+        inventory_item_id: Number(current.id),
+        vendor_id: isInhouse ? null : (form.vendor_id ? Number(form.vendor_id) : null),
+        vendor_name: isInhouse ? "KPS Inhouse Service" : form.vendor_name,
+        expected_return_date: form.expected_return_date || null,
+        actual_return_date: null,
+        package_count: Number(form.package_count || 1),
+        declared_value: form.declared_value === "" ? null : Number(form.declared_value),
+        transport_mode: isInhouse ? "inhouse" : form.transport_mode,
+        pickup_address: form.pickup_address || "KPS Kolkata Office",
+        delivery_address: isInhouse ? "KPS Inhouse Service Desk" : form.delivery_address,
+        awb_number: !isInhouse && form.transport_mode === "courier" ? form.awb_number : null,
+        courier_partner: !isInhouse && form.transport_mode === "courier" ? form.courier_partner : null,
+        source_booking_id: current.booking_id,
+        source_damage_id: damage?.id || null,
+      });
+      if (photoFiles.length) {
+        await api.uploadServiceAttachments(created.id, photoFiles, photoCaption || "Return damage photos");
+      }
+      onSaved();
+    } catch (e) {
+      alert(String(e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modalCard returnServiceModal" onClick={e => e.stopPropagation()}>
+        <div className="modalHeader">
+          <h2>Route Return Issue to Service</h2>
+          <button className="ghostBtn compactBtn" onClick={onClose}>Close</button>
+        </div>
+        <div className="serviceRouteBanner">
+          Partial return found damage/incomplete equipment. Create the service job now before closing the return flow.
+        </div>
+        <div className="serviceRouteItem">
+          <div>
+            <strong>{current.asset_code} — {current.name}</strong>
+            <span>{current.condition_status} · {current.notes || "No extra note"}</span>
+          </div>
+          <span>{issues.length > 1 ? `${issues.length - 1} more pending` : "Last issue"}</span>
+        </div>
+        <div className="formGrid">
+          <div className="full serviceSectionTitle">1. Basic Service Entry</div>
+          <select className="full" value={form.service_scope || "inhouse"} onChange={e => setForm({ ...form, service_scope: e.target.value })}>
+            <option value="inhouse">Inhouse Service</option>
+            <option value="vendor">Vendor / External Service</option>
+          </select>
+          {isInhouse ? <input value="KPS Inhouse Service" disabled /> : <>
+            <select value={form.vendor_id || ""} onChange={e => {
+              const vid = e.target.value;
+              const vendorObj = (vendors || []).find(v => String(v.id) === vid);
+              setForm({
+                ...form,
+                vendor_id: vid,
+                vendor_name: vendorObj ? vendorObj.name : form.vendor_name,
+                contact_person_mobile: form.contact_person_mobile || vendorObj?.phone || "",
+                delivery_address: form.delivery_address || [vendorObj?.address, vendorObj?.city].filter(Boolean).join(", "),
+              });
+            }}>
+              <option value="">Select Vendor</option>
+              {(vendors || []).map(v => <option key={v.id} value={v.id}>{v.vendor_code} - {v.name}</option>)}
+            </select>
+            <AutocompleteInput value={form.vendor_name || ""} onChange={v => setForm({ ...form, vendor_name: v })} suggestions={(vendors || []).map(v => v.name)} placeholder="Vendor Name" />
+          </>}
+          <input type="date" value={form.sent_date || today} onChange={e => setForm({ ...form, sent_date: e.target.value })} />
+          <input type="date" value={form.expected_return_date || ""} onChange={e => setForm({ ...form, expected_return_date: e.target.value })} />
+
+          {isInhouse ? <>
+            <div className="full serviceSectionTitle">2. Inhouse Details</div>
+            <textarea className="full" placeholder="Internal service desk / technician notes" value={form.package_notes || ""} onChange={e => setForm({ ...form, package_notes: e.target.value })}></textarea>
+          </> : <>
+            <div className="full serviceSectionTitle">2. Dispatch / Transport Details</div>
+            <select value={form.transport_mode || "courier"} onChange={e => setForm({ ...form, transport_mode: e.target.value })}>
+              <option value="courier">Courier</option>
+              <option value="hand_delivery">Hand Delivery</option>
+              <option value="pickup_by_vendor">Pickup by Vendor</option>
+              <option value="company_vehicle">Company Vehicle</option>
+              <option value="other">Other</option>
+            </select>
+            <input placeholder="Courier / Logistics Partner" value={form.courier_partner || ""} onChange={e => setForm({ ...form, courier_partner: e.target.value })} />
+            <input placeholder="AWB / Docket / Tracking Number" value={form.awb_number || ""} onChange={e => setForm({ ...form, awb_number: e.target.value })} />
+            <input placeholder="Primary Contact Name" value={form.contact_person_name || ""} onChange={e => setForm({ ...form, contact_person_name: e.target.value })} />
+            <input placeholder="Primary Contact Mobile" value={form.contact_person_mobile || ""} onChange={e => setForm({ ...form, contact_person_mobile: e.target.value })} />
+            <input placeholder="Alternate Contact Name" value={form.alternate_contact_name || ""} onChange={e => setForm({ ...form, alternate_contact_name: e.target.value })} />
+            <input placeholder="Alternate Contact Mobile" value={form.alternate_contact_mobile || ""} onChange={e => setForm({ ...form, alternate_contact_mobile: e.target.value })} />
+            <input placeholder="Contact Email" value={form.contact_email || ""} onChange={e => setForm({ ...form, contact_email: e.target.value })} />
+            <textarea className="full" placeholder="Pickup Address / From Address" value={form.pickup_address || ""} onChange={e => setForm({ ...form, pickup_address: e.target.value })}></textarea>
+            <textarea className="full" placeholder="Delivery Address / Service Centre Address" value={form.delivery_address || ""} onChange={e => setForm({ ...form, delivery_address: e.target.value })}></textarea>
+            <input type="number" min="1" placeholder="Package Count" value={form.package_count || 1} onChange={e => setForm({ ...form, package_count: e.target.value })} />
+            <input type="number" min="0" step="0.01" placeholder="Declared Value" value={form.declared_value || ""} onChange={e => setForm({ ...form, declared_value: e.target.value })} />
+            <textarea className="full" placeholder="Package Notes / Contents / Insurance Remarks" value={form.package_notes || ""} onChange={e => setForm({ ...form, package_notes: e.target.value })}></textarea>
+          </>}
+
+          <div className="full serviceSectionTitle">3. Photos and Problem</div>
+          <label className="full uploadDropZone">
+            <span>Choose damage photos</span>
+            <input type="file" accept="image/*" multiple onChange={e => setPhotoFiles(Array.from(e.target.files || []))} />
+          </label>
+          <input className="full" placeholder="Photo caption" value={photoCaption} onChange={e => setPhotoCaption(e.target.value)} />
+          <textarea className="full" placeholder="Problem Reported" value={form.problem_reported || ""} onChange={e => setForm({ ...form, problem_reported: e.target.value })}></textarea>
+          <textarea className="full" placeholder="Internal Remarks" value={form.remarks || ""} onChange={e => setForm({ ...form, remarks: e.target.value })}></textarea>
+        </div>
+        <div className="modalFooter" style={{marginTop:12}}>
+          <button className="ghostBtn" onClick={onClose}>Do Later</button>
+          <button className="primaryBtn" onClick={saveService} disabled={saving}>{saving ? "Saving..." : "Create Service Job"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ───────── EDIT BOOKING MODAL ───────── */
 function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
   const [form, setForm] = useState({});
@@ -563,6 +853,7 @@ export default function BookingsPage() {
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [crew, setCrew] = useState([]);
   const [bookingDetails, setBookingDetails] = useState([]);
@@ -618,6 +909,9 @@ export default function BookingsPage() {
   const [cancelBookingId, setCancelBookingId] = useState(null);
   const [damageModal, setDamageModal] = useState(false);
   const [damageBooking, setDamageBooking] = useState(null);
+  const [partialReturnModal, setPartialReturnModal] = useState(false);
+  const [partialReturnBooking, setPartialReturnBooking] = useState(null);
+  const [returnServiceIssues, setReturnServiceIssues] = useState([]);
   const [editModal, setEditModal] = useState(false);
   const [editBooking, setEditBooking] = useState(null);
   const [plannedShoots, setPlannedShoots] = useState([]);
@@ -625,6 +919,21 @@ export default function BookingsPage() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
   const [quickProjectSaving, setQuickProjectSaving] = useState(false);
+
+
+  function openReturnServiceFlow(issues) {
+    setReturnServiceIssues(issues || []);
+  }
+
+  function handleReturnServiceSaved() {
+    setReturnServiceIssues(prev => {
+      const next = (prev || []).slice(1);
+      if (!next.length) {
+        window.setTimeout(() => { load(); setMessage("Service job created for return issue."); }, 0);
+      }
+      return next;
+    });
+  }
 
   async function doJobCardDownload(id, jobCardId) {
     try {
@@ -641,6 +950,7 @@ export default function BookingsPage() {
     });
     api.clients().then(setClients);
     api.warehouses().then(setWarehouses);
+    api.vendors().then(setVendors);
     api.inventory().then(setInventory);
     api.crew().then(setCrew);
     api.bookingDetails().then(setBookingDetails);
@@ -943,6 +1253,16 @@ export default function BookingsPage() {
   }
 
   async function doDispatch(id) { try { await api.dispatchBooking(id); setMessage("Booking dispatched."); load(); } catch(e){ setMessage(String(e.message||e)); } }
+
+  async function doCompleteBooking(id) {
+    try {
+      const result = await api.completeBooking(id, { checked_by: "Store QC", remarks: "Completed from booking workspace" });
+      setMessage(result?.message || "Booking completed after item parity check.");
+      load();
+    } catch(e) {
+      setMessage(String(e.message || e));
+    }
+  }
 
   // Return QC modal state
   const [returnQCModal, setReturnQCModal] = useState(false);
@@ -1579,12 +1899,15 @@ export default function BookingsPage() {
           <table>
             <thead><tr><th>Job Card ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>Equipment</th><th>Crew</th><th>Status</th><th>Damages</th><th>Downloadable Documents</th><th>Actions</th></tr></thead>
             <tbody>
-              {bkPg.pageData.map(b => (
+              {bkPg.pageData.map(b => {
+                const pendingReturnCount = getPendingReturnCount(b);
+                return (
                 <tr key={b.id}>
                   <td>
                     <strong>{b.job_card_id}</strong>
                     {b.parent_booking_id ? <span className="badge badgeOptional" style={{marginLeft:4,fontSize:10}}>Supplementary</span> : null}
                     {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {b.reference_job_card_id}</div> : null}
+                    {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
                   </td>
                   <td>{b.project_title}</td>
                   <td>{b.destination}</td>
@@ -1624,25 +1947,31 @@ export default function BookingsPage() {
                     ) : <span style={{color:"#4ade80",fontSize:12}}>None</span>}
                   </td>
                   <td className="pdfCell">
-                    <div className="documentDownloadCell">
-                      <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, b.job_card_id)}>Job Card</button>
-                      <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
-                      <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
-                    </div>
+                    { ["confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(b.status) ? (
+                      <div className="documentDownloadCell">
+                        <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, b.job_card_id)}>Job Card</button>
+                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
+                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
+                      </div>
+                    ) : (
+                      <span className="helperText">Confirm shoot first</span>
+                    )}
                   </td>
                   <td className="actionCell">
                     <div className="actionButtonGroup">
                       {(b.status === "confirmed" || b.status === "blocked") && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(b.id)}>Dispatch</button>}
-                      {(b.status === "confirmed" || b.status === "blocked" || b.status === "dispatched") && <button className="ghostBtn compactBtn" onClick={()=>openReturnQC(b.id)}>Return</button>}
-                      <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage</button>
-                      <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>
-                      <button className="ghostBtn compactBtn" onClick={()=>prefillFromBooking(b)}>Supplementary</button>
-                      {["confirmed","blocked","dispatched"].includes(b.status) && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
+                      {b.status === "dispatched" && <button className="ghostBtn compactBtn" onClick={()=>{setPartialReturnBooking(b); setPartialReturnModal(true);}}>Partial Return</button>}
+                      {b.status === "dispatched" && <button className="primaryBtn compactBtn" onClick={()=>doCompleteBooking(b.id)}>Complete Booking</button>}
+                      {["dispatched", "returned"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage / Missing</button>}
+                      {! ["dispatched", "returned", "cancelled"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>}
+                      {["confirmed","blocked"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>prefillFromBooking(b)}>Supplementary</button>}
+                      {["confirmed","blocked"].includes(b.status) && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
                       {b.status !== "returned" && b.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(b.id);setCancelModal(true);}}>Cancel</button>}
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1658,6 +1987,8 @@ export default function BookingsPage() {
       <SearchModal open={modifyCrewModal} onClose={() => setModifyCrewModal(false)} title="Search Manpower (Modify)" resourceType="crew" availabilityParams={modifyWindow()} onConfirmItems={addModifyCrew} />
       <CancelReasonModal open={cancelModal} onClose={() => setCancelModal(false)} onConfirm={doCancel} />
       <DamageLogModal open={damageModal} onClose={() => setDamageModal(false)} booking={damageBooking} onSave={load} />
+      <PartialReturnModal open={partialReturnModal} onClose={() => setPartialReturnModal(false)} booking={partialReturnBooking} onSave={load} onServiceRequired={openReturnServiceFlow} />
+      <ReturnServiceRoutingModal open={returnServiceIssues.length > 0} issues={returnServiceIssues} vendors={vendors} onClose={() => { setReturnServiceIssues([]); load(); }} onSaved={handleReturnServiceSaved} />
       <EditBookingModal open={editModal} onClose={() => setEditModal(false)} booking={editBooking} project={projects.find((item) => item.id === editBooking?.project_id)} onConfirmSave={requestEditBooking} />
       <ConfirmActionModal
         open={!!confirmAction}
@@ -1687,7 +2018,7 @@ export default function BookingsPage() {
               <textarea value={qcForm.remarks} onChange={e => setQcForm({ ...qcForm, remarks: e.target.value })} placeholder="Any notes about condition, missing items, damage..." rows={3} />
             </div>
             {qcForm.damage_found && <div className="qcWarning">Damage flagged. Use the "Damage" button to log per-item details.</div>}
-            {!qcForm.all_items_returned && <div className="qcWarning">Not all items returned. Use Partial Return in Operations.</div>}
+            {!qcForm.all_items_returned && <div className="qcWarning">Not all items returned/accounted. Use Partial Return, then Complete Booking parity check.</div>}
             <div className="modalFooter">
               <button className="ghostBtn" type="button" onClick={() => setReturnQCModal(false)}>Cancel</button>
               <button className="primaryBtn" type="button" onClick={submitReturnQC} disabled={qcSubmitting}>{qcSubmitting ? "Processing..." : "Complete QC & Return"}</button>

@@ -841,3 +841,59 @@ button:disabled{opacity:.6;cursor:not-allowed;}
 .serviceAttachmentMeta{padding:8px;display:grid;gap:4px;font-size:11px;word-break:break-word;}
 .serviceAttachmentMeta strong{font-size:11px;line-height:1.35;}
 .serviceAttachmentActions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+
+/* ──── PAYMENT MODAL FIXES ──── */
+.accountsPaymentModal{
+  max-width:860px;
+  width:min(860px,94vw);
+}
+.paymentSummaryGrid{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  align-items:stretch;
+  margin:10px 0 14px;
+}
+.paymentSummaryGrid>div{
+  min-width:0;
+  overflow:hidden;
+}
+.paymentSummaryGrid strong{
+  display:block;
+  font-size:18px;
+  line-height:1.25;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+.paymentFormGrid{
+  grid-template-columns:minmax(150px,.55fr) minmax(260px,1fr);
+  align-items:center;
+}
+.paymentFormGrid .fieldLabel{
+  margin:0;
+  align-self:center;
+}
+.paymentFormGrid input,
+.paymentFormGrid select,
+.paymentFormGrid textarea{
+  min-width:0;
+}
+@media(max-width:760px){
+  .paymentSummaryGrid{grid-template-columns:1fr;}
+  .paymentFormGrid{grid-template-columns:1fr;}
+}
+
+/* ──── RETURN → SERVICE ROUTING MODAL ──── */
+.returnServiceModal{max-width:920px;width:min(920px,94vw);}
+.serviceRouteBanner{background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.28);color:#fde68a;border-radius:14px;padding:12px 14px;margin:10px 0 14px;line-height:1.45;}
+.serviceRouteItem{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:16px;padding:12px 14px;margin-bottom:12px;}
+.serviceRouteItem strong{display:block;font-size:18px;}
+.serviceRouteItem span{color:var(--muted);font-size:12px;}
+
+.pendingReturnLine{
+  margin-top:8px;
+  display:block;
+  font-size:13px;
+  font-weight:800;
+  line-height:1.25;
+  color:#fbbf24;
+  letter-spacing:.01em;
+}

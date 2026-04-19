@@ -7,8 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import Base, engine, SessionLocal
 from .seed import seed_db
 from .routers import auth_router, masters, projects, bookings, service_jobs, papers, dashboard, admin_router, system_router, audit_router, accounts, tally
+from .routers import quotes as quotes_router
 
-app = FastAPI(title="KPS ERP Enterprise API", version="8.9.9")
+app = FastAPI(title="KPS ERP Enterprise API", version="9.0.0")
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -181,6 +182,7 @@ app.include_router(tally.integration_router)
 app.include_router(tally.accounts_tally_router)
 app.include_router(system_router.router)
 app.include_router(audit_router.router)
+app.include_router(quotes_router.router)
 
 @app.get("/")
 def root():

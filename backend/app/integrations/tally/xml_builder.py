@@ -1,88 +1,109 @@
-from datetime import date, datetime
-from html import escape
+from __future__ import annotations
 
-def _date(value) -> str:
-    if isinstance(value, datetime):
-        return value.strftime("%Y%m%d")
-    if isinstance(value, date):
-        return value.strftime("%Y%m%d")
-    if isinstance(value, str):
-        return value.replace("-", "")[:8]
-    return datetime.utcnow().strftime("%Y%m%d")
+from datetime import datetime
+from xml.sax.saxutils import escape
+
+
+def _x(value) -> str:
+    return escape("" if value is None else str(value), {"'": "&apos;", '"': "&quot;"})
+
 
 def _amount(value) -> str:
-    return f"{float(value or 0):.2f}"
+    try:
+        return f"{float(value or 0):.2f}"
+    except Exception:
+        return "0.00"
 
-def envelope(body: str, company_name: str | None = None) -> str:
-    company = f"<SVCURRENTCOMPANY>{escape(company_name)}</SVCURRENTCOMPANY>" if company_name else ""
+
+def _date(value=None) -> str:
+    if not value:
+        return datetime.now().strftime("%Y%m%d")
+    text = str(value)
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).strftime("%Y%m%d")
+    except Exception:
+        return text[:10].replace("-", "") if len(text) >= 10 else datetime.now().strftime("%Y%m%d")
+
+
+def _ledger(mapping: dict, key: str, default: str) -> str:
+    return mapping.get(key) or default
+
+
+def _envelope(body: str) -> str:
     return f"""<ENVELOPE>
 <HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>
-<BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME><STATICVARIABLES>{company}</STATICVARIABLES></REQUESTDESC>
-<REQUESTDATA>{body}</REQUESTDATA></IMPORTDATA></BODY>
+<BODY><IMPORTDATA>
+<REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC>
+<REQUESTDATA>{body}</REQUESTDATA>
+</IMPORTDATA></BODY>
 </ENVELOPE>"""
 
-def build_sales_voucher_xml(invoice: dict, mapping: dict, company_name: str | None) -> str:
-    voucher_type = mapping.get("voucher_type") or "Sales"
-    customer = mapping.get("client_ledger") or invoice.get("client_name") or "Sundry Debtors"
-    sales_ledger = mapping.get("sales_ledger") or "Sales"
-    tax_ledger = mapping.get("tax_ledger") or "Output GST"
-    roundoff_ledger = mapping.get("roundoff_ledger") or "Round Off"
-    invoice_no = invoice.get("invoice_number") or invoice.get("source_document_no")
-    total = float(invoice.get("total_amount") or 0)
-    tax = float(invoice.get("tax_amount") or 0)
-    subtotal = float(invoice.get("subtotal_amount") or 0)
-    lines = [
-        f"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(customer)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{_amount(total)}</AMOUNT></ALLLEDGERENTRIES.LIST>",
-        f"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(sales_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{_amount(subtotal)}</AMOUNT></ALLLEDGERENTRIES.LIST>",
-    ]
-    if tax:
-        lines.append(f"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(tax_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{_amount(tax)}</AMOUNT></ALLLEDGERENTRIES.LIST>")
-    if invoice.get("round_off_amount"):
-        lines.append(f"<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(roundoff_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{_amount(invoice.get('round_off_amount'))}</AMOUNT></ALLLEDGERENTRIES.LIST>")
-    body = f"""<TALLYMESSAGE xmlns:UDF="TallyUDF">
-<VOUCHER VCHTYPE="{escape(voucher_type)}" ACTION="Create" OBJVIEW="Invoice Voucher View">
-<DATE>{_date(invoice.get("invoice_date") or invoice.get("created_at"))}</DATE>
-<VOUCHERTYPENAME>{escape(voucher_type)}</VOUCHERTYPENAME>
-<VOUCHERNUMBER>{escape(invoice_no)}</VOUCHERNUMBER>
-<REFERENCE>{escape(invoice_no)}</REFERENCE>
-<PARTYLEDGERNAME>{escape(customer)}</PARTYLEDGERNAME>
-<NARRATION>{escape(invoice.get("narration") or f"ERP invoice {invoice_no}")}</NARRATION>
-{''.join(lines)}
-</VOUCHER></TALLYMESSAGE>"""
-    return envelope(body, company_name)
 
-def build_receipt_voucher_xml(receipt: dict, mapping: dict, company_name: str | None) -> str:
-    voucher_type = mapping.get("voucher_type") or "Receipt"
-    customer = mapping.get("client_ledger") or receipt.get("client_name") or "Sundry Debtors"
-    receipt_ledger = mapping.get("receipt_ledger") or receipt.get("payment_mode") or "Bank"
-    ref = receipt.get("reference") or receipt.get("invoice_number")
-    amount = float(receipt.get("amount") or 0)
-    body = f"""<TALLYMESSAGE xmlns:UDF="TallyUDF">
-<VOUCHER VCHTYPE="{escape(voucher_type)}" ACTION="Create">
-<DATE>{_date(receipt.get("payment_date"))}</DATE>
-<VOUCHERTYPENAME>{escape(voucher_type)}</VOUCHERTYPENAME>
-<REFERENCE>{escape(ref)}</REFERENCE>
-<NARRATION>{escape(receipt.get("details") or f"ERP receipt against {ref}")}</NARRATION>
-<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(receipt_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{_amount(amount)}</AMOUNT></ALLLEDGERENTRIES.LIST>
-<ALLLEDGERENTRIES.LIST><LEDGERNAME>{escape(customer)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{_amount(amount)}</AMOUNT><BILLALLOCATIONS.LIST><NAME>{escape(ref)}</NAME><BILLTYPE>Agst Ref</BILLTYPE><AMOUNT>{_amount(amount)}</AMOUNT></BILLALLOCATIONS.LIST></ALLLEDGERENTRIES.LIST>
-</VOUCHER></TALLYMESSAGE>"""
-    return envelope(body, company_name)
+def build_sales_voucher_xml(payload: dict, mapping: dict | None = None, company_name: str | None = None) -> str:
+    mapping = mapping or payload.get("mapping") or {}
+    party = payload.get("client_name") or "Client"
+    voucher_type = _ledger(mapping, "sales", "Sales")
+    sales_ledger = _ledger(mapping, "sales_income", "Sales")
+    debtor_ledger = party
+    total = _amount(payload.get("total_amount"))
+    subtotal = _amount(payload.get("subtotal_amount"))
+    tax_amount = float(payload.get("tax_amount") or 0)
+    invoice_no = payload.get("invoice_number") or payload.get("invoice_id") or "KPS-INVOICE"
+    narration = payload.get("notes") or f"KPS invoice {invoice_no} for {payload.get('project_title') or payload.get('job_card_id') or ''}"
+    ledger_entries = f"""
+<ALLLEDGERENTRIES.LIST>
+<LEDGERNAME>{_x(debtor_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{total}</AMOUNT>
+</ALLLEDGERENTRIES.LIST>
+<ALLLEDGERENTRIES.LIST>
+<LEDGERNAME>{_x(sales_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{subtotal}</AMOUNT>
+</ALLLEDGERENTRIES.LIST>"""
+    if tax_amount:
+        tax_ledger = _ledger(mapping, "cgst", "CGST") if not payload.get("client_gst_number") else _ledger(mapping, "igst", "IGST")
+        ledger_entries += f"""
+<ALLLEDGERENTRIES.LIST>
+<LEDGERNAME>{_x(tax_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{_amount(tax_amount)}</AMOUNT>
+</ALLLEDGERENTRIES.LIST>"""
+    voucher = f"""
+<TALLYMESSAGE xmlns:UDF="TallyUDF">
+<VOUCHER VCHTYPE="{_x(voucher_type)}" ACTION="Create" OBJVIEW="Invoice Voucher View">
+<DATE>{_date(payload.get('date'))}</DATE>
+<VOUCHERTYPENAME>{_x(voucher_type)}</VOUCHERTYPENAME>
+<VOUCHERNUMBER>{_x(invoice_no)}</VOUCHERNUMBER>
+<REFERENCE>{_x(invoice_no)}</REFERENCE>
+<PARTYLEDGERNAME>{_x(party)}</PARTYLEDGERNAME>
+<NARRATION>{_x(narration)}</NARRATION>
+{ledger_entries}
+</VOUCHER>
+</TALLYMESSAGE>"""
+    return _envelope(voucher)
 
-def build_ledger_master_xml(customer: dict, mapping: dict, company_name: str | None) -> str:
-    name = mapping.get("client_ledger") or customer.get("name")
-    body = f"""<TALLYMESSAGE xmlns:UDF="TallyUDF"><LEDGER NAME="{escape(name)}" ACTION="Create">
-<NAME>{escape(name)}</NAME><PARENT>Sundry Debtors</PARENT><ISBILLWISEON>Yes</ISBILLWISEON>
-</LEDGER></TALLYMESSAGE>"""
-    return envelope(body, company_name)
 
-def build_query_voucher_xml(reference_no: str, company_name: str | None) -> str:
-    company = f"<SVCURRENTCOMPANY>{escape(company_name)}</SVCURRENTCOMPANY>" if company_name else ""
-    return f"""<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA>
-<REQUESTDESC><REPORTNAME>Voucher Register</REPORTNAME><STATICVARIABLES>{company}<SVFROMDATE>20000101</SVFROMDATE><SVTODATE>20991231</SVTODATE></STATICVARIABLES></REQUESTDESC>
-<REQUESTDATA><REFERENCE>{escape(reference_no)}</REFERENCE></REQUESTDATA></EXPORTDATA></BODY></ENVELOPE>"""
+def build_receipt_voucher_xml(payload: dict, mapping: dict | None = None, company_name: str | None = None) -> str:
+    mapping = mapping or payload.get("mapping") or {}
+    party = payload.get("client_name") or "Client"
+    voucher_type = _ledger(mapping, "receipt", "Receipt")
+    cash_or_bank = _ledger(mapping, "bank", "Bank Accounts") if (payload.get("payment_mode") or "").lower() not in {"cash"} else _ledger(mapping, "cash", "Cash")
+    amount = _amount(payload.get("receipt_amount") or payload.get("amount_received"))
+    invoice_no = payload.get("invoice_number") or "KPS-RECEIPT"
+    voucher = f"""
+<TALLYMESSAGE xmlns:UDF="TallyUDF">
+<VOUCHER VCHTYPE="{_x(voucher_type)}" ACTION="Create">
+<DATE>{_date(payload.get('receipt_date') or payload.get('payment_received_at'))}</DATE>
+<VOUCHERTYPENAME>{_x(voucher_type)}</VOUCHERTYPENAME>
+<VOUCHERNUMBER>{_x(invoice_no)}-RCPT</VOUCHERNUMBER>
+<REFERENCE>{_x(invoice_no)}</REFERENCE>
+<PARTYLEDGERNAME>{_x(party)}</PARTYLEDGERNAME>
+<NARRATION>{_x('Receipt against ' + str(invoice_no))}</NARRATION>
+<ALLLEDGERENTRIES.LIST><LEDGERNAME>{_x(cash_or_bank)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{amount}</AMOUNT></ALLLEDGERENTRIES.LIST>
+<ALLLEDGERENTRIES.LIST><LEDGERNAME>{_x(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>{amount}</AMOUNT></ALLLEDGERENTRIES.LIST>
+</VOUCHER>
+</TALLYMESSAGE>"""
+    return _envelope(voucher)
 
-def build_outstanding_query_xml(ledger_name: str, company_name: str | None) -> str:
-    company = f"<SVCURRENTCOMPANY>{escape(company_name)}</SVCURRENTCOMPANY>" if company_name else ""
-    return f"""<ENVELOPE><HEADER><TALLYREQUEST>Export Data</TALLYREQUEST></HEADER><BODY><EXPORTDATA>
-<REQUESTDESC><REPORTNAME>Bills Receivable</REPORTNAME><STATICVARIABLES>{company}<LEDGERNAME>{escape(ledger_name)}</LEDGERNAME></STATICVARIABLES></REQUESTDESC>
-</EXPORTDATA></BODY></ENVELOPE>"""
+
+def build_query_voucher_xml(voucher_number: str) -> str:
+    return f"""<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Object</TYPE><SUBTYPE>Voucher</SUBTYPE><ID TYPE="Name">{_x(voucher_number)}</ID></HEADER><BODY><DESC><FETCHLIST><FETCH>VoucherNumber</FETCH><FETCH>MasterID</FETCH></FETCHLIST></DESC></BODY></ENVELOPE>"""
+
+
+def build_outstanding_query_xml(party_name: str) -> str:
+    return f"""<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>Bills Receivable</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT><LEDGERNAME>{_x(party_name)}</LEDGERNAME></STATICVARIABLES></DESC></BODY></ENVELOPE>"""

@@ -1,0 +1,7 @@
+Pending return display/count fix
+
+- Pending return count now uses backend pending_count, not grouped missing row length.
+- Duplicate same inventory item quantities are accounted one occurrence at a time.
+- A single partial return no longer clears every duplicate booking row for the same item.
+- Pending return is now shown clearly below the Job Card ID in bold.
+- Partial Return modal now keeps duplicate booked occurrences selectable separately.

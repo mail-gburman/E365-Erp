@@ -313,3 +313,66 @@ For a straightforward non-Docker deployment:
 - Fixed Job Card / Challan, Gate Pass, Service PDF, and Paper PDF buttons to download with auth headers instead of plain anchor links
 - Resolved `not authenticated` errors when clicking protected PDF endpoints
 - Tightened table button styling so PDF buttons no longer overlap adjacent action buttons
+
+
+---
+
+## v8.9.3 statutory + UX pass (master branch)
+- Statutory validation for Aadhaar (Verhoeff checksum), GSTIN (Luhn-mod-36 + state decode + embedded PAN), PAN, Passport, Voter ID, Driver's Licence
+- "Others" ID proof type with free-text description field
+- Live validation badges + optional server verify endpoint
+- PAN field on Client, Vendor, and Crew forms
+- Blood group dropdown + emergency contact on crew
+- Booking page 4-tab header: New Booking / Modify Booking / Planned Booking / All Bookings
+- Modify Shoot modal: pre-populated with all existing dates, equipment, accessories, and crew
+- Country code dropdown on every phone field across the project (100+ countries, India default)
+
+
+---
+
+# Tier_V Feature Branches
+
+This project is incrementally extended through numbered branches. Each branch builds on all prior branches (merged forward). The final consolidated branch is `Tier_V_FINAL`.
+
+## How to switch branches
+
+```bash
+# List all tier branches
+git branch -r | grep Tier_V
+
+# Checkout a specific tier
+git fetch origin
+git checkout Tier_V_01          # Quotations
+git checkout Tier_V_02          # E-Way Bill
+# ... and so on
+git checkout Tier_V_FINAL       # All features merged
+```
+
+## What each branch contains
+
+| Branch | Feature | Key files added / changed |
+|--------|---------|--------------------------|
+| `Tier_V_01` | **Quotation / Proposal module** — quote creation, versioning, expiry, PDF output, convert-to-booking | `backend/app/routers/quotes.py`, `frontend/src/pages/QuotesPage.jsx` |
+| `Tier_V_02` | **E-Way Bill** — fields on road challan, vehicle/GSTIN/value, state-crossing detection | `backend/app/routers/eway.py`, frontend E-Way section in Operations |
+| `Tier_V_03` | **Purchase Orders** — PO to vendors, GRN, PO→bill matching, approval workflow | `backend/app/routers/purchase_orders.py`, `frontend/src/pages/PurchaseOrdersPage.jsx` |
+| `Tier_V_04` | **Petty Cash & Expense Claims** — crew submits receipts, approver clears, links to booking P&L | `backend/app/routers/expenses.py`, `frontend/src/pages/ExpensesPage.jsx` |
+| `Tier_V_05` | **Barcode / QR per asset** — QR sticker generation, scan-based dispatch/return | `backend/app/routers/qr.py`, QR section in Master Registry |
+| `Tier_V_06` | **HR & Payroll** — salary structure, attendance, leave, payslip, PF/ESI/TDS deductions | `backend/app/routers/payroll.py`, `frontend/src/pages/PayrollPage.jsx` |
+| `Tier_V_07` | **Preventive Maintenance Scheduler** — auto service jobs on service-due approach, warranty/insurance alerts | `backend/app/routers/maintenance.py`, maintenance dashboard |
+| `Tier_V_08` | **Rate Cards** — per-client negotiated rates, per-equipment day/week/month pricing, auto-fill invoice | `backend/app/routers/rates.py`, rate card UI in Additions |
+| `Tier_V_09` | **GST Returns** — GSTR-1 export, HSN codes per category, invoice classification | `backend/app/routers/gst_returns.py`, GST section in Audit |
+| `Tier_V_10` | **Damage & Insurance Claims** — policy tracking, claim workflow, client recovery | `backend/app/routers/claims.py`, `frontend/src/pages/ClaimsPage.jsx` |
+| `Tier_V_11` | **Client Portal** — separate login, view own bookings, download docs, outstanding dues | `backend/app/routers/client_portal.py`, `frontend/src/pages/ClientPortal.jsx` |
+| `Tier_V_12` | **CRM Pipeline** — Lead→Enquiry→Quote→Booking funnel, follow-up reminders, win/loss analysis | `backend/app/routers/crm.py`, `frontend/src/pages/CRMPage.jsx` |
+| `Tier_V_13` | **Resource Planning Calendar** — visual availability calendar for equipment and crew by date | `frontend/src/pages/ResourceCalendarPage.jsx`, availability API endpoints |
+| `Tier_V_14` | **Multi-Warehouse Transfers** — transfer orders, transit tracking, stock reconciliation | `backend/app/routers/transfers.py`, `frontend/src/pages/TransfersPage.jsx` |
+| `Tier_V_15` | **Crew Self-Service** — crew login, see assignments, confirm availability, view payouts, submit expenses | `backend/app/routers/crew_portal.py`, `frontend/src/pages/CrewPortal.jsx` |
+| `Tier_V_16` | **Analytics Dashboard** — revenue by client/period, equipment utilisation %, crew cost ratio, receivables aging | `frontend/src/pages/AnalyticsPage.jsx`, summary API endpoints |
+| `Tier_V_17` | **Digital Signatures** — Aadhaar eSign / DSC on job cards and contracts | `backend/app/routers/esign.py`, signature UI on Papers & QC |
+| `Tier_V_18` | **WhatsApp / Email Notifications** — auto-send on booking confirm, return reminders, payment due alerts | `backend/app/notifications.py`, notification settings in System |
+| `Tier_V_19` | **Contract Management** — MSA per client, rate validity period, auto-renew alerts, digital sign linkage | `backend/app/routers/contracts.py`, `frontend/src/pages/ContractsPage.jsx` |
+| `Tier_V_20` | **TDS Management** — TDS on vendor payments (194C/194J), Form 16A generation, TDS returns | `backend/app/routers/tds.py`, TDS section in Accounts |
+| `Tier_V_FINAL` | **All tiers merged** — single deployable branch with every feature above | All of the above |
+
+
+---

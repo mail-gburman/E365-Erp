@@ -130,6 +130,7 @@ export const api = {
   createSupplementaryBooking: (id, p) => post(`/bookings/${id}/supplementary`, p),
   dispatchBooking: (id) => post(`/bookings/${id}/dispatch`, {}),
   returnBooking: (id) => post(`/bookings/${id}/return`, {}),
+  completeBooking: (id, p = {}) => post(`/bookings/${id}/complete`, p),
   updateBooking: (id, p) => fetch(`${API_BASE}/bookings/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   cancelBooking: (id, reason) => post(`/bookings/${id}/cancel`, { cancellation_reason: reason || "" }),
   damages: () => get("/bookings/damages"),
@@ -205,6 +206,16 @@ export const api = {
     const res = await fetch(`${API_BASE}/smart-upload/import`, { method: "POST", headers: headers(true), body: fd });
     return await parse(res);
   },
+
+  // ── Quotes ────────────────────────────────────────────────────────────────
+  listQuotes: (params = {}) => get(`/quotes?${new URLSearchParams(params).toString()}`),
+  getQuote: (id) => get(`/quotes/${id}`),
+  createQuote: (p) => post("/quotes", p),
+  updateQuote: (id, p) => fetch(`${API_BASE}/quotes/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
+  setQuoteStatus: (id, status) => post(`/quotes/${id}/status?status=${encodeURIComponent(status)}`, {}),
+  convertQuote: (id) => post(`/quotes/${id}/convert`, {}),
+  deleteQuote: (id) => fetch(`${API_BASE}/quotes/${id}`, { method: "DELETE", headers: headers(false) }).then(r => { if (!r.ok && r.status !== 204) return r.json().then(e => Promise.reject(e)); }),
+  quotePdfUrl: (id) => `${API_BASE}/quotes/${id}/pdf`,
 };
 
 export const adminApi = {

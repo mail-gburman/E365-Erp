@@ -610,3 +610,70 @@ class AuditLogRead(BaseModel):
     details_json: Optional[str] = None
     class Config:
         from_attributes = True
+
+
+# ── Quotation schemas ────────────────────────────────────────────────────────
+
+class QuotationItemCreate(BaseModel):
+    description: str
+    item_type: str = "equipment"
+    hsn_code: Optional[str] = None
+    qty: float = 1.0
+    unit: str = "days"
+    rate: float = 0.0
+    sort_order: int = 0
+
+class QuotationItemRead(QuotationItemCreate):
+    id: int
+    amount: float
+    class Config:
+        from_attributes = True
+
+class QuotationCreate(BaseModel):
+    client_id: int
+    project_event_id: Optional[int] = None
+    subject: Optional[str] = None
+    valid_until: Optional[date] = None
+    notes: Optional[str] = None
+    terms: Optional[str] = None
+    discount_pct: float = 0.0
+    tax_pct: float = 18.0
+    items: List[QuotationItemCreate] = []
+
+class QuotationUpdate(BaseModel):
+    subject: Optional[str] = None
+    valid_until: Optional[date] = None
+    notes: Optional[str] = None
+    terms: Optional[str] = None
+    discount_pct: Optional[float] = None
+    tax_pct: Optional[float] = None
+    items: Optional[List[QuotationItemCreate]] = None
+
+class QuotationRead(BaseModel):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    quote_number: str
+    version: int
+    client_id: int
+    project_event_id: Optional[int] = None
+    converted_booking_id: Optional[int] = None
+    status: str
+    subject: Optional[str] = None
+    valid_until: Optional[date] = None
+    notes: Optional[str] = None
+    terms: Optional[str] = None
+    discount_pct: float
+    tax_pct: float
+    subtotal: float
+    discount_amount: float
+    tax_amount: float
+    total: float
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    items: List[QuotationItemRead] = []
+    client_name: Optional[str] = None
+    project_title: Optional[str] = None
+    class Config:
+        from_attributes = True
+
