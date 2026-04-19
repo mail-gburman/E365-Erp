@@ -177,6 +177,7 @@ export const api = {
   accountsLedger: () => get("/accounts/ledger"),
   recordLedgerPayment: (p) => post("/accounts/ledger-payments", p),
   recordBarter: (p) => post("/accounts/barter", p),
+  verifyId: (idType, value) => get(`/verify-id/${encodeURIComponent(idType)}?value=${encodeURIComponent(value)}`),
   pushInvoiceToTally: (id) => post(`/api/accounts/${id}/push-to-tally`, {}),
   resyncInvoiceToTally: (id) => post(`/api/accounts/${id}/resync-tally`, {}),
   pushReceiptToTally: (id) => post(`/api/accounts/${id}/push-receipt-to-tally`, {}),
