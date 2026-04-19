@@ -8,6 +8,7 @@ import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, systemApi } from "../api";
 import { validateStatutory } from "../utils/statutory";
+import PhoneInput, { CountryCodeSelect } from "../components/PhoneInput";
 
 const blankWarehouse = { code:"", name:"", city:"", address:"", manager_name:"", contact_no:"" };
 const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", pan_number:"", notes:"" };
@@ -638,6 +639,7 @@ export default function AdditionsPage() {
             <input placeholder="Client Name" value={clientForm.name} onChange={e=>setClientForm({...clientForm, name:e.target.value})} required />
             <input placeholder="Industry Type" value={clientForm.industry_type} onChange={e=>setClientForm({...clientForm, industry_type:e.target.value})} />
             <StatutoryField type="GST" value={clientForm.gst_number} onChange={v=>setClientForm({...clientForm, gst_number:v})} placeholder="GST Number (15 chars)" />
+            <StatutoryField type="PAN" value={clientForm.pan_number || ""} onChange={v=>setClientForm({...clientForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
             <LocationAutocomplete value={clientForm.billing_address || ""} onChange={v=>setClientForm({...clientForm, billing_address:v})} placeholder="Billing Address (location)" />
             <textarea className="full" placeholder="Notes" value={clientForm.notes} onChange={e=>setClientForm({...clientForm, notes:e.target.value})}></textarea>
             <div className="full"><strong>Contacts</strong></div>
@@ -646,13 +648,12 @@ export default function AdditionsPage() {
                 <input placeholder="Contact Name" value={c.contact_name} onChange={e=>setContact(idx,"contact_name",e.target.value)} />
                 <input placeholder="Designation" value={c.designation} onChange={e=>setContact(idx,"designation",e.target.value)} />
                 <input placeholder="Email" value={c.email} onChange={e=>setContact(idx,"email",e.target.value)} />
-                <input placeholder="Country Code" value={c.phone_country_code} onChange={e=>setContact(idx,"phone_country_code",e.target.value)} />
+                <CountryCodeSelect value={c.phone_country_code} onChange={v=>setContact(idx,"phone_country_code",v)} />
                 <input placeholder="Phone Number" value={c.phone_number} onChange={e=>setContact(idx,"phone_number",e.target.value)} />
                 <label className="checkCard"><input type="checkbox" checked={c.is_primary} onChange={e=>setContact(idx,"is_primary",e.target.checked)} /><span>Primary</span></label>
               </div>
             ))}
             <button type="button" className="ghostBtn full" onClick={addContact}>Add Another Contact</button>
-            <StatutoryField type="PAN" value={clientForm.pan_number || ""} onChange={v=>setClientForm({...clientForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
             <DocumentUploadFields entityType="client" files={entityDocFiles.client} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("client", key, file)} />
             <button className="primaryBtn full" type="submit">Save Client</button>
           </form>
@@ -666,7 +667,7 @@ export default function AdditionsPage() {
             <select value={vendorForm.vendor_type} onChange={e=>setVendorForm({...vendorForm, vendor_type:e.target.value})}><option>service</option><option>equipment</option><option>crew</option><option>logistics</option><option>procurement</option></select>
             <LocationAutocomplete value={vendorForm.city || ""} onChange={v=>setVendorForm({...vendorForm, city:v})} placeholder="City (location)" />
             <input placeholder="Contact Person" value={vendorForm.contact_person} onChange={e=>setVendorForm({...vendorForm, contact_person:e.target.value})} />
-            <input placeholder="Phone" value={vendorForm.phone} onChange={e=>setVendorForm({...vendorForm, phone:e.target.value})} />
+            <PhoneInput value={vendorForm.phone} onChange={v=>setVendorForm({...vendorForm, phone:v})} placeholder="Phone" />
             <input placeholder="Email" value={vendorForm.email} onChange={e=>setVendorForm({...vendorForm, email:e.target.value})} />
             <StatutoryField type="GST" value={vendorForm.gst_number} onChange={v=>setVendorForm({...vendorForm, gst_number:v})} placeholder="GST Number (15 chars)" />
             <StatutoryField type="PAN" value={vendorForm.pan_number || ""} onChange={v=>setVendorForm({...vendorForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
@@ -685,7 +686,7 @@ export default function AdditionsPage() {
             <select value={crewForm.manpower_type} onChange={e=>setCrewForm({...crewForm, manpower_type:e.target.value})}><option>inhouse</option><option>external</option><option>contractual</option><option>freelance</option></select>
             <select value={crewForm.vendor_id} onChange={e=>setCrewForm({...crewForm, vendor_id:e.target.value})}><option value="">Vendor (optional)</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
             <LocationAutocomplete value={crewForm.home_station} onChange={v=>setCrewForm({...crewForm, home_station:v})} placeholder="Home Station (location)" />
-            <input placeholder="Phone" value={crewForm.phone} onChange={e=>setCrewForm({...crewForm, phone:e.target.value})} />
+            <PhoneInput value={crewForm.phone} onChange={v=>setCrewForm({...crewForm, phone:v})} placeholder="Phone" />
             <input placeholder="Address" value={crewForm.address} onChange={e=>setCrewForm({...crewForm, address:e.target.value})} />
             <StatutoryField type="Aadhaar" value={crewForm.aadhar_number} onChange={v=>setCrewForm({...crewForm, aadhar_number:v})} placeholder="Aadhaar Number (12 digits)" />
             <StatutoryField type="PAN" value={crewForm.pan_number || ""} onChange={v=>setCrewForm({...crewForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
@@ -695,7 +696,7 @@ export default function AdditionsPage() {
             </select>
             <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
               <input placeholder="Emergency Contact Name" value={crewForm.emergency_contact || ""} onChange={e=>setCrewForm({...crewForm, emergency_contact:e.target.value})} />
-              <input placeholder="Emergency Contact Phone" value={crewForm.emergency_contact_phone || ""} onChange={e=>setCrewForm({...crewForm, emergency_contact_phone:e.target.value})} />
+              <PhoneInput value={crewForm.emergency_contact_phone || ""} onChange={v=>setCrewForm({...crewForm, emergency_contact_phone:v})} placeholder="Emergency Contact Phone" />
             </div>
             <div className="full documentUploadPanel">
               <strong>ID Proofs</strong>
