@@ -800,3 +800,107 @@ async def smart_upload_import(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+
+# ─── STATUTORY ID VERIFICATION ───────────────────────────────────────────────
+
+_INDIAN_STATES = {
+    "01":"Jammu & Kashmir","02":"Himachal Pradesh","03":"Punjab","04":"Chandigarh",
+    "05":"Uttarakhand","06":"Haryana","07":"Delhi","08":"Rajasthan","09":"Uttar Pradesh",
+    "10":"Bihar","11":"Sikkim","12":"Arunachal Pradesh","13":"Nagaland","14":"Manipur",
+    "15":"Mizoram","16":"Tripura","17":"Meghalaya","18":"Assam","19":"West Bengal",
+    "20":"Jharkhand","21":"Odisha","22":"Chhattisgarh","23":"Madhya Pradesh",
+    "24":"Gujarat","26":"Dadra & NH and D&D","27":"Maharashtra","28":"Andhra Pradesh",
+    "29":"Karnataka","30":"Goa","31":"Lakshadweep","32":"Kerala","33":"Tamil Nadu",
+    "34":"Puducherry","35":"A&N Islands","36":"Telangana","37":"Andhra Pradesh (New)",
+    "38":"Ladakh","97":"Other Territory","99":"Centre Jurisdiction",
+}
+
+_GSTIN_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+def _gstin_checksum(gstin14: str) -> str:
+    total = 0
+    for i, ch in enumerate(gstin14.upper()):
+        code = _GSTIN_CHARS.index(ch)
+        mult = 1 if i % 2 == 0 else 2
+        prod = code * mult
+        total += prod // 36 + prod % 36
+    return _GSTIN_CHARS[(36 - total % 36) % 36]
+
+# Verhoeff tables
+_V_D = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],
+        [3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],
+        [6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],
+        [9,8,7,6,5,4,3,2,1,0]]
+_V_P = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],
+        [3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],
+        [6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3]]
+
+def _aadhaar_verhoeff(num: str) -> bool:
+    digits = [int(d) for d in reversed(num)]
+    c = 0
+    for i, d in enumerate(digits):
+        c = _V_D[c][_V_P[i % 8][d]]
+    return c == 0
+
+
+@router.get("/verify-id/{id_type}", dependencies=[Depends(get_current_user)])
+def verify_statutory_id(id_type: str, value: str):
+    """
+    Verify format + checksum of Indian statutory IDs.
+    Returns { valid, checksum_valid, message, info }.
+    """
+    v = value.strip().replace(" ", "").upper()
+    t = id_type.strip()
+
+    PATTERNS = {
+        "Aadhaar":          r"^[2-9]\d{11}$",
+        "PAN":              r"^[A-Z]{5}[0-9]{4}[A-Z]$",
+        "Passport":         r"^[A-Z][1-9]\d{6}$",
+        "Driving License":  r"^[A-Z]{2}\d{2}[\s-]?\d{4}\d{7}$",
+        "Voter ID":         r"^[A-Z]{3}\d{7}$",
+        "GST":              r"^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$",
+    }
+
+    if t == "Others":
+        return {"valid": True, "message": "No validation for Others type"}
+
+    pat = PATTERNS.get(t)
+    if not pat:
+        raise HTTPException(status_code=400, detail=f"Unknown ID type: {t}")
+
+    if not re.match(pat, v):
+        hints = {
+            "Aadhaar": "12 digits starting with 2–9",
+            "PAN": "AAAAA9999A (5 letters, 4 digits, 1 letter)",
+            "Passport": "A1234567 (letter + 7 digits)",
+            "Driving License": "MH01 2018 1234567",
+            "Voter ID": "ABC1234567 (3 letters + 7 digits)",
+            "GST": "22AAAAA0000A1Z5 (15 characters)",
+        }
+        return {"valid": False, "checksum_valid": None,
+                "message": f"Invalid format — {hints.get(t, 'check format')}"}
+
+    # Checksum
+    if t == "GST":
+        expected = _gstin_checksum(v[:14])
+        ok = expected == v[14]
+        state_code = v[:2]
+        embedded_pan = v[2:12]
+        state = _INDIAN_STATES.get(state_code, f"State {state_code}")
+        return {
+            "valid": ok,
+            "checksum_valid": ok,
+            "message": f"GSTIN checksum {'valid' if ok else 'INVALID (expected ' + expected + ')'}",
+            "info": {"state": state, "state_code": state_code, "embedded_pan": embedded_pan} if ok else None,
+        }
+
+    if t == "Aadhaar":
+        ok = _aadhaar_verhoeff(v)
+        return {
+            "valid": ok,
+            "checksum_valid": ok,
+            "message": "Aadhaar checksum valid" if ok else "Aadhaar checksum invalid — number may be incorrect",
+        }
+
+    return {"valid": True, "checksum_valid": None, "message": f"{t} format valid"}

@@ -7,6 +7,7 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, systemApi } from "../api";
+import { validateStatutory } from "../utils/statutory";
 
 const blankWarehouse = { code:"", name:"", city:"", address:"", manager_name:"", contact_no:"" };
 const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", notes:"" };
@@ -14,8 +15,55 @@ const blankClient = { name:"", industry_type:"", billing_address:"", gst_number:
 const blankEquipmentMaster = { equipment_code:"", name:"", category:"Camera", item_type:"device", brand:"", model_no:"", mandatory_accessory_codes:"", optional_accessory_codes:"", notes:"" };
 const blankInventory = { asset_code:"", name:"", category:"Camera", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"" };
 const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inhouse", vendor_id:"", home_station:"", phone:"", address:"", aadhar_number:"", id_proof_type:"Aadhaar", id_proof_number:"", status:"available" };
-const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID"];
-const blankIdProof = () => ({ key: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type: "Aadhaar", number: "", front: null, back: null });
+const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID", "Others"];
+const blankIdProof = () => ({ key: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type: "Aadhaar", number: "", description: "", front: null, back: null });
+
+function StatutoryField({ type, value, onChange, placeholder }) {
+  const [verifying, setVerifying] = useState(false);
+  const [serverResult, setServerResult] = useState(null);
+  const localResult = validateStatutory(type, value);
+  const needsServerCheck = type === "Aadhaar" || type === "GST";
+
+  async function verify() {
+    if (!value || localResult?.valid === false) return;
+    setVerifying(true);
+    try {
+      const res = await api.verifyId(type, value);
+      setServerResult(res);
+    } catch { setServerResult({ valid: false, message: "Verification service unavailable" }); }
+    finally { setVerifying(false); }
+  }
+
+  const result = serverResult || localResult;
+  const showBadge = value && result && result.valid !== null;
+
+  return (
+    <div>
+      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+        <input
+          value={value}
+          onChange={e => { onChange(e.target.value.toUpperCase()); setServerResult(null); }}
+          placeholder={placeholder}
+          style={{ flex:1 }}
+          maxLength={type === "Aadhaar" ? 12 : type === "PAN" ? 10 : type === "GST" ? 15 : type === "Voter ID" ? 10 : type === "Passport" ? 8 : 20}
+        />
+        {needsServerCheck && value && localResult?.valid !== false && (
+          <button type="button" className="ghostBtn compactBtn" onClick={verify} disabled={verifying} style={{ whiteSpace:"nowrap", fontSize:11 }}>
+            {verifying ? "..." : "Verify ✓"}
+          </button>
+        )}
+      </div>
+      {showBadge && (
+        <span style={{ display:"block", marginTop:3, fontSize:11,
+          color: result.valid ? "#4ade80" : "#f87171",
+          background: result.valid ? "#052e16" : "#450a0a",
+          borderRadius:4, padding:"2px 8px" }}>
+          {result.valid ? "✓" : "✗"} {result.message}
+        </span>
+      )}
+    </div>
+  );
+}
 
 const documentSlots = {
   client: [
@@ -390,7 +438,8 @@ export default function AdditionsPage() {
     const fd = new FormData();
     fd.append("entity_type", "crew");
     fd.append("entity_id", String(crewId));
-    fd.append("document_name", `${proof.type} ${proof.number ? `(${proof.number}) ` : ""}- ${side === "front" ? "Front / First Page" : "Back / Last Page"}`);
+    const proofLabel = proof.type === "Others" ? (proof.description || "Others") : proof.type;
+    fd.append("document_name", `${proofLabel} ${proof.number ? `(${proof.number}) ` : ""}- ${side === "front" ? "Front / First Page" : "Back / Last Page"}`);
     fd.append("notes", `${crewForm.full_name || "Crew"} ${proof.type} ${side === "front" ? "front/first page" : "back/last page"}`);
     fd.append("file", file);
     await systemApi.uploadDocument(fd);
@@ -410,7 +459,7 @@ export default function AdditionsPage() {
         ...crewForm,
         id_proof_type: primaryProof.type || crewForm.id_proof_type,
         id_proof_number: primaryProof.number || crewForm.id_proof_number,
-        id_proofs: validProofs.map(row => ({ type: row.type, number: row.number })),
+        id_proofs: validProofs.map(row => ({ type: row.type, number: row.number, description: row.description || "" })),
         vendor_id: crewForm.vendor_id ? Number(crewForm.vendor_id) : null,
         home_station: crewForm.home_station || "Not specified",
       });
@@ -587,7 +636,7 @@ export default function AdditionsPage() {
           <form className="formGrid" onSubmit={saveClient}>
             <input placeholder="Client Name" value={clientForm.name} onChange={e=>setClientForm({...clientForm, name:e.target.value})} required />
             <input placeholder="Industry Type" value={clientForm.industry_type} onChange={e=>setClientForm({...clientForm, industry_type:e.target.value})} />
-            <input placeholder="GST Number" value={clientForm.gst_number} onChange={e=>setClientForm({...clientForm, gst_number:e.target.value})} />
+            <StatutoryField type="GST" value={clientForm.gst_number} onChange={v=>setClientForm({...clientForm, gst_number:v})} placeholder="GST Number (15 chars)" />
             <LocationAutocomplete value={clientForm.billing_address || ""} onChange={v=>setClientForm({...clientForm, billing_address:v})} placeholder="Billing Address (location)" />
             <textarea className="full" placeholder="Notes" value={clientForm.notes} onChange={e=>setClientForm({...clientForm, notes:e.target.value})}></textarea>
             <div className="full"><strong>Contacts</strong></div>
@@ -617,7 +666,7 @@ export default function AdditionsPage() {
             <input placeholder="Contact Person" value={vendorForm.contact_person} onChange={e=>setVendorForm({...vendorForm, contact_person:e.target.value})} />
             <input placeholder="Phone" value={vendorForm.phone} onChange={e=>setVendorForm({...vendorForm, phone:e.target.value})} />
             <input placeholder="Email" value={vendorForm.email} onChange={e=>setVendorForm({...vendorForm, email:e.target.value})} />
-            <input placeholder="GST Number" value={vendorForm.gst_number} onChange={e=>setVendorForm({...vendorForm, gst_number:e.target.value})} />
+            <StatutoryField type="GST" value={vendorForm.gst_number} onChange={v=>setVendorForm({...vendorForm, gst_number:v})} placeholder="GST Number (15 chars)" />
             <textarea className="full" placeholder="Notes" value={vendorForm.notes} onChange={e=>setVendorForm({...vendorForm, notes:e.target.value})}></textarea>
             <DocumentUploadFields entityType="vendor" files={entityDocFiles.vendor} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("vendor", key, file)} />
             <button className="primaryBtn full" type="submit">Save Vendor</button>
@@ -635,7 +684,7 @@ export default function AdditionsPage() {
             <LocationAutocomplete value={crewForm.home_station} onChange={v=>setCrewForm({...crewForm, home_station:v})} placeholder="Home Station (location)" />
             <input placeholder="Phone" value={crewForm.phone} onChange={e=>setCrewForm({...crewForm, phone:e.target.value})} />
             <input placeholder="Address" value={crewForm.address} onChange={e=>setCrewForm({...crewForm, address:e.target.value})} />
-            <input placeholder="Aadhar Number" value={crewForm.aadhar_number} onChange={e=>setCrewForm({...crewForm, aadhar_number:e.target.value})} />
+            <StatutoryField type="Aadhaar" value={crewForm.aadhar_number} onChange={v=>setCrewForm({...crewForm, aadhar_number:v})} placeholder="Aadhaar Number (12 digits)" />
             <div className="full documentUploadPanel">
               <strong>ID Proofs</strong>
               <p className="helperText">Add one or more ID proofs. At least one uploaded page is required.</p>
@@ -643,14 +692,28 @@ export default function AdditionsPage() {
                 {crewIdProofs.map((proof, index) => (
                   <div className="documentUploadBox" key={proof.key}>
                     <label className="fieldLabel">ID Proof {index + 1}</label>
-                    <select value={proof.type} onChange={e=>updateCrewIdProof(proof.key, { type: e.target.value })}>
+                    <select value={proof.type} onChange={e=>updateCrewIdProof(proof.key, { type: e.target.value, number: "", description: "" })}>
                       {ID_PROOF_TYPES.map(type => <option key={type}>{type}</option>)}
                     </select>
-                    <input placeholder="ID Proof Number" value={proof.number} onChange={e=>updateCrewIdProof(proof.key, { number: e.target.value })} />
-                    <label className="fieldLabel">{proof.type} Front / First Page</label>
+                    {proof.type === "Others" && (
+                      <input placeholder="Describe document type (e.g. Company ID, ration card...)" value={proof.description || ""}
+                        onChange={e=>updateCrewIdProof(proof.key, { description: e.target.value })} style={{ marginTop:4 }} />
+                    )}
+                    {proof.type !== "Others" ? (
+                      <StatutoryField
+                        type={proof.type}
+                        value={proof.number}
+                        onChange={v=>updateCrewIdProof(proof.key, { number: v })}
+                        placeholder={`${proof.type} Number`}
+                      />
+                    ) : (
+                      <input placeholder="ID / Reference Number (optional)" value={proof.number || ""}
+                        onChange={e=>updateCrewIdProof(proof.key, { number: e.target.value })} style={{ marginTop:4 }} />
+                    )}
+                    <label className="fieldLabel" style={{marginTop:6}}>{proof.type === "Others" ? (proof.description || "Document") : proof.type} Front / First Page</label>
                     <input key={`front-${proof.key}-${crewDocInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" onChange={e=>updateCrewIdProof(proof.key, { front: e.target.files?.[0] || null })} />
                     <span className="helperText">{proof.front ? proof.front.name : "Upload front side or first page."}</span>
-                    <label className="fieldLabel">{proof.type} Back / Last Page</label>
+                    <label className="fieldLabel">{proof.type === "Others" ? (proof.description || "Document") : proof.type} Back / Last Page</label>
                     <input key={`back-${proof.key}-${crewDocInputKey}`} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" onChange={e=>updateCrewIdProof(proof.key, { back: e.target.files?.[0] || null })} />
                     <span className="helperText">{proof.back ? proof.back.name : "Upload back side or last page if applicable."}</span>
                     {crewIdProofs.length > 1 ? <button type="button" className="ghostBtn compactBtn" onClick={() => removeCrewIdProof(proof.key)}>Remove Proof</button> : null}
