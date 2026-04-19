@@ -99,6 +99,75 @@ def _booking_group(db: Session, booking: models.EventBooking) -> list[models.Eve
     return [root] + children
 
 
+FINAL_INVOICE_STATUSES = {"approved", "sent", "paid", "full", "full_invoice", "final_invoice"}
+PART_INVOICE_STATUSES = {"draft", "part_invoice", "partial_invoice", "proforma"}
+
+
+def _booking_is_closed_for_full_invoice(booking: models.EventBooking) -> bool:
+    """Full/final billing is allowed only after operational closure."""
+    return (booking.status or "").lower() in {"returned", "closed", "completed"}
+
+
+def _validate_invoice_lifecycle(booking: models.EventBooking, payload: schemas.AccountInvoicePayload):
+    status = (payload.status or "draft").strip().lower()
+    if not _booking_is_closed_for_full_invoice(booking) and status in FINAL_INVOICE_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail="Full/final invoice cannot be raised until the booking is returned/closed. Use Draft or Part Invoice before return.",
+        )
+
+
+def _manpower_reference_total(invoice: models.AccountInvoice, reference: str) -> float:
+    try:
+        _, role = str(reference).split("|", 1)
+    except ValueError:
+        role = "Crew"
+    for payout in json.loads(invoice.payout_json or "[]"):
+        payout_role = payout.get("role") or "Crew"
+        if payout_role == role:
+            return float(payout.get("amount") or 0)
+    return 0.0
+
+
+def _ledger_paid_total(db: Session, entry_type: str, reference: str) -> float:
+    rows = db.query(models.AccountLedgerPayment).filter(
+        models.AccountLedgerPayment.entry_type == entry_type,
+        models.AccountLedgerPayment.reference == reference,
+    ).all()
+    return sum(float(row.amount or 0) for row in rows)
+
+
+def _ledger_remaining_limit(db: Session, entry_type: str, reference: str) -> float:
+    """Maximum remaining amount that can be collected/paid for an entry."""
+    if entry_type == "client":
+        invoice = db.query(models.AccountInvoice).filter(models.AccountInvoice.invoice_number == reference).first()
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found.")
+        return max(0.0, float(invoice.total_amount or 0) - float(invoice.amount_received or 0))
+
+    if entry_type == "manpower":
+        invoice_no = str(reference).split("|", 1)[0]
+        invoice = db.query(models.AccountInvoice).filter(models.AccountInvoice.invoice_number == invoice_no).first()
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found for manpower payout.")
+        total_due = _manpower_reference_total(invoice, reference)
+        return max(0.0, total_due - _ledger_paid_total(db, "manpower", reference))
+
+    if entry_type == "vendor":
+        po = db.query(models.ProcurementOrder).filter(models.ProcurementOrder.po_number == reference).first()
+        if not po:
+            raise HTTPException(status_code=404, detail="Vendor bill reference not found.")
+        return max(0.0, _procurement_bill_amount(po) - float(po.paid_amount or 0))
+
+    if entry_type == "service":
+        service = db.query(models.ServiceJob).filter(models.ServiceJob.job_number == reference).first()
+        if not service:
+            raise HTTPException(status_code=404, detail="Service bill reference not found.")
+        return max(0.0, _service_bill_amount(service) - float(service.service_paid_amount or 0))
+
+    raise HTTPException(status_code=400, detail="Invalid ledger payment type.")
+
+
 def _estimate_for_booking(db: Session, booking: models.EventBooking, off_days_payable: bool = False) -> dict:
     booking = _root_booking(db, booking)
     project = booking.project
@@ -299,6 +368,8 @@ def _apply_invoice_payload(invoice: models.AccountInvoice, payload: schemas.Acco
     subtotal = max(0.0, subtotal - float(payload.discount_amount or 0))
     tax_amount = round(subtotal * (float(payload.tax_percent or 0) / 100), 2)
     total = round(subtotal + tax_amount, 2)
+    if float(payload.amount_received or 0) > total:
+        raise HTTPException(status_code=400, detail="Amount received cannot be more than invoice value.")
     payout = float(payload.manpower_payout_amount or 0)
     invoice.updated_at = datetime.utcnow()
     invoice.updated_by = username
@@ -598,11 +669,18 @@ def record_ledger_payment(payload: schemas.AccountLedgerPaymentPayload, db: Sess
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Payment amount must be greater than zero.")
 
+    remaining = _ledger_remaining_limit(db, payload.entry_type, payload.reference)
+    if amount > remaining + 0.0001:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot record INR {amount:,.2f}. Remaining allowed amount is INR {remaining:,.2f}.",
+        )
+
     if payload.entry_type == "client":
         invoice = db.query(models.AccountInvoice).filter(models.AccountInvoice.invoice_number == payload.reference).first()
         if not invoice:
             raise HTTPException(status_code=404, detail="Invoice not found.")
-        invoice.amount_received = float(invoice.amount_received or 0) + amount
+        invoice.amount_received = round(float(invoice.amount_received or 0) + amount, 2)
         invoice.payment_received_at = payload.payment_date
         invoice.payment_mode = payload.payment_mode
         invoice.payment_details = payload.details
@@ -612,7 +690,7 @@ def record_ledger_payment(payload: schemas.AccountLedgerPaymentPayload, db: Sess
         po = db.query(models.ProcurementOrder).filter(models.ProcurementOrder.po_number == payload.reference).first()
         if not po:
             raise HTTPException(status_code=404, detail="Vendor bill reference not found.")
-        po.paid_amount = float(po.paid_amount or 0) + amount
+        po.paid_amount = round(float(po.paid_amount or 0) + amount, 2)
         po.payment_date = payload.payment_date
         po.payment_mode = payload.payment_mode
         po.payment_details = payload.details
@@ -620,7 +698,7 @@ def record_ledger_payment(payload: schemas.AccountLedgerPaymentPayload, db: Sess
         service = db.query(models.ServiceJob).filter(models.ServiceJob.job_number == payload.reference).first()
         if not service:
             raise HTTPException(status_code=404, detail="Service bill reference not found.")
-        service.service_paid_amount = float(service.service_paid_amount or 0) + amount
+        service.service_paid_amount = round(float(service.service_paid_amount or 0) + amount, 2)
         service.service_payment_date = payload.payment_date
         service.service_payment_mode = payload.payment_mode
         service.service_payment_details = payload.details
@@ -649,6 +727,7 @@ def save_invoice(payload: schemas.AccountInvoicePayload, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="Booking not found.")
     booking = _root_booking(db, booking)
     payload.booking_id = booking.id
+    _validate_invoice_lifecycle(booking, payload)
     invoice = db.query(models.AccountInvoice).filter(models.AccountInvoice.booking_id == booking.id).first()
     if invoice and current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Only admin can modify an existing bill.")
@@ -669,6 +748,8 @@ def update_invoice(invoice_id: int, payload: schemas.AccountInvoicePayload, db: 
     invoice = db.query(models.AccountInvoice).filter(models.AccountInvoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found.")
+    if invoice.booking:
+        _validate_invoice_lifecycle(invoice.booking, payload)
     _apply_invoice_payload(invoice, payload, current_user.username)
     audit(db, current_user.username, "update", "account_invoice", entity_id=invoice.id, details={"billing_mode": payload.billing_mode, "total": invoice.total_amount})
     db.commit()

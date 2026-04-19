@@ -1340,3 +1340,167 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
     c.save()
     buf.seek(0)
     return buf
+
+
+def make_quotation_pdf(quote, client_name, project_title=None):
+    """Generate a professional quotation / proposal PDF."""
+    from io import BytesIO
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas as _canvas
+    from pathlib import Path as _Path
+
+    buf = BytesIO()
+    c = _canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    left = 40
+    right = width - 40
+    usable = right - left
+    y = height - 42
+
+    logo_path = _Path(__file__).parent.parent.parent / "frontend" / "public" / "logo.png"
+
+    def money(v):
+        return f"INR {float(v or 0):,.2f}"
+
+    # ── Header ────────────────────────────────────────────────────────────────
+    if logo_path.exists():
+        c.drawImage(str(logo_path), left, y - 68, width=150, height=68, preserveAspectRatio=True, mask="auto")
+    c.setFont("Helvetica-Bold", 20)
+    c.drawRightString(right, y - 18, "QUOTATION")
+    c.setFont("Helvetica", 9)
+    c.drawRightString(right, y - 32, "KPS Productions and Services LLP")
+    c.drawRightString(right, y - 44, "326 Shantipally, Kolkata 700107")
+    y -= 90
+
+    # ── Quote meta block ─────────────────────────────────────────────────────
+    c.setFillColorRGB(0.06, 0.37, 0.67)
+    c.rect(left, y - 28, usable, 28, fill=1, stroke=0)
+    c.setFillColorRGB(1, 1, 1)
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(left + 6, y - 20, f"Quote No: {quote.quote_number}  |  Version: {quote.version}")
+    valid_str = str(quote.valid_until) if quote.valid_until else "—"
+    c.drawRightString(right - 6, y - 20, f"Valid Until: {valid_str}")
+    c.setFillColorRGB(0, 0, 0)
+    y -= 40
+
+    # ── To / Subject ─────────────────────────────────────────────────────────
+    c.setFont("Helvetica-Bold", 9)
+    c.drawString(left, y, "TO:")
+    c.setFont("Helvetica", 10)
+    c.drawString(left + 28, y, str(client_name))
+    if project_title:
+        c.setFont("Helvetica", 9)
+        c.drawString(left + 28, y - 14, f"Project: {project_title}")
+        y -= 14
+    y -= 16
+
+    if quote.subject:
+        c.setFont("Helvetica-Bold", 10)
+        c.drawString(left, y, f"Subject: {quote.subject}")
+        y -= 16
+
+    y -= 6
+    c.line(left, y, right, y)
+    y -= 18
+
+    # ── Items table header ────────────────────────────────────────────────────
+    COL = [left, left + 30, left + usable * 0.48, left + usable * 0.6, left + usable * 0.72, left + usable * 0.84]
+    c.setFillColorRGB(0.92, 0.92, 0.92)
+    c.rect(left, y - 14, usable, 16, fill=1, stroke=0)
+    c.setFillColorRGB(0, 0, 0)
+    c.setFont("Helvetica-Bold", 8)
+    headers = ["#", "Description", "Type", "Qty", "Rate (INR)", "Amount (INR)"]
+    aligns = ["L", "L", "L", "R", "R", "R"]
+    col_rights = [COL[1] - 4, COL[2] - 4, COL[3] - 4, COL[4] - 4, COL[5] - 4, right - 4]
+    for i, h in enumerate(headers):
+        if aligns[i] == "R":
+            c.drawRightString(col_rights[i], y - 10, h)
+        else:
+            c.drawString(COL[i] + 3, y - 10, h)
+    y -= 20
+
+    # ── Items ─────────────────────────────────────────────────────────────────
+    for idx, item in enumerate(quote.items or []):
+        if y < 80:
+            c.setFont("Helvetica", 8)
+            c.drawRightString(right, 30, "continued...")
+            c.showPage()
+            y = height - 60
+        row_color = (0.97, 0.97, 0.97) if idx % 2 == 0 else (1, 1, 1)
+        c.setFillColorRGB(*row_color)
+        c.rect(left, y - 14, usable, 15, fill=1, stroke=0)
+        c.setFillColorRGB(0, 0, 0)
+        c.setFont("Helvetica", 8)
+        c.drawString(COL[0] + 3, y - 10, str(idx + 1))
+        # wrap description
+        desc = str(item.description or "")
+        max_w = COL[2] - COL[1] - 8
+        words = desc.split()
+        line1 = ""
+        for w in words:
+            trial = (line1 + " " + w).strip()
+            if c.stringWidth(trial, "Helvetica", 8) <= max_w:
+                line1 = trial
+            else:
+                break
+        c.drawString(COL[1] + 3, y - 10, line1)
+        c.drawString(COL[2] + 3, y - 10, str(item.item_type or ""))
+        c.drawRightString(col_rights[3], y - 10, f"{item.qty:.2f} {item.unit}")
+        c.drawRightString(col_rights[4], y - 10, f"{item.rate:,.2f}")
+        c.drawRightString(col_rights[5], y - 10, f"{item.amount:,.2f}")
+        y -= 16
+
+    y -= 6
+    c.line(left, y, right, y)
+    y -= 16
+
+    # ── Totals ────────────────────────────────────────────────────────────────
+    def total_row(label, value, bold=False):
+        nonlocal y
+        font = "Helvetica-Bold" if bold else "Helvetica"
+        c.setFont(font, 9)
+        c.drawRightString(right - 130, y, label)
+        c.drawRightString(right, y, money(value))
+        y -= 14
+
+    total_row("Subtotal:", quote.subtotal)
+    if quote.discount_pct:
+        total_row(f"Discount ({quote.discount_pct:.1f}%):", -quote.discount_amount)
+    total_row(f"GST ({quote.tax_pct:.1f}%):", quote.tax_amount)
+    c.line(right - 200, y + 2, right, y + 2)
+    total_row("TOTAL:", quote.total, bold=True)
+
+    y -= 10
+
+    # ── Notes / Terms ─────────────────────────────────────────────────────────
+    if quote.notes:
+        y -= 10
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(left, y, "Notes:")
+        y -= 14
+        c.setFont("Helvetica", 8)
+        for line in str(quote.notes).split("\n"):
+            c.drawString(left, y, line[:110])
+            y -= 12
+
+    if quote.terms:
+        y -= 6
+        c.setFont("Helvetica-Bold", 9)
+        c.drawString(left, y, "Terms & Conditions:")
+        y -= 14
+        c.setFont("Helvetica", 8)
+        for line in str(quote.terms).split("\n"):
+            c.drawString(left, y, line[:110])
+            y -= 12
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    c.setFont("Helvetica", 8)
+    c.drawString(left, 38, "For KPS Productions and Services LLP")
+    c.drawRightString(right, 38, "Authorised Signatory")
+    c.line(left, 54, right, 54)
+    c.drawCentredString(width / 2, 24, "This is a computer-generated quotation.")
+
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return buf

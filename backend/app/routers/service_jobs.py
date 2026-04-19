@@ -94,7 +94,16 @@ def create_service_job(payload: schemas.ServiceJobCreate, db: Session = Depends(
         models.EventBooking.status.in_(["blocked", "dispatched"])
     ).first()
     if active_booking:
-        raise HTTPException(status_code=400, detail="Cannot open a service job for equipment that is in an active booking.")
+        allow_return_service = False
+        if payload.source_booking_id and active_booking.booking_id == payload.source_booking_id:
+            partial = db.query(models.PartialReturn).filter(
+                models.PartialReturn.booking_id == payload.source_booking_id,
+                models.PartialReturn.inventory_item_id == payload.inventory_item_id,
+                models.PartialReturn.condition_status.in_(["damaged", "incomplete"]),
+            ).first()
+            allow_return_service = bool(partial)
+        if not allow_return_service:
+            raise HTTPException(status_code=400, detail="Cannot open a service job for equipment that is in an active booking unless it has been partially returned as damaged/incomplete.")
     inv.status = "servicing"
     inv.service_status = "in_service"
     data = payload.model_dump()

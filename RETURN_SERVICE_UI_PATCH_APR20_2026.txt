@@ -1,0 +1,14 @@
+KPS ERP patch - Apr 20 2026
+
+Fixed:
+1. Removed confusing Pending: 0 in Booking action row. It now only shows pending return/account count if there are actual unresolved items.
+2. Accounts payment modal top summary boxes no longer overlap. Modal is wider, summary cards wrap text, and payment form is aligned.
+3. Accounts payment button is disabled/marked Paid when pending balance is zero. Opening a zero-balance payment modal is blocked.
+4. Partial Return flow now detects damaged/incomplete returned items and immediately opens a service routing modal.
+5. Service routing modal supports inhouse vs vendor/external service, vendor selection, transport/courier details, package details, photos, problem reported, and remarks.
+6. Backend service-job rule now allows service creation for an item that is still in a dispatched booking only when that item has already been partially returned as damaged/incomplete.
+
+Validation:
+- React parser check passed for AccountsPage.jsx, BookingsPage.jsx, api.js.
+- Backend compileall passed for backend/app.
+- Full frontend build could not run in container because node_modules is missing esbuild in the uploaded project. Run npm install locally then npm run build.

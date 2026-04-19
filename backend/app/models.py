@@ -572,3 +572,49 @@ class AuditLog(Base):
     entity_type = Column(String, nullable=False)
     entity_id = Column(String, nullable=True)
     details_json = Column(Text, nullable=True)
+
+
+class Quotation(Base):
+    __tablename__ = "quotations"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    quote_number = Column(String, unique=True, index=True, nullable=False)
+    version = Column(Integer, default=1)
+    client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
+    project_event_id = Column(Integer, ForeignKey("project_events.id"), nullable=True)
+    converted_booking_id = Column(Integer, ForeignKey("event_bookings.id"), nullable=True)
+    status = Column(String, default="draft")  # draft/sent/accepted/rejected/expired/converted
+    valid_until = Column(Date, nullable=True)
+    subject = Column(String, nullable=True)
+    notes = Column(Text, nullable=True)
+    terms = Column(Text, nullable=True)
+    discount_pct = Column(Float, default=0.0)
+    tax_pct = Column(Float, default=18.0)
+    subtotal = Column(Float, default=0.0)
+    discount_amount = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
+    total = Column(Float, default=0.0)
+    created_by = Column(String, nullable=True)
+    updated_by = Column(String, nullable=True)
+
+    client = relationship("Client")
+    project_event = relationship("ProjectEvent", foreign_keys=[project_event_id])
+    converted_booking = relationship("EventBooking", foreign_keys=[converted_booking_id])
+    items = relationship("QuotationItem", back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationItem.id")
+
+
+class QuotationItem(Base):
+    __tablename__ = "quotation_items"
+    id = Column(Integer, primary_key=True)
+    quotation_id = Column(Integer, ForeignKey("quotations.id"), nullable=False)
+    sort_order = Column(Integer, default=0)
+    description = Column(String, nullable=False)
+    item_type = Column(String, default="equipment")  # equipment/accessory/crew/logistics/other
+    hsn_code = Column(String, nullable=True)
+    qty = Column(Float, default=1.0)
+    unit = Column(String, default="days")
+    rate = Column(Float, default=0.0)
+    amount = Column(Float, default=0.0)
+
+    quotation = relationship("Quotation", back_populates="items")

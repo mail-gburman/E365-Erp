@@ -1,0 +1,22 @@
+KPS ERP real workflow patch - Apr 20 2026
+
+Files changed:
+- backend/app/routers/accounts.py
+- backend/app/routers/bookings.py
+- backend/app/integrations/tally/*
+- frontend/src/pages/AccountsPage.jsx
+- frontend/src/pages/BookingsPage.jsx
+- frontend/src/api.js
+
+Visible checks:
+- Accounts payment modal title is Receive Payment / Make Payment.
+- Accounts payment modal has Payment Type = Part Payment / Full Payment.
+- Accounts billing has Damage / Missing Charge and Charge Note.
+- Booking planned rows show Confirm shoot first instead of Job Card/Challan/Manpower buttons.
+- Dispatched bookings show Partial Return and Complete Booking.
+
+Backend checks included:
+- Full/final invoice blocked until returned/closed.
+- Ledger payment cannot exceed pending invoice/vendor/service/manpower balance.
+- Partial return allowed only after dispatch.
+- Complete Booking performs item parity check.

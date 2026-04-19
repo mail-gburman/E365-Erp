@@ -3,7 +3,7 @@ import json
 import uuid
 from datetime import date
 from datetime import datetime
-from collections import Counter
+from collections import Counter, defaultdict
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
@@ -166,6 +166,90 @@ def _log_custody(db: Session, booking_id, inventory_item_id, crew_member_id, eve
     ))
 
 
+DOC_ALLOWED_STATUSES = {"confirmed", "blocked", "dispatched", "returned", "closed", "completed"}
+RETURN_ACCOUNTED_CONDITIONS = {"good", "damaged", "missing", "incomplete"}
+
+
+def _ensure_document_allowed(booking: models.EventBooking):
+    if (booking.status or "").lower() not in DOC_ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail="Documents are available only after the shoot is confirmed.")
+
+
+def _partial_return_rows(db: Session, booking_id: int) -> list[models.PartialReturn]:
+    return db.query(models.PartialReturn).filter(
+        models.PartialReturn.booking_id == booking_id
+    ).order_by(models.PartialReturn.id.asc()).all()
+
+
+def _partial_return_map(db: Session, booking_id: int) -> dict[int, models.PartialReturn]:
+    """Backward-compatible latest return lookup by inventory item.
+
+    Do not use this for quantity/parity checks because the same inventory item can
+    appear more than once in a booking when the UI groups rows as quantity.
+    """
+    rows = _partial_return_rows(db, booking_id)
+    return {row.inventory_item_id: row for row in rows}
+
+
+def _booking_completion_check(db: Session, booking: models.EventBooking) -> dict:
+    """Return/accounting parity for booking closure.
+
+    Important: the same inventory_item_id can appear multiple times in booking_equipment
+    when the user selected the same type/row as an incremental quantity. A single
+    partial-return row must account for only one booked occurrence, not every duplicate
+    row with the same inventory_item_id. This is why we consume return rows one-by-one.
+    """
+    booked_links = [row for row in booking.equipment if row.inventory_item]
+    returned_by_item: dict[int, list[models.PartialReturn]] = defaultdict(list)
+    for ret in _partial_return_rows(db, booking.id):
+        if (ret.condition_status or "").lower() in RETURN_ACCOUNTED_CONDITIONS:
+            returned_by_item[ret.inventory_item_id].append(ret)
+
+    used_return_count = Counter()
+    missing = []
+    accounted = []
+    missing_summary = Counter()
+
+    for link in booked_links:
+        item = link.inventory_item
+        returns_for_item = returned_by_item.get(item.id, [])
+        used_idx = used_return_count[item.id]
+        if used_idx < len(returns_for_item):
+            ret = returns_for_item[used_idx]
+            used_return_count[item.id] += 1
+            accounted.append({
+                "id": item.id,
+                "booking_equipment_id": link.id,
+                "partial_return_id": ret.id,
+                "asset_code": item.asset_code,
+                "name": item.name,
+                "condition_status": ret.condition_status,
+            })
+        else:
+            missing.append({
+                "id": item.id,
+                "booking_equipment_id": link.id,
+                "asset_code": item.asset_code,
+                "name": item.name,
+            })
+            missing_summary[(item.id, item.asset_code or "", item.name or "Item")] += 1
+
+    missing_summary_rows = [
+        {"id": item_id, "asset_code": asset_code, "name": name, "quantity": qty}
+        for (item_id, asset_code, name), qty in missing_summary.items()
+    ]
+    pending_count = len(missing)
+    return {
+        "ok": pending_count == 0,
+        "missing_items": missing,
+        "missing_summary": missing_summary_rows,
+        "pending_count": pending_count,
+        "accounted_items": accounted,
+        "total_items": len(booked_links),
+        "accounted_count": len(accounted),
+    }
+
+
 @router.get("/")
 def list_bookings(db: Session = Depends(get_db)):
     return db.query(models.EventBooking).order_by(models.EventBooking.id.desc()).all()
@@ -257,6 +341,7 @@ def list_booking_details(db: Session = Depends(get_db)):
                 })
         equipment_items = [
             {
+                "booking_equipment_id": x.id,
                 "id": x.inventory_item.id,
                 "asset_code": x.inventory_item.asset_code,
                 "name": x.inventory_item.name,
@@ -268,6 +353,7 @@ def list_booking_details(db: Session = Depends(get_db)):
         ]
         # Get damage logs for this booking
         damages = db.query(models.DamageLog).filter(models.DamageLog.booking_id == b.id).all()
+        partial_returns = db.query(models.PartialReturn).filter(models.PartialReturn.booking_id == b.id).all()
         out.append({
             "id": b.id,
             "job_card_id": b.job_card_id,
@@ -294,6 +380,8 @@ def list_booking_details(db: Session = Depends(get_db)):
             "equipment_summary": aggregate_equipment_rows(equipment_rows),
             "crew": [{"id": x.crew_member.id, "employee_code": x.crew_member.employee_code, "name": x.crew_member.full_name, "role": x.crew_member.role, "manpower_type": x.crew_member.manpower_type} for x in b.crew if x.crew_member],
             "damages": [{"id": d.id, "inventory_item_id": d.inventory_item_id, "description": d.damage_description, "severity": d.severity, "photo_path": d.photo_path, "reported_by": d.reported_by, "stage": d.stage, "auto_service_job_id": d.auto_service_job_id} for d in damages],
+            "partial_returns": [{"id": r.id, "inventory_item_id": r.inventory_item_id, "returned_by": r.returned_by, "condition_status": r.condition_status, "notes": r.notes, "created_at": r.created_at.isoformat() if r.created_at else None} for r in partial_returns],
+            "completion_check": _booking_completion_check(db, b),
         })
     return out
 
@@ -475,6 +563,8 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
     if not gp:
         raise HTTPException(status_code=404, detail="Gate pass not found.")
     booking = gp.booking
+    if booking:
+        _ensure_document_allowed(booking)
     project_title = booking.project.title if booking and booking.project else "-"
     destination = booking.destination if booking else "-"
     equipment = aggregate_equipment_rows(_booking_equipment_rows(booking)) if booking else []
@@ -505,6 +595,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
     ).filter(models.EventBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_document_allowed(booking)
     items = aggregate_equipment_rows([r for r in _booking_equipment_rows(booking) if r.get("owner_type") != "third_party"])
     # Job Card — Only Manpower name in boxes
     manpower = [{"name": x.crew_member.full_name} for x in booking.crew if x.crew_member]
@@ -575,6 +666,7 @@ def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db)):
     ).filter(models.EventBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_document_allowed(booking)
     project = booking.project
     client_name = project.client.name if project and project.client else (project.title if project else "-")
     challan_date = project.shoot_start.strftime("%d/%m/%Y") if project and project.shoot_start else date.today().strftime("%d/%m/%Y")
@@ -602,6 +694,7 @@ def booking_manpower_pdf(booking_id: int, db: Session = Depends(get_db)):
     ).filter(models.EventBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_document_allowed(booking)
     crew_ids = [row.crew_member_id for row in booking.crew if row.crew_member_id]
     docs_by_crew = {crew_id: [] for crew_id in crew_ids}
     if crew_ids:
@@ -822,16 +915,35 @@ def mark_returned(booking_id: int, db: Session = Depends(get_db)):
     booking = db.query(models.EventBooking).filter(models.EventBooking.id == booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    if booking.status not in ["confirmed", "blocked", "dispatched"]:
-        raise HTTPException(status_code=400, detail=f"Cannot return a booking with status '{booking.status}'.")
+    if booking.status != "dispatched":
+        raise HTTPException(status_code=400, detail=f"Cannot return a booking with status '{booking.status}'. Booking must be dispatched first.")
+    check = _booking_completion_check(db, booking)
+    if not check["ok"]:
+        raise HTTPException(status_code=400, detail={"message": "Cannot close booking. Some items are not returned/accounted for.", **check})
     qc = db.query(models.ReturnQC).filter(models.ReturnQC.booking_id == booking_id).first()
     if not qc:
         raise HTTPException(status_code=400, detail="Return QC is required before marking a booking returned.")
     booking.status = "returned"
+    returns_by_item: dict[int, list[models.PartialReturn]] = defaultdict(list)
+    for ret in _partial_return_rows(db, booking.id):
+        returns_by_item[ret.inventory_item_id].append(ret)
+    used_return_count = Counter()
     for item in booking.equipment:
-        if item.inventory_item and item.inventory_item.service_status != "in_service":
-            item.inventory_item.status = "available"
-            _log_custody(db, booking.id, item.inventory_item_id, None, "gate_in", from_person=booking.destination, to_person="Store", notes="Returned after shoot")
+        inv = item.inventory_item
+        if not inv:
+            continue
+        ret_rows = returns_by_item.get(inv.id, [])
+        used_idx = used_return_count[inv.id]
+        ret = ret_rows[used_idx] if used_idx < len(ret_rows) else None
+        used_return_count[inv.id] += 1
+        condition = ((ret.condition_status if ret else "good") or "good").lower()
+        if condition == "good" and inv.service_status != "in_service" and inv.status not in {"missing", "damaged"}:
+            inv.status = "available"
+        elif condition == "missing":
+            inv.status = "missing"
+        elif condition in {"damaged", "incomplete"} and inv.service_status != "in_service" and inv.status != "missing":
+            inv.status = "damaged"
+        _log_custody(db, booking.id, item.inventory_item_id, None, "gate_in", from_person=booking.destination, to_person="Store", notes=f"Closure condition: {condition}")
     for crew in booking.crew:
         if crew.crew_member:
             crew.crew_member.status = "available"
@@ -897,18 +1009,35 @@ def create_partial_return(payload: schemas.PartialReturnCreate, db: Session = De
     booking = db.query(models.EventBooking).filter(models.EventBooking.id == payload.booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
-    if booking.status in ["returned", "cancelled"]:
-        raise HTTPException(status_code=400, detail=f"Cannot process partial return for a '{booking.status}' booking.")
-    booked_ids = {x.inventory_item_id for x in booking.equipment}
-    for inv_id in payload.inventory_item_ids:
-        if inv_id not in booked_ids:
+    if booking.status != "dispatched":
+        raise HTTPException(status_code=400, detail=f"Partial return is allowed only after dispatch. Current status: '{booking.status}'.")
+    if payload.condition_status not in RETURN_ACCOUNTED_CONDITIONS:
+        raise HTTPException(status_code=400, detail="Condition must be one of: good, damaged, missing, incomplete.")
+    if not payload.inventory_item_ids:
+        raise HTTPException(status_code=400, detail="Select at least one item to return/account for.")
+
+    booked_counts = Counter(x.inventory_item_id for x in booking.equipment if x.inventory_item_id)
+    existing_counts = Counter(
+        row.inventory_item_id
+        for row in _partial_return_rows(db, booking.id)
+        if (row.condition_status or "").lower() in RETURN_ACCOUNTED_CONDITIONS
+    )
+    incoming_counts = Counter(payload.inventory_item_ids)
+
+    for inv_id, incoming_qty in incoming_counts.items():
+        booked_qty = booked_counts.get(inv_id, 0)
+        if booked_qty <= 0:
             raise HTTPException(status_code=400, detail=f"Inventory item {inv_id} is not part of this booking.")
-        exists = db.query(models.PartialReturn).filter(
-            models.PartialReturn.booking_id == payload.booking_id,
-            models.PartialReturn.inventory_item_id == inv_id
-        ).first()
-        if exists:
-            continue
+        pending_qty = booked_qty - existing_counts.get(inv_id, 0)
+        if incoming_qty > pending_qty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Inventory item {inv_id} has only {pending_qty} pending quantity to return/account for.",
+            )
+
+    touched_ids = set()
+    for inv_id in payload.inventory_item_ids:
+        touched_ids.add(inv_id)
         db.add(models.PartialReturn(
             booking_id=payload.booking_id,
             inventory_item_id=inv_id,
@@ -916,12 +1045,92 @@ def create_partial_return(payload: schemas.PartialReturnCreate, db: Session = De
             condition_status=payload.condition_status,
             notes=payload.notes,
         ))
+        _log_custody(db, payload.booking_id, inv_id, None, "partial_return", from_person=booking.destination, to_person="Store", notes=f"Partial return by {payload.returned_by}, condition: {payload.condition_status}. {payload.notes or ''}".strip())
+
+    db.flush()
+
+    # Only release/update the physical item status after all booked occurrences for
+    # that inventory item have been accounted for. This prevents duplicate quantity
+    # rows from making the asset available too early.
+    for inv_id in touched_ids:
         item = db.query(models.InventoryItem).filter(models.InventoryItem.id == inv_id).first()
-        if item and item.service_status != "in_service":
+        if not item:
+            continue
+        returns_for_item = db.query(models.PartialReturn).filter(
+            models.PartialReturn.booking_id == payload.booking_id,
+            models.PartialReturn.inventory_item_id == inv_id,
+        ).all()
+        if len(returns_for_item) < booked_counts.get(inv_id, 0):
+            continue
+        conditions = {(row.condition_status or "good").lower() for row in returns_for_item}
+        if "missing" in conditions:
+            item.status = "missing"
+        elif conditions.intersection({"damaged", "incomplete"}) and item.service_status != "in_service":
+            item.status = "damaged"
+        elif item.service_status != "in_service":
             item.status = "available"
-        _log_custody(db, payload.booking_id, inv_id, None, "partial_return", from_person=booking.destination, to_person="Store", notes=f"Partial return by {payload.returned_by}, condition: {payload.condition_status}")
+
     db.commit()
-    return {"ok": True}
+    return {"ok": True, **_booking_completion_check(db, booking)}
+
+
+@router.post("/{booking_id}/complete")
+def complete_booking(booking_id: int, payload: dict = {}, db: Session = Depends(get_db)):
+    booking = db.query(models.EventBooking).filter(models.EventBooking.id == booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.status != "dispatched":
+        raise HTTPException(status_code=400, detail=f"Complete Booking is allowed only after dispatch. Current status: '{booking.status}'.")
+    check = _booking_completion_check(db, booking)
+    if not check["ok"]:
+        raise HTTPException(status_code=400, detail={"message": "Cannot complete booking. Return/account for every booked item first.", **check})
+    qc = db.query(models.ReturnQC).filter(models.ReturnQC.booking_id == booking.id).first()
+    if not qc:
+        db.add(models.ReturnQC(
+            booking_id=booking.id,
+            checked_by=(payload.get("checked_by") if isinstance(payload, dict) else None) or "Accounts / Store Closure",
+            all_items_returned=True,
+            damage_found=any(item.get("condition_status") in {"damaged", "missing", "incomplete"} for item in check["accounted_items"]),
+            cleaning_required=False,
+            remarks=(payload.get("remarks") if isinstance(payload, dict) else None) or "Auto QC created by Complete Booking parity check.",
+        ))
+        db.flush()
+    booking.status = "returned"
+    returns_by_item: dict[int, list[models.PartialReturn]] = defaultdict(list)
+    for ret in _partial_return_rows(db, booking.id):
+        returns_by_item[ret.inventory_item_id].append(ret)
+    used_return_count = Counter()
+    for link in booking.equipment:
+        inv = link.inventory_item
+        if not inv:
+            continue
+        ret_rows = returns_by_item.get(inv.id, [])
+        used_idx = used_return_count[inv.id]
+        ret = ret_rows[used_idx] if used_idx < len(ret_rows) else None
+        used_return_count[inv.id] += 1
+        condition = ((ret.condition_status if ret else "good") or "good").lower()
+        if condition == "good" and inv.service_status != "in_service" and inv.status not in {"missing", "damaged"}:
+            inv.status = "available"
+        elif condition == "missing":
+            inv.status = "missing"
+        elif condition in {"damaged", "incomplete"} and inv.service_status != "in_service" and inv.status != "missing":
+            inv.status = "damaged"
+        _log_custody(db, booking.id, inv.id, None, "gate_in", from_person=booking.destination, to_person="Store", notes=f"Booking completed. Condition: {condition}")
+    for crew in booking.crew:
+        if crew.crew_member:
+            crew.crew_member.status = "available"
+            _log_custody(db, booking.id, None, crew.crew_member_id, "gate_in", from_person=booking.destination, to_person="Office", notes="Booking completed.")
+    db.add(models.GatePass(
+        gate_pass_number=next_gate_pass_number(db),
+        booking_id=booking.id,
+        pass_type="gate_in",
+        approved_by="System Parity Check",
+        status="issued",
+        remarks="Auto-generated on complete booking closure"
+    ))
+    db.commit()
+    db.refresh(booking)
+    return {"ok": True, "booking_id": booking.id, "status": booking.status, **check}
 
 @router.post("/qc", response_model=schemas.ReturnQCRead)
 def create_qc(payload: schemas.ReturnQCCreate, db: Session = Depends(get_db)):
@@ -947,6 +1156,8 @@ def create_damage(payload: schemas.DamageLogCreate, db: Session = Depends(get_db
     booking = db.query(models.EventBooking).filter(models.EventBooking.id == payload.booking_id).first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
+    if booking.status not in {"dispatched", "returned"}:
+        raise HTTPException(status_code=400, detail="Damage/missing can be logged only after dispatch.")
     inv = db.query(models.InventoryItem).filter(models.InventoryItem.id == payload.inventory_item_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Inventory item not found.")
