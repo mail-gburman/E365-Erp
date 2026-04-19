@@ -414,7 +414,7 @@ def _service_bill_amount(row: models.ServiceJob) -> float:
 
 
 def _ledger_payment_index(db: Session) -> dict[str, dict]:
-    grouped: dict[str, dict] = defaultdict(lambda: {"paid": 0.0, "latest_date": None, "latest_mode": "-", "details": "-"})
+    grouped: dict[str, dict] = defaultdict(lambda: {"paid": 0.0, "latest_date": None, "latest_mode": "-", "details": "-", "payments": []})
     payments = db.query(models.AccountLedgerPayment).order_by(models.AccountLedgerPayment.created_at.asc()).all()
     for payment in payments:
         key = f"{payment.entry_type}:{payment.reference}"
@@ -422,6 +422,14 @@ def _ledger_payment_index(db: Session) -> dict[str, dict]:
         grouped[key]["latest_date"] = payment.payment_date.isoformat() if payment.payment_date else None
         grouped[key]["latest_mode"] = payment.payment_mode or "-"
         grouped[key]["details"] = payment.details or "-"
+        grouped[key]["payments"].append({
+            "amount": float(payment.amount or 0),
+            "payment_date": payment.payment_date.isoformat() if payment.payment_date else None,
+            "payment_mode": payment.payment_mode or "-",
+            "details": payment.details or "-",
+            "created_at": payment.created_at.isoformat() if payment.created_at else None,
+            "created_by": payment.created_by,
+        })
     return grouped
 
 
@@ -439,6 +447,7 @@ def accounts_ledger(db: Session = Depends(get_db)):
         project = booking.project if booking else None
         client = project.client if project and project.client else None
         client_rows.append({
+            "reference": invoice.invoice_number,
             "invoice_number": invoice.invoice_number,
             "job_card_id": booking.job_card_id if booking else "-",
             "client_name": client.name if client else "-",
@@ -449,6 +458,7 @@ def accounts_ledger(db: Session = Depends(get_db)):
             "payment_received_at": serialized["payment_received_at"],
             "payment_committed_date": serialized["payment_committed_date"],
             "details": invoice.payment_details or invoice.notes or "-",
+            "payments": payments.get(f"client:{invoice.invoice_number}", {}).get("payments") or [],
             "status": invoice.status,
         })
         for payout in json.loads(invoice.payout_json or "[]"):
@@ -468,6 +478,7 @@ def accounts_ledger(db: Session = Depends(get_db)):
                 "payment_mode": payments.get(pay_key, {}).get("latest_mode") or "-",
                 "payment_date": payments.get(pay_key, {}).get("latest_date"),
                 "details": payments.get(pay_key, {}).get("details") or "Internal payout pending entry",
+                "payments": payments.get(pay_key, {}).get("payments") or [],
             })
 
     vendor_rows = []
@@ -485,6 +496,7 @@ def accounts_ledger(db: Session = Depends(get_db)):
             "payment_mode": row.payment_mode or "-",
             "payment_date": row.payment_date.isoformat() if row.payment_date else None,
             "details": row.payment_details or row.notes or "-",
+            "payments": payments.get(f"vendor:{row.po_number}", {}).get("payments") or [],
         })
 
     service_rows = []
@@ -501,6 +513,7 @@ def accounts_ledger(db: Session = Depends(get_db)):
             "payment_mode": row.service_payment_mode or "-",
             "payment_date": row.service_payment_date.isoformat() if row.service_payment_date else None,
             "details": row.service_payment_details or row.remarks or row.problem_reported or "-",
+            "payments": payments.get(f"service:{row.job_number}", {}).get("payments") or [],
         })
 
     total_receivable = sum(row["total_amount"] for row in client_rows)

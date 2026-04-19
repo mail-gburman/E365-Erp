@@ -241,13 +241,31 @@ def required_accessories(equipment_ids: str = Query(""), db: Session = Depends(g
 @router.get("/details")
 def list_booking_details(db: Session = Depends(get_db)):
     rows = db.query(models.EventBooking).options(
-        joinedload(models.EventBooking.project),
+        joinedload(models.EventBooking.project).joinedload(models.ProjectEvent.dates),
         joinedload(models.EventBooking.equipment).joinedload(models.BookingEquipment.inventory_item),
         joinedload(models.EventBooking.crew).joinedload(models.BookingCrew.crew_member),
     ).order_by(models.EventBooking.id.desc()).all()
     out = []
     for b in rows:
         equipment_rows = _booking_equipment_rows(b)
+        project_dates = []
+        if b.project:
+            for row in b.project.dates or []:
+                project_dates.append({
+                    "type": {"start_date": "shoot_date", "end_date": "end_day"}.get(row.date_type, row.date_type),
+                    "date": row.date_value.isoformat() if row.date_value else None,
+                })
+        equipment_items = [
+            {
+                "id": x.inventory_item.id,
+                "asset_code": x.inventory_item.asset_code,
+                "name": x.inventory_item.name,
+                "serial_number": x.inventory_item.serial_number,
+                "item_type": x.inventory_item.item_type,
+                "owner_type": x.inventory_item.owner_type,
+            }
+            for x in b.equipment if x.inventory_item
+        ]
         # Get damage logs for this booking
         damages = db.query(models.DamageLog).filter(models.DamageLog.booking_id == b.id).all()
         out.append({
@@ -270,7 +288,9 @@ def list_booking_details(db: Session = Depends(get_db)):
             "pickup_time": b.pickup_time.isoformat() if b.pickup_time else None,
             "reference_job_card_id": _root_job_card_id(b),
             "job_card_pdf_url": f"/bookings/{b.id}/job-card-pdf",
-            "equipment": [{"id": x.inventory_item.id, "asset_code": x.inventory_item.asset_code, "name": x.inventory_item.name, "serial_number": x.inventory_item.serial_number, "item_type": x.inventory_item.item_type, "owner_type": x.inventory_item.owner_type} for x in b.equipment if x.inventory_item],
+            "dates": project_dates,
+            "equipment": [item for item in equipment_items if item["item_type"] != "accessory"],
+            "accessories": [item for item in equipment_items if item["item_type"] == "accessory"],
             "equipment_summary": aggregate_equipment_rows(equipment_rows),
             "crew": [{"id": x.crew_member.id, "employee_code": x.crew_member.employee_code, "name": x.crew_member.full_name, "role": x.crew_member.role, "manpower_type": x.crew_member.manpower_type} for x in b.crew if x.crew_member],
             "damages": [{"id": d.id, "inventory_item_id": d.inventory_item_id, "description": d.damage_description, "severity": d.severity, "photo_path": d.photo_path, "reported_by": d.reported_by, "stage": d.stage, "auto_service_job_id": d.auto_service_job_id} for d in damages],
@@ -989,18 +1009,42 @@ async def upload_damage_photo(damage_id: int, file: UploadFile = File(...), db: 
 def create_supplementary_booking(booking_id: int, payload: dict, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """
     Create a supplementary job card for date/scope changes on a confirmed booking.
-    Payload: { "added_dates": [yyyy-mm-dd, ...], "removed_dates": [...], "notes": "...", "equipment_ids": [...], "crew_ids": [...] }
-    Detects conflicts on added dates (double-booking checks).
+    Payload: { "date_tags": [{date,type}], "added_dates": [...], "removed_dates": [...], "notes": "...", "equipment_ids": [...], "accessory_ids": [...], "crew_ids": [...] }
+    Detects conflicts before creating the supplementary card.
     """
     parent = db.query(models.EventBooking).filter(models.EventBooking.id == booking_id).first()
     if not parent:
         raise HTTPException(status_code=404, detail="Parent booking not found.")
-    added = payload.get("added_dates") or []
-    removed = payload.get("removed_dates") or []
-    equipment_ids = payload.get("equipment_ids") or [x.inventory_item_id for x in parent.equipment]
+    date_tags = payload.get("date_tags") or []
+    old_dates = []
+    if parent.project:
+        old_dates = [
+            {"date": row.date_value.isoformat(), "type": {"start_date": "shoot_date", "end_date": "end_day"}.get(row.date_type, row.date_type)}
+            for row in parent.project.dates or []
+            if row.date_value
+        ]
+    old_shoot_dates = {row["date"] for row in old_dates if row["type"] == "shoot_date"}
+    new_shoot_dates = {row.get("date") for row in date_tags if row.get("type") == "shoot_date"} if date_tags else set(payload.get("added_dates") or [])
+    off_dates = {row.get("date") for row in date_tags if row.get("type") == "off_day"} if date_tags else set(payload.get("removed_dates") or [])
+    added = payload.get("added_dates") or sorted([d for d in new_shoot_dates if d and d not in old_shoot_dates])
+    removed = payload.get("removed_dates") or sorted([d for d in (old_shoot_dates - new_shoot_dates) | off_dates if d])
+    equipment_ids = payload.get("equipment_ids") or []
+    accessory_ids = payload.get("accessory_ids") or []
+    if not equipment_ids and not accessory_ids:
+        equipment_ids = [x.inventory_item_id for x in parent.equipment]
+    else:
+        equipment_ids = list(dict.fromkeys([*equipment_ids, *accessory_ids]))
     crew_ids = payload.get("crew_ids") or [x.crew_member_id for x in parent.crew]
     notes = payload.get("notes") or ""
     project = parent.project
+
+    root_parent_id = parent.parent_booking_id or parent.id
+    family_ids = [
+        row.id for row in db.query(models.EventBooking.id).filter(
+            (models.EventBooking.id == root_parent_id) | (models.EventBooking.parent_booking_id == root_parent_id)
+        ).all()
+    ]
+    check_dates = sorted({*added, *[row.get("date") for row in date_tags if row.get("date")]})
 
     # Conflict check: item status first (servicing / inactive / forever_damaged cannot appear in any new booking)
     conflicts = []
@@ -1014,6 +1058,16 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
                 "conflict_booking_id": None,
             })
 
+    for crew_id in crew_ids:
+        person = db.query(models.CrewMember).filter(models.CrewMember.id == crew_id).first()
+        if person and person.status in ["inactive", "cancelled"]:
+            conflicts.append({
+                "date": "all_dates",
+                "crew_member_id": crew_id,
+                "reason": f"Manpower unavailable — status: {person.status}",
+                "conflict_booking_id": None,
+            })
+
     added_dates = []
     removed_dates = []
     for dstr in added:
@@ -1022,17 +1076,31 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
         except Exception:
             continue
         added_dates.append(d)
-        # Find overlapping bookings for same equipment on that date
+    for dstr in check_dates:
+        try:
+            d = datetime.fromisoformat(dstr).date() if isinstance(dstr, str) else dstr
+        except Exception:
+            continue
         for inv_id in equipment_ids:
             hit = db.query(models.BookingEquipment).join(models.EventBooking).join(models.ProjectEvent).filter(
                 models.BookingEquipment.inventory_item_id == inv_id,
                 models.EventBooking.status.in_(ACTIVE_STATUSES),
-                models.EventBooking.id != parent.id,
+                ~models.EventBooking.id.in_(family_ids),
                 models.ProjectEvent.shoot_start <= datetime.combine(d, datetime.max.time()),
                 models.ProjectEvent.shoot_end >= datetime.combine(d, datetime.min.time()),
             ).first()
             if hit:
-                conflicts.append({"date": str(d), "inventory_item_id": inv_id, "conflict_booking_id": hit.booking_id})
+                conflicts.append({"date": str(d), "inventory_item_id": inv_id, "conflict_booking_id": hit.booking_id, "reason": "Equipment already booked"})
+        for crew_id in crew_ids:
+            hit = db.query(models.BookingCrew).join(models.EventBooking).join(models.ProjectEvent).filter(
+                models.BookingCrew.crew_member_id == crew_id,
+                models.EventBooking.status.in_(ACTIVE_STATUSES),
+                ~models.EventBooking.id.in_(family_ids),
+                models.ProjectEvent.shoot_start <= datetime.combine(d, datetime.max.time()),
+                models.ProjectEvent.shoot_end >= datetime.combine(d, datetime.min.time()),
+            ).first()
+            if hit:
+                conflicts.append({"date": str(d), "crew_member_id": crew_id, "conflict_booking_id": hit.booking_id, "reason": "Manpower already booked"})
     for dstr in removed:
         try:
             d = datetime.fromisoformat(dstr).date() if isinstance(dstr, str) else dstr
@@ -1040,20 +1108,45 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
             continue
         removed_dates.append(d)
 
+    if conflicts:
+        raise HTTPException(status_code=409, detail={"message": "Conflicts found. Supplementary card not created.", "conflicts": conflicts})
+
     if project:
         existing_dates = {(row.date_type, row.date_value) for row in project.dates or []}
-        for d in added_dates:
-            if ("shoot_date", d) not in existing_dates and ("start_date", d) not in existing_dates:
-                db.add(models.ProjectDate(project_id=project.id, date_type="shoot_date", date_value=d))
-                existing_dates.add(("shoot_date", d))
-        for d in removed_dates:
+        if date_tags:
             for row in list(project.dates or []):
-                normalized_type = {"start_date": "shoot_date", "end_date": "end_day"}.get(row.date_type, row.date_type)
-                if normalized_type in {"shoot_date", "end_day"} and row.date_value == d:
-                    db.delete(row)
-            if ("off_day", d) not in existing_dates:
-                db.add(models.ProjectDate(project_id=project.id, date_type="off_day", date_value=d))
-                existing_dates.add(("off_day", d))
+                db.delete(row)
+            parsed_dates = []
+            for row in date_tags:
+                try:
+                    d = datetime.fromisoformat(row.get("date")).date()
+                except Exception:
+                    continue
+                date_type = row.get("type") or "shoot_date"
+                db.add(models.ProjectDate(project_id=project.id, date_type=date_type, date_value=d))
+                parsed_dates.append(d)
+            if parsed_dates:
+                project.block_start = datetime.combine(min(parsed_dates), datetime.min.time())
+                project.block_end = datetime.combine(max(parsed_dates), datetime.max.time())
+                active_dates = [d for d in parsed_dates if d not in off_dates]
+                if active_dates:
+                    project.shoot_start = datetime.combine(min(active_dates), datetime.min.time())
+                    project.shoot_end = datetime.combine(max(active_dates), datetime.max.time())
+                    project.expected_start_date = min(active_dates)
+                    project.expected_end_date = max(active_dates)
+        else:
+            for d in added_dates:
+                if ("shoot_date", d) not in existing_dates and ("start_date", d) not in existing_dates:
+                    db.add(models.ProjectDate(project_id=project.id, date_type="shoot_date", date_value=d))
+                    existing_dates.add(("shoot_date", d))
+            for d in removed_dates:
+                for row in list(project.dates or []):
+                    normalized_type = {"start_date": "shoot_date", "end_date": "end_day"}.get(row.date_type, row.date_type)
+                    if normalized_type in {"shoot_date", "end_day"} and row.date_value == d:
+                        db.delete(row)
+                if ("off_day", d) not in existing_dates:
+                    db.add(models.ProjectDate(project_id=project.id, date_type="off_day", date_value=d))
+                    existing_dates.add(("off_day", d))
 
     # Create supplementary booking record
     supp_card_id = next_supplementary_job_card_id(db, parent.job_card_id)
