@@ -1,0 +1,1 @@
+"""Local Tally connector package."""
