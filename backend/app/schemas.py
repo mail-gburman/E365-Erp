@@ -82,6 +82,7 @@ class VendorBase(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
     notes: Optional[str] = None
 
 class VendorCreate(VendorBase): pass
@@ -93,6 +94,7 @@ class VendorUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
     notes: Optional[str] = None
 class VendorRead(VendorBase):
     id: int
@@ -137,6 +139,7 @@ class ClientBase(BaseModel):
     industry_type: Optional[str] = None
     billing_address: Optional[str] = None
     gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
     notes: Optional[str] = None
 
 class ClientUpdate(BaseModel):
@@ -144,6 +147,7 @@ class ClientUpdate(BaseModel):
     industry_type: Optional[str] = None
     billing_address: Optional[str] = None
     gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
     notes: Optional[str] = None
 
 class ClientCreate(ClientBase):
@@ -209,6 +213,10 @@ class CrewBase(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     aadhar_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    blood_group: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
     id_proof_type: Optional[str] = None
     id_proof_number: Optional[str] = None
     id_proofs: List[dict] = Field(default_factory=list)  # list of {type, number, file_url?}
@@ -224,6 +232,10 @@ class CrewUpdate(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     aadhar_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    blood_group: Optional[str] = None
+    emergency_contact: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
     id_proof_type: Optional[str] = None
     id_proof_number: Optional[str] = None
     id_proofs: Optional[List[dict]] = None
