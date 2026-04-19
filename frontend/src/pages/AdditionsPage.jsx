@@ -10,11 +10,12 @@ import { api, systemApi } from "../api";
 import { validateStatutory } from "../utils/statutory";
 
 const blankWarehouse = { code:"", name:"", city:"", address:"", manager_name:"", contact_no:"" };
-const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", notes:"" };
-const blankClient = { name:"", industry_type:"", billing_address:"", gst_number:"", notes:"", contacts:[{contact_name:"", designation:"", email:"", phone_country_code:"+91", phone_number:"", is_primary:true}] };
+const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", pan_number:"", notes:"" };
+const blankClient = { name:"", industry_type:"", billing_address:"", gst_number:"", pan_number:"", notes:"", contacts:[{contact_name:"", designation:"", email:"", phone_country_code:"+91", phone_number:"", is_primary:true}] };
 const blankEquipmentMaster = { equipment_code:"", name:"", category:"Camera", item_type:"device", brand:"", model_no:"", mandatory_accessory_codes:"", optional_accessory_codes:"", notes:"" };
 const blankInventory = { asset_code:"", name:"", category:"Camera", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"" };
-const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inhouse", vendor_id:"", home_station:"", phone:"", address:"", aadhar_number:"", id_proof_type:"Aadhaar", id_proof_number:"", status:"available" };
+const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inhouse", vendor_id:"", home_station:"", phone:"", address:"", aadhar_number:"", pan_number:"", blood_group:"", emergency_contact:"", emergency_contact_phone:"", id_proof_type:"Aadhaar", id_proof_number:"", status:"available" };
+const BLOOD_GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
 const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID", "Others"];
 const blankIdProof = () => ({ key: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type: "Aadhaar", number: "", description: "", front: null, back: null });
 
@@ -651,6 +652,7 @@ export default function AdditionsPage() {
               </div>
             ))}
             <button type="button" className="ghostBtn full" onClick={addContact}>Add Another Contact</button>
+            <StatutoryField type="PAN" value={clientForm.pan_number || ""} onChange={v=>setClientForm({...clientForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
             <DocumentUploadFields entityType="client" files={entityDocFiles.client} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("client", key, file)} />
             <button className="primaryBtn full" type="submit">Save Client</button>
           </form>
@@ -667,6 +669,7 @@ export default function AdditionsPage() {
             <input placeholder="Phone" value={vendorForm.phone} onChange={e=>setVendorForm({...vendorForm, phone:e.target.value})} />
             <input placeholder="Email" value={vendorForm.email} onChange={e=>setVendorForm({...vendorForm, email:e.target.value})} />
             <StatutoryField type="GST" value={vendorForm.gst_number} onChange={v=>setVendorForm({...vendorForm, gst_number:v})} placeholder="GST Number (15 chars)" />
+            <StatutoryField type="PAN" value={vendorForm.pan_number || ""} onChange={v=>setVendorForm({...vendorForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
             <textarea className="full" placeholder="Notes" value={vendorForm.notes} onChange={e=>setVendorForm({...vendorForm, notes:e.target.value})}></textarea>
             <DocumentUploadFields entityType="vendor" files={entityDocFiles.vendor} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("vendor", key, file)} />
             <button className="primaryBtn full" type="submit">Save Vendor</button>
@@ -685,6 +688,15 @@ export default function AdditionsPage() {
             <input placeholder="Phone" value={crewForm.phone} onChange={e=>setCrewForm({...crewForm, phone:e.target.value})} />
             <input placeholder="Address" value={crewForm.address} onChange={e=>setCrewForm({...crewForm, address:e.target.value})} />
             <StatutoryField type="Aadhaar" value={crewForm.aadhar_number} onChange={v=>setCrewForm({...crewForm, aadhar_number:v})} placeholder="Aadhaar Number (12 digits)" />
+            <StatutoryField type="PAN" value={crewForm.pan_number || ""} onChange={v=>setCrewForm({...crewForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
+            <select value={crewForm.blood_group} onChange={e=>setCrewForm({...crewForm, blood_group:e.target.value})}>
+              <option value="">Blood Group (optional)</option>
+              {BLOOD_GROUPS.map(g=><option key={g} value={g}>{g}</option>)}
+            </select>
+            <div style={{gridColumn:"1/-1",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <input placeholder="Emergency Contact Name" value={crewForm.emergency_contact || ""} onChange={e=>setCrewForm({...crewForm, emergency_contact:e.target.value})} />
+              <input placeholder="Emergency Contact Phone" value={crewForm.emergency_contact_phone || ""} onChange={e=>setCrewForm({...crewForm, emergency_contact_phone:e.target.value})} />
+            </div>
             <div className="full documentUploadPanel">
               <strong>ID Proofs</strong>
               <p className="helperText">Add one or more ID proofs. At least one uploaded page is required.</p>

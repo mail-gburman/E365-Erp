@@ -105,18 +105,4 @@ export function validateStatutory(type, rawValue) {
   return { valid: true, message: `${type} format valid` };
 }
 
-/** Quick single-field inline result for rendering */
-export function StatutoryBadge({ type, value }) {
-  if (!value || type === "Others") return null;
-  const { valid, message } = validateStatutory(type, value);
-  if (valid === null) return null;
-  const color = valid ? "#4ade80" : "#f87171";
-  const bg = valid ? "#052e16" : "#450a0a";
-  return (
-    <span style={{ display:"block", marginTop:3, fontSize:11, color, background:bg, borderRadius:4, padding:"2px 6px" }}>
-      {valid ? "✓" : "✗"} {message}
-    </span>
-  );
-}
-
 export { INDIAN_STATE_CODES };

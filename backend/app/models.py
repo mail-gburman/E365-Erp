@@ -38,6 +38,7 @@ class Vendor(Base):
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     gst_number = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
 
 class Client(Base):
@@ -49,6 +50,7 @@ class Client(Base):
     industry_type = Column(String, nullable=True)
     billing_address = Column(Text, nullable=True)
     gst_number = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     is_demo = Column(Boolean, default=False)
 
@@ -125,6 +127,10 @@ class CrewMember(Base):
     aadhar_number = Column(String, nullable=True)  # NEW: Aadhar linked
     id_proof_type = Column(String, nullable=True)
     id_proof_number = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
+    blood_group = Column(String, nullable=True)
+    emergency_contact = Column(String, nullable=True)
+    emergency_contact_phone = Column(String, nullable=True)
     id_proofs_json = Column(Text, nullable=True)  # NEW: JSON list of {type, number, file_url?} supporting multiple ID proofs per crew
 
     @property
