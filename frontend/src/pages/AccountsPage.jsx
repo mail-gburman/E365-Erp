@@ -56,6 +56,7 @@ export default function AccountsPage() {
   const [ledger, setLedger] = useState(null);
   const [paymentDraft, setPaymentDraft] = useState(null);
   const [barterDraft, setBarterDraft] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState(null);
   const [overviewDetail, setOverviewDetail] = useState(null);
   const [tallyDetail, setTallyDetail] = useState(null);
   const [billingSearch, setBillingSearch] = useState("");
@@ -343,7 +344,7 @@ export default function AccountsPage() {
       await api.recordBarter(barterDraft);
       setBarterDraft(null);
       load();
-      setMessage("Client-vendor barter saved.");
+      setMessage("Vendor-as-client barter saved.");
     } catch (error) {
       setMessage(String(error.message || error));
     }
@@ -440,16 +441,16 @@ export default function AccountsPage() {
       {barterDraft ? <div className="modalOverlay">
         <div className="modalCard profileModal">
           <div className="modalHeader">
-            <h2>Client-Vendor Barter</h2>
+            <h2>Vendor-as-Client Barter</h2>
             <button className="ghostBtn compactBtn" type="button" onClick={() => setBarterDraft(null)}>Close</button>
           </div>
           <div className="formGrid">
-            <label className="fieldLabel">Client Invoice</label>
+            <label className="fieldLabel">Bill Vendor As Client</label>
             <select value={barterDraft.client_reference || ""} onChange={event => setBarterDraft({ ...barterDraft, client_reference: event.target.value })}>
               <option value="">Select invoice</option>
               {(ledger?.client_receivables || []).map(row => <option key={row.invoice_number} value={row.invoice_number}>{row.invoice_number} / {row.client_name} / Due INR {money(row.amount_due)}</option>)}
             </select>
-            <label className="fieldLabel">Vendor Bill</label>
+            <label className="fieldLabel">Vendor Payment Bill</label>
             <select value={barterDraft.vendor_reference || ""} onChange={event => setBarterDraft({ ...barterDraft, vendor_reference: event.target.value })}>
               <option value="">Select vendor bill</option>
               {(ledger?.vendor_bills || []).map(row => <option key={row.reference} value={row.reference}>{row.reference} / {row.vendor_name} / Due INR {money(row.due_amount)}</option>)}
@@ -461,7 +462,36 @@ export default function AccountsPage() {
           </div>
           <div className="modalFooter">
             <button className="ghostBtn" type="button" onClick={() => setBarterDraft(null)}>Cancel</button>
-            <button className="primaryBtn" type="button" onClick={saveBarter}>Save Barter</button>
+            <button className="primaryBtn" type="button" onClick={saveBarter}>Settle by Barter</button>
+          </div>
+        </div>
+      </div> : null}
+
+      {paymentHistory ? <div className="modalOverlay">
+        <div className="modalCard profileModal">
+          <div className="modalHeader">
+            <h2>Part Payment History</h2>
+            <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory(null)}>Close</button>
+          </div>
+          <p className="helperText">{paymentHistory.label}</p>
+          <div className="tableWrap">
+            <table>
+              <thead><tr><th>Date</th><th>Amount</th><th>Mode</th><th>Details</th><th>By</th></tr></thead>
+              <tbody>
+                {(paymentHistory.payments || []).length === 0 ? <tr><td colSpan="5" className="helperText">No part payments recorded yet.</td></tr> : paymentHistory.payments.map((row, index) => (
+                  <tr key={`${row.created_at || row.payment_date}-${index}`}>
+                    <td>{row.payment_date || "-"}</td>
+                    <td>INR {money(row.amount)}</td>
+                    <td>{row.payment_mode || "-"}</td>
+                    <td>{row.details || "-"}</td>
+                    <td>{row.created_by || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="modalFooter">
+            <button className="ghostBtn" type="button" onClick={() => setPaymentHistory(null)}>Close</button>
           </div>
         </div>
       </div> : null}
@@ -797,7 +827,7 @@ export default function AccountsPage() {
             </div>
             <div className="listToolbar">
               <SearchBar value={ledgerSearch} onChange={value => { setLedgerSearch(value); pgLedgerReceivables.setPage(1); pgLedgerManpower.setPage(1); pgLedgerVendors.setPage(1); pgLedgerServices.setPage(1); }} suggestions={buildSuggestions([...(ledger.client_receivables || []), ...(ledger.manpower_payouts || []), ...(ledger.vendor_bills || []), ...(ledger.service_bills || [])])} placeholder="Search ledger by invoice, job card, client, vendor, role, amount, due date..." />
-              <button className="primaryBtn compactBtn" type="button" onClick={openBarter}>Client-Vendor Barter</button>
+              <button className="primaryBtn compactBtn" type="button" onClick={openBarter}>Vendor-as-Client Barter</button>
             </div>
 
             <LedgerSection title="Total Outbound Bills Status" meta={`${ledgerReceivables.length} invoices · Due INR ${money(ledger.summary?.client_due)}`} defaultOpen>
@@ -816,9 +846,10 @@ export default function AccountsPage() {
                             <div className="invoiceActionGroup ledgerRowActions">
                               <button className="ghostBtn compactBtn" type="button" disabled={!invoice} onClick={() => viewLedgerInvoice(row.invoice_number)}>View PDF</button>
                               <button className="downloadBtn compactBtn" type="button" disabled={!invoice} onClick={() => downloadLedgerInvoice(row.invoice_number)}>Download</button>
-                              <button className="ghostBtn compactBtn" type="button" disabled={!invoice} onClick={() => showTallyStatus(invoice)}>Voucher {invoice?.tally_status?.voucher_number || "-"}</button>
-                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("client", row.invoice_number, `${row.client_name} / ${row.invoice_number}`, row.amount_due)}>Part Receipt</button>
-                            </div>
+	                              <button className="ghostBtn compactBtn" type="button" disabled={!invoice} onClick={() => showTallyStatus(invoice)}>Voucher {invoice?.tally_status?.voucher_number || "-"}</button>
+	                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("client", row.invoice_number, `${row.client_name} / ${row.invoice_number}`, row.amount_due)}>Part Receipt</button>
+	                              <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.client_name} / ${row.invoice_number}`, payments: row.payments || [] })}>History</button>
+	                            </div>
                           </td>
                         </tr>
                       );
@@ -841,9 +872,10 @@ export default function AccountsPage() {
                           <td>{row.invoice_number}</td><td>{row.job_card_id}</td><td>{row.role}</td><td>{row.crew_count}</td><td>{row.days}</td>
                           <td>INR {money(row.amount_due)}</td><td>INR {money(row.amount_paid)}</td><td>INR {money(row.balance_due)}</td><td>{row.payment_mode} · {row.details}</td>
                           <td>
-                            <div className="invoiceActionGroup ledgerRowActions">
-                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("manpower", row.reference, `${row.role} / ${row.job_card_id}`, row.balance_due)}>Part Payout</button>
-                            </div>
+	                            <div className="invoiceActionGroup ledgerRowActions">
+	                              <button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("manpower", row.reference, `${row.role} / ${row.job_card_id}`, row.balance_due)}>Part Payout</button>
+	                              <button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.role} / ${row.job_card_id}`, payments: row.payments || [] })}>History</button>
+	                            </div>
                           </td>
                         </tr>
                       );
@@ -863,7 +895,7 @@ export default function AccountsPage() {
                       <tr key={row.reference}>
                         <td>{row.reference}</td><td>{row.vendor_name}</td><td>{row.category}</td><td>{row.status}</td>
                         <td>INR {money(row.bill_amount)}</td><td>INR {money(row.paid_amount)}</td><td>INR {money(row.due_amount)}</td><td>{row.payment_mode} · {row.details}</td>
-                        <td><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("vendor", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Vendor</button></td>
+                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("vendor", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Vendor</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
                       </tr>
                     ))}
                   </tbody>
@@ -881,7 +913,7 @@ export default function AccountsPage() {
                       <tr key={row.reference}>
                         <td>{row.reference}</td><td>{row.vendor_name}</td><td>{row.status}</td>
                         <td>INR {money(row.bill_amount)}</td><td>INR {money(row.paid_amount)}</td><td>INR {money(row.due_amount)}</td><td>{row.payment_mode} · {row.details}</td>
-                        <td><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("service", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Service</button></td>
+                        <td><div className="invoiceActionGroup ledgerRowActions"><button className="primaryBtn compactBtn" type="button" onClick={() => openPayment("service", row.reference, `${row.vendor_name} / ${row.reference}`, row.due_amount)}>Part Pay Service</button><button className="ghostBtn compactBtn" type="button" onClick={() => setPaymentHistory({ label: `${row.vendor_name} / ${row.reference}`, payments: row.payments || [] })}>History</button></div></td>
                       </tr>
                     ))}
                   </tbody>

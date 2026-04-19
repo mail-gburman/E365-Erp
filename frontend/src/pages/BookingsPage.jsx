@@ -592,15 +592,21 @@ export default function BookingsPage() {
   const [packupTime, setPackupTime] = useState("");
   const [parentBookingId, setParentBookingId] = useState("");
 
-  // Modify Shoot modal state
-  const [modifyShootModal, setModifyShootModal] = useState(false);
+  // Booking tab navigation
+  const [bookingTab, setBookingTab] = useState("new"); // "new" | "modify" | "planned" | "all"
+
+  // Modify Booking tab state
   const [modifyShootBooking, setModifyShootBooking] = useState(null);
-  const [modifyAddDates, setModifyAddDates] = useState([]);
-  const [modifyRemoveDates, setModifyRemoveDates] = useState([]);
+  const [modifyDates, setModifyDates] = useState([]);
+  const [modifyEquipment, setModifyEquipment] = useState([]);
+  const [modifyAccessories, setModifyAccessories] = useState([]);
+  const [modifyCrew, setModifyCrew] = useState([]);
   const [modifyNotes, setModifyNotes] = useState("");
-  const [modifyNewDate, setModifyNewDate] = useState("");
   const [modifyResult, setModifyResult] = useState(null);
   const [modifySaving, setModifySaving] = useState(false);
+  const [modifyEquipModal, setModifyEquipModal] = useState(false);
+  const [modifyAccModal, setModifyAccModal] = useState(false);
+  const [modifyCrewModal, setModifyCrewModal] = useState(false);
 
   // Modal states
   const [equipModal, setEquipModal] = useState(false);
@@ -618,8 +624,6 @@ export default function BookingsPage() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
   const [quickProjectSaving, setQuickProjectSaving] = useState(false);
-  const [modifyShoot, setModifyShoot] = useState({ booking_id: "", notes: "" });
-  const [modifyShootDates, setModifyShootDates] = useState([]);
 
   async function doJobCardDownload(id, jobCardId) {
     try {
@@ -939,33 +943,6 @@ export default function BookingsPage() {
 
   async function doDispatch(id) { try { await api.dispatchBooking(id); setMessage("Booking dispatched."); load(); } catch(e){ setMessage(String(e.message||e)); } }
 
-  async function submitModifyShootCard() {
-    if (!modifyShoot.booking_id) {
-      setMessage("Select original job card to modify.");
-      return;
-    }
-    const added_dates = modifyShootDates.filter((entry) => entry.type === "shoot_date").map((entry) => entry.date);
-    const removed_dates = modifyShootDates.filter((entry) => entry.type === "off_day").map((entry) => entry.date);
-    if (!added_dates.length && !removed_dates.length) {
-      setMessage("Add at least one off date or added shoot date.");
-      return;
-    }
-    try {
-      const result = await api.createSupplementaryBooking(Number(modifyShoot.booking_id), {
-        added_dates,
-        removed_dates,
-        notes: modifyShoot.notes,
-      });
-      const conflictText = result.conflicts?.length ? ` Conflicts: ${result.conflicts.length}.` : "";
-      setMessage(`Supplementary job card ${result.job_card_id} created.${conflictText}`);
-      setModifyShoot({ booking_id: "", notes: "" });
-      setModifyShootDates([]);
-      load();
-    } catch (e) {
-      setMessage(String(e.message || e));
-    }
-  }
-
   // Return QC modal state
   const [returnQCModal, setReturnQCModal] = useState(false);
   const [returnBookingId, setReturnBookingId] = useState(null);
@@ -1142,35 +1119,88 @@ export default function BookingsPage() {
   }
 
   function openModifyShoot(b) {
+    const normalizeInventory = (item) => ({
+      ...item,
+      label: item.label || `${item.asset_code || item.id} · ${item.name || "Item"} · ${item.item_type || ""} · ${item.owner_type || ""}`,
+    });
+    const normalizeCrew = (item) => ({
+      ...item,
+      label: item.label || `${item.employee_code || item.id} · ${item.name || item.full_name || "Crew"} · ${item.role || ""} · ${item.manpower_type || ""}`,
+    });
     setModifyShootBooking(b);
-    setModifyAddDates([]);
-    setModifyRemoveDates([]);
+    setModifyDates((b.dates || []).filter((row) => row.date && row.type));
+    setModifyEquipment((b.equipment || []).map(normalizeInventory));
+    setModifyAccessories((b.accessories || []).map(normalizeInventory));
+    setModifyCrew((b.crew || []).map(normalizeCrew));
     setModifyNotes("");
-    setModifyNewDate("");
     setModifyResult(null);
-    setModifyShootModal(true);
+    setBookingTab("modify");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function modifyWindow() {
+    const dates = modifyDates.map((entry) => entry.date).filter(Boolean).sort();
+    if (!dates.length) return undefined;
+    return { block_start: `${dates[0]}T00:00:00`, block_end: `${dates[dates.length - 1]}T23:59:59` };
+  }
+
+  function addModifyEquipment(items) {
+    setModifyEquipment(prev => { const existing = new Set(prev.map(x => x.id)); return [...prev, ...items.filter(x => !existing.has(x.id))]; });
+  }
+
+  function addModifyAccessories(items) {
+    setModifyAccessories(prev => { const existing = new Set(prev.map(x => x.id)); return [...prev, ...items.filter(x => !existing.has(x.id))]; });
+  }
+
+  function addModifyCrew(items) {
+    setModifyCrew(prev => { const existing = new Set(prev.map(x => x.id)); return [...prev, ...items.filter(x => !existing.has(x.id))]; });
   }
 
   async function submitModifyShoot() {
     if (!modifyShootBooking) return;
-    if (!modifyAddDates.length && !modifyRemoveDates.length) {
-      alert("Add at least one date change (add or remove a date).");
+    const originalShootDates = new Set(
+      (modifyShootBooking.dates || []).filter(d => d.type === "shoot_date").map(d => d.date)
+    );
+    const added_dates = modifyDates
+      .filter(d => d.type === "shoot_date" && !originalShootDates.has(d.date))
+      .map(d => d.date);
+    const finalActiveSet = new Set(
+      modifyDates.filter(d => d.type !== "off_day").map(d => d.date)
+    );
+    const removedByAbsence = [...originalShootDates].filter(d => !finalActiveSet.has(d));
+    const removedByOffDay = modifyDates.filter(d => d.type === "off_day").map(d => d.date);
+    const removed_dates = [...new Set([...removedByAbsence, ...removedByOffDay])];
+    const originalEquipment = new Set((modifyShootBooking.equipment || []).map(item => item.id));
+    const originalAccessories = new Set((modifyShootBooking.accessories || []).map(item => item.id));
+    const originalCrew = new Set((modifyShootBooking.crew || []).map(item => item.id));
+    const changedResources =
+      modifyEquipment.length !== originalEquipment.size ||
+      modifyAccessories.length !== originalAccessories.size ||
+      modifyCrew.length !== originalCrew.size ||
+      modifyEquipment.some(item => !originalEquipment.has(item.id)) ||
+      modifyAccessories.some(item => !originalAccessories.has(item.id)) ||
+      modifyCrew.some(item => !originalCrew.has(item.id));
+    if (!added_dates.length && !removed_dates.length && !changedResources) {
+      alert("No changes detected. Change dates, equipment, accessories, manpower, or notes.");
       return;
     }
     setModifySaving(true);
     try {
       const result = await api.createSupplementaryBooking(modifyShootBooking.id, {
-        added_dates: modifyAddDates,
-        removed_dates: modifyRemoveDates,
+        date_tags: modifyDates,
+        added_dates,
+        removed_dates,
         notes: modifyNotes,
-        equipment_ids: (modifyShootBooking.equipment || []).map(e => e.id),
-        crew_ids: (modifyShootBooking.crew || []).map(c => c.id),
+        equipment_ids: modifyEquipment.map(e => e.id),
+        accessory_ids: modifyAccessories.map(e => e.id),
+        crew_ids: modifyCrew.map(c => c.id),
       });
       setModifyResult(result);
+      setMessage(`Supplementary ${result.job_card_id} created.${result.conflicts?.length ? ` ${result.conflicts.length} conflict(s).` : ""}`);
       load();
     } catch (e) {
+      setModifyResult(null);
       setMessage(String(e.message || e));
-      setModifyShootModal(false);
     } finally {
       setModifySaving(false);
     }
@@ -1210,6 +1240,13 @@ export default function BookingsPage() {
       <h1 className="pageTitle">Booking Section</h1>
       {message ? <div className="messageBar">{message} <button className="dismissBtn" onClick={()=>setMessage("")}>Dismiss</button></div> : null}
 
+      <div className="bookingTabBar">
+        {[["new","New Booking"],["modify","Modify Booking"],["planned","Planned Booking"],["all","All Bookings"]].map(([key,label])=>(
+          <button key={key} type="button" className={`bookingTabBtn${bookingTab===key?" active":""}`} onClick={()=>setBookingTab(key)}>{label}</button>
+        ))}
+      </div>
+
+      {bookingTab === "new" && <>
       <div className="grid2">
         <Card title="Combined Project + Booking Flow">
           <ul className="alertList">
@@ -1385,29 +1422,100 @@ export default function BookingsPage() {
           </div>
         </form>
       </Card>
+      </>}
 
-      <Card title="Modify Shoot Dates">
-        <div className="formGrid">
-          <label className="fieldLabel">Original Job Card</label>
-          <select value={modifyShoot.booking_id} onChange={e => setModifyShoot({ ...modifyShoot, booking_id: e.target.value })}>
-            <option value="">Select confirmed job card</option>
-            {bookingDetails.filter(b => ["confirmed", "blocked", "dispatched"].includes(b.status) && !b.parent_booking_id).map(b => (
-              <option key={b.id} value={b.id}>{b.job_card_id} - {b.project_title}</option>
-            ))}
-          </select>
-          <div className="full">
-            <label className="fieldLabel">Calendar Changes</label>
-            <DatePicker selectedDates={modifyShootDates} onChange={setModifyShootDates} dateTypes={["off_day", "shoot_date"]} />
+      {/* ──── MODIFY BOOKING TAB ──── */}
+      {bookingTab === "modify" && (
+        <Card title="Modify Booking">
+          <div className="formGrid">
+            <label className="fieldLabel">Select Job Card to Modify</label>
+            <select value={modifyShootBooking?.id || ""} onChange={e => {
+              const b = bookingDetails.find(x => String(x.id) === e.target.value);
+              if (b) openModifyShoot(b);
+            }}>
+              <option value="">Select confirmed job card</option>
+              {bookingDetails.filter(b => ["confirmed","blocked","dispatched"].includes(b.status) && !b.parent_booking_id).map(b => (
+                <option key={b.id} value={b.id}>{b.job_card_id} — {b.project_title}</option>
+              ))}
+            </select>
+
+            {modifyShootBooking && (<>
+              <div className="full">
+                <label className="fieldLabel" style={{marginBottom:8,display:"block"}}>Shoot Dates — use Off Day to remove existing dates, add new Shoot Day dates</label>
+                <DatePicker selectedDates={modifyDates} onChange={setModifyDates}
+                  dateTypes={["travel_day","setup_date","technical_date","shoot_date","off_day","end_day","return_day"]} />
+              </div>
+
+              <div className="full">
+                <strong style={{fontSize:13}}>Equipment ({modifyEquipment.length})</strong>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                  {modifyEquipment.map(e => (
+                    <span key={e.id} style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                      <span className="badge">{e.name||e.label}</span>
+                      <button type="button" className="dangerBtn compactBtn" style={{padding:"1px 6px",fontSize:11}}
+                        onClick={()=>setModifyEquipment(prev=>prev.filter(x=>x.id!==e.id))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+                <button type="button" className="ghostBtn compactBtn" style={{marginTop:8}} onClick={()=>setModifyEquipModal(true)}>+ Add Equipment</button>
+              </div>
+
+              <div className="full">
+                <strong style={{fontSize:13}}>Accessories ({modifyAccessories.length})</strong>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                  {modifyAccessories.map(a => (
+                    <span key={a.id} style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                      <span className="badge badgeOptional">{a.name||a.label}</span>
+                      <button type="button" className="dangerBtn compactBtn" style={{padding:"1px 6px",fontSize:11}}
+                        onClick={()=>setModifyAccessories(prev=>prev.filter(x=>x.id!==a.id))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+                <button type="button" className="ghostBtn compactBtn" style={{marginTop:8}} onClick={()=>setModifyAccModal(true)}>+ Add Accessory</button>
+              </div>
+
+              <div className="full">
+                <strong style={{fontSize:13}}>Manpower ({modifyCrew.length})</strong>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+                  {modifyCrew.map(c => (
+                    <span key={c.id} style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                      <span className="badge">{c.name||c.label}{c.role?` (${c.role})`:""}</span>
+                      <button type="button" className="dangerBtn compactBtn" style={{padding:"1px 6px",fontSize:11}}
+                        onClick={()=>setModifyCrew(prev=>prev.filter(x=>x.id!==c.id))}>✕</button>
+                    </span>
+                  ))}
+                </div>
+                <button type="button" className="ghostBtn compactBtn" style={{marginTop:8}} onClick={()=>setModifyCrewModal(true)}>+ Add Manpower</button>
+              </div>
+
+              <label className="fieldLabel full">Notes</label>
+              <textarea className="full" rows={2} value={modifyNotes} onChange={e=>setModifyNotes(e.target.value)}
+                placeholder="e.g. Client removed 18th, added 20th as extra shoot day" />
+
+              {modifyResult && (
+                <div className="full" style={{background:modifyResult.conflicts?.length?"#fff3cd":"#d4edda",border:"1px solid",borderColor:modifyResult.conflicts?.length?"#ffc107":"#28a745",borderRadius:6,padding:"10px 14px",fontSize:13}}>
+                  <strong>Supplementary created: {modifyResult.job_card_id}</strong>
+                  {modifyResult.conflicts?.length > 0 && (
+                    <div style={{marginTop:6}}>
+                      <strong style={{color:"#856404"}}>Conflicts ({modifyResult.conflicts.length}):</strong>
+                      <ul style={{margin:"4px 0 0 16px",padding:0}}>
+                        {modifyResult.conflicts.map((c,i)=><li key={i} style={{fontSize:12}}>{c.date} — item #{c.inventory_item_id}: {c.reason||"conflict"}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button type="button" className="primaryBtn full" onClick={submitModifyShoot} disabled={modifySaving}>
+                {modifySaving ? "Saving..." : "Create Supplementary Modification"}
+              </button>
+            </>)}
           </div>
-          <label className="fieldLabel full">Notes</label>
-          <textarea className="full" value={modifyShoot.notes} onChange={e => setModifyShoot({ ...modifyShoot, notes: e.target.value })} placeholder="Client changed 18th to off day and added 20th." />
-          <div className="helperText full">Use Off Day for dates removed from shoot. Use Shoot Day for newly added dates. Creates supplementary job card, updates project dates, and checks added shoot dates for equipment conflicts.</div>
-          <button type="button" className="primaryBtn full" onClick={submitModifyShootCard}>Create Supplementary Modification</button>
-        </div>
-      </Card>
+        </Card>
+      )}
 
       {/* ──── PLANNED SHOOTS MANAGEMENT ──── */}
-      <Card title="Planned Shoots Management">
+      {bookingTab === "planned" && <Card title="Planned Shoots Management">
         <p className="helperText">Select planned shoots to confirm or cancel in bulk. Ensure no equipment conflicts before confirming.</p>
         <div className="listToolbar">
           <SearchBar value={plannedSearch} onChange={value => { setPlannedSearch(value); plannedPg.setPage(1); }} suggestions={buildSuggestions(plannedShoots)} placeholder="Search planned shoots by project, date, equipment, crew..." />
@@ -1455,10 +1563,10 @@ export default function BookingsPage() {
             <button type="button" className="dangerBtn compactBtn plannedShootBulkBtn" onClick={() => requestCancelPlanned(plannedSelected)}>Cancel Selected ({plannedSelected.length})</button>
           </div>
         )}
-      </Card>
+      </Card>}
 
       {/* ──── BOOKINGS TABLE ──── */}
-      <Card title="All Bookings">
+      {bookingTab === "all" && <Card title="All Bookings">
         <div className="auditSubFilters" style={{marginBottom:10}}>
           <SearchBar value={bookingSearch} onChange={value=>{setBookingSearch(value);bkPg.setPage(1);}} suggestions={buildSuggestions(bookingDetails)} placeholder="Search bookings by job card, project, destination, equipment, crew..." />
           <select value={bookingStatusFilter} onChange={e=>{setBookingStatusFilter(e.target.value);bkPg.setPage(1);}}>
@@ -1538,12 +1646,15 @@ export default function BookingsPage() {
           </table>
         </div>
         <Pagination total={bkPg.total} page={bkPg.page} pageSize={bkPg.pageSize} onPageChange={bkPg.setPage} onPageSizeChange={bkPg.setPageSize} />
-      </Card>
+      </Card>}
 
       {/* ──── MODALS ──── */}
       <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title="Search Equipment (Devices / Kits / 3rd Party)" resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
       <SearchModal open={accModal} onClose={() => setAccModal(false)} title="Search Accessories" resourceType="accessory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addAccessories} />
       <SearchModal open={crewModal} onClose={() => setCrewModal(false)} title="Search Manpower" resourceType="crew" availabilityParams={availabilityWindow || undefined} onConfirmItems={addCrew} />
+      <SearchModal open={modifyEquipModal} onClose={() => setModifyEquipModal(false)} title="Search Equipment (Modify)" resourceType="inventory" availabilityParams={modifyWindow()} onConfirmItems={addModifyEquipment} />
+      <SearchModal open={modifyAccModal} onClose={() => setModifyAccModal(false)} title="Search Accessories (Modify)" resourceType="accessory" availabilityParams={modifyWindow()} onConfirmItems={addModifyAccessories} />
+      <SearchModal open={modifyCrewModal} onClose={() => setModifyCrewModal(false)} title="Search Manpower (Modify)" resourceType="crew" availabilityParams={modifyWindow()} onConfirmItems={addModifyCrew} />
       <CancelReasonModal open={cancelModal} onClose={() => setCancelModal(false)} onConfirm={doCancel} />
       <DamageLogModal open={damageModal} onClose={() => setDamageModal(false)} booking={damageBooking} onSave={load} />
       <EditBookingModal open={editModal} onClose={() => setEditModal(false)} booking={editBooking} project={projects.find((item) => item.id === editBooking?.project_id)} onConfirmSave={requestEditBooking} />
@@ -1587,96 +1698,6 @@ export default function BookingsPage() {
       <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? bookingDetails.find(b => String(b.id) === String(parentBookingId))?.reference_job_card_id || bookingDetails.find(b => String(b.id) === String(parentBookingId))?.job_card_id : null} contacts={normalizedContacts()} />
       <QuickProjectModal open={quickProjectOpen} onClose={() => setQuickProjectOpen(false)} onSave={handleQuickProjectCreate} saving={quickProjectSaving} clientSuggestions={clientNameSuggestions} />
 
-      {/* ──── MODIFY SHOOT MODAL ──── */}
-      {modifyShootModal && modifyShootBooking && (
-        <div className="modalOverlay" onClick={() => setModifyShootModal(false)}>
-          <div className="modalCard" style={{ width: "min(560px,96vw)", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-            <div className="modalHeader">
-              <h2>Modify Shoot Dates — {modifyShootBooking.job_card_id}</h2>
-              <button className="ghostBtn modalCloseBtn" onClick={() => setModifyShootModal(false)}>Close</button>
-            </div>
-            <p className="helperText" style={{ margin: "4px 0 12px" }}>{modifyShootBooking.project_title}</p>
-
-            <div style={{ marginBottom: 14 }}>
-              <strong style={{ fontSize: 13 }}>Existing Dates</strong>
-              <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
-                {(modifyShootBooking.dates || []).length
-                  ? (modifyShootBooking.dates || []).map(d => (
-                      <span key={d.date + d.type} style={{ display: "inline-block", marginRight: 8, marginBottom: 4 }}>
-                        <span className="badge badgeOptional">{d.date} ({d.type?.replace("_", " ")})</span>
-                        {!modifyRemoveDates.includes(d.date) && (
-                          <button type="button" className="dangerBtn compactBtn" style={{ marginLeft: 4, padding: "1px 6px", fontSize: 11 }}
-                            onClick={() => setModifyRemoveDates(prev => [...prev, d.date])}>Remove</button>
-                        )}
-                        {modifyRemoveDates.includes(d.date) && (
-                          <span style={{ marginLeft: 4, color: "#e55", fontSize: 11 }}>✕ removing
-                            <button type="button" className="ghostBtn compactBtn" style={{ marginLeft: 4, padding: "1px 6px", fontSize: 11 }}
-                              onClick={() => setModifyRemoveDates(prev => prev.filter(x => x !== d.date))}>Undo</button>
-                          </span>
-                        )}
-                      </span>
-                    ))
-                  : <span style={{ color: "#aaa" }}>No dates on record</span>}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <strong style={{ fontSize: 13 }}>Add New Shoot Dates</strong>
-              <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap", alignItems: "center" }}>
-                <input type="date" value={modifyNewDate} onChange={e => setModifyNewDate(e.target.value)}
-                  style={{ padding: "4px 8px", border: "1px solid var(--border)", borderRadius: 4, fontSize: 13 }} />
-                <button type="button" className="primaryBtn compactBtn"
-                  onClick={() => {
-                    if (modifyNewDate && !modifyAddDates.includes(modifyNewDate)) {
-                      setModifyAddDates(prev => [...prev, modifyNewDate]);
-                      setModifyNewDate("");
-                    }
-                  }}>+ Add Date</button>
-              </div>
-              {modifyAddDates.length > 0 && (
-                <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {modifyAddDates.map(d => (
-                    <span key={d} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <span className="badge" style={{ background: "#d4edda", color: "#155724" }}>{d}</span>
-                      <button type="button" className="dangerBtn compactBtn" style={{ padding: "1px 6px", fontSize: 11 }}
-                        onClick={() => setModifyAddDates(prev => prev.filter(x => x !== d))}>✕</button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <label className="fieldLabel">Notes</label>
-              <textarea rows={2} className="full" value={modifyNotes} onChange={e => setModifyNotes(e.target.value)}
-                placeholder="e.g. Client removed 18th, added 20th for extra shoot day" />
-            </div>
-
-            {modifyResult && (
-              <div style={{ background: modifyResult.conflicts?.length ? "#fff3cd" : "#d4edda", border: "1px solid", borderColor: modifyResult.conflicts?.length ? "#ffc107" : "#28a745", borderRadius: 6, padding: "10px 14px", marginBottom: 12, fontSize: 13 }}>
-                <strong>Supplementary created: {modifyResult.job_card_id}</strong>
-                {modifyResult.conflicts?.length > 0 && (
-                  <div style={{ marginTop: 6 }}>
-                    <strong style={{ color: "#856404" }}>Conflicts ({modifyResult.conflicts.length}):</strong>
-                    <ul style={{ margin: "4px 0 0 16px", padding: 0 }}>
-                      {modifyResult.conflicts.map((c, i) => (
-                        <li key={i} style={{ fontSize: 12 }}>{c.date} — item #{c.inventory_item_id}: {c.reason || "conflict"}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="modalFooter">
-              <button type="button" className="ghostBtn" onClick={() => setModifyShootModal(false)}>Cancel</button>
-              <button type="button" className="primaryBtn" onClick={submitModifyShoot} disabled={modifySaving}>
-                {modifySaving ? "Saving..." : "Create Supplementary Modification"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
