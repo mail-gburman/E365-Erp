@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { clearSession, getPermissions, getRole, getUsername } from "../auth";
 import { api, adminApi, auditApi } from "../api";
+import PhoneInput from "./PhoneInput";
 
 const blankProfile = { full_name: "", phone: "", email: "", password: "" };
 
@@ -25,7 +26,7 @@ function ProfileModal({ open, onClose, profile, form, setForm, onSave, saving })
           <label className="fieldLabel">Full Name</label>
           <input value={form.full_name} onChange={(e) => setForm((prev) => ({ ...prev, full_name: e.target.value }))} placeholder="Full name" />
           <label className="fieldLabel">Phone</label>
-          <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="+91..." />
+          <PhoneInput value={form.phone} onChange={v => setForm(prev => ({ ...prev, phone: v }))} placeholder="Phone number" />
           <label className="fieldLabel">Email</label>
           <input value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="name@example.com" />
           <label className="fieldLabel">Role</label>

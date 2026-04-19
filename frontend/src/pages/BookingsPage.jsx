@@ -6,6 +6,7 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import DatePicker from "../components/DatePicker";
+import { CountryCodeSelect } from "../components/PhoneInput";
 import { api, downloadAuthorized } from "../api";
 
 const blankProject = { title:"", show_type:"Reality Show", client_id:"", venue:"", origin_warehouse_id:"", shoot_start:"", shoot_end:"", status:"planned", notes:"", dates:[] };
@@ -171,7 +172,7 @@ function QuickProjectModal({ open, onClose, onSave, saving, clientSuggestions = 
                   <input value={contact.contact_name} onChange={(e) => setContact(index, "contact_name", e.target.value)} placeholder="Contact name" />
                   <input value={contact.designation} onChange={(e) => setContact(index, "designation", e.target.value)} placeholder="Designation" />
                   <input value={contact.email} onChange={(e) => setContact(index, "email", e.target.value)} placeholder="Email" />
-                  <input value={contact.phone_country_code} onChange={(e) => setContact(index, "phone_country_code", e.target.value)} placeholder="Country code" />
+                  <CountryCodeSelect value={contact.phone_country_code} onChange={v => setContact(index, "phone_country_code", v)} />
                   <input value={contact.phone_number} onChange={(e) => setContact(index, "phone_number", e.target.value)} placeholder="Phone number" />
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                     <label className="checkCard" style={{ flex: 1 }}>
