@@ -496,7 +496,7 @@ def ensure_demo_data(db: Session):
                 ("Mukul Jain", "9810001003", "XXXX-9003"),
             ),
             "call_time": datetime(2026, 4, 28, 7, 0),
-            "pickup_time": datetime(2026, 4, 28, 5, 30),
+            "packup_time": datetime(2026, 4, 28, 5, 30),
             "is_demo": True,
         },
     )
@@ -531,7 +531,7 @@ def ensure_demo_data(db: Session):
             "contact_person_aadhar": "XXXX-9003",
             "booking_contacts_json": booking_contacts(("Mukul Jain", "9810001003", "XXXX-9003")),
             "call_time": datetime(2026, 4, 28, 11, 0),
-            "pickup_time": datetime(2026, 4, 28, 10, 0),
+            "packup_time": datetime(2026, 4, 28, 10, 0),
             "is_demo": True,
         },
     )
@@ -558,7 +558,7 @@ def ensure_demo_data(db: Session):
             "contact_person_aadhar": "XXXX-9002",
             "booking_contacts_json": booking_contacts(("Harsh Vyas", "9810001002", "XXXX-9002")),
             "call_time": datetime(2026, 4, 30, 6, 30),
-            "pickup_time": datetime(2026, 4, 30, 4, 0),
+            "packup_time": datetime(2026, 4, 30, 4, 0),
             "is_demo": True,
         },
     )
@@ -604,7 +604,7 @@ def ensure_demo_data(db: Session):
                 ("Kabir Sharma", "9820002002", "XXXX-9202"),
             ),
             "call_time": datetime(2026, 4, 8, 4, 30),
-            "pickup_time": datetime(2026, 4, 8, 3, 30),
+            "packup_time": datetime(2026, 4, 8, 3, 30),
             "is_demo": True,
         },
     )
@@ -674,7 +674,7 @@ def ensure_demo_data(db: Session):
             "contact_person_aadhar": "XXXX-9202",
             "booking_contacts_json": booking_contacts(("Kabir Sharma", "9820002002", "XXXX-9202")),
             "call_time": datetime(2026, 5, 2, 7, 30),
-            "pickup_time": datetime(2026, 5, 2, 6, 30),
+            "packup_time": datetime(2026, 5, 2, 6, 30),
             "is_demo": True,
         },
     )

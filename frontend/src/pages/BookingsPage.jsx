@@ -730,7 +730,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
         contact_person_mobile: booking.contact_person_mobile || "",
         contact_person_aadhar: booking.contact_person_aadhar || "",
         call_time: extractTimeValue(booking.call_time),
-        pickup_time: extractTimeValue(booking.pickup_time),
+        packup_time: extractTimeValue(booking.packup_time),
         packup_time: extractTimeValue(booking.packup_time),
       });
       const normalized = booking.contacts?.length ? booking.contacts : [{ name: booking.contact_person_name || "", mobile: booking.contact_person_mobile || "", aadhar: booking.contact_person_aadhar || "" }];
@@ -759,7 +759,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           ...form,
           contacts,
           call_time: composeDateTime(travelDate, form.call_time),
-          pickup_time: composeDateTime(travelDate, form.pickup_time),
+          packup_time: composeDateTime(travelDate, form.packup_time),
           packup_time: composeDateTime(returnDate, form.packup_time),
         });
         onClose();
@@ -804,8 +804,8 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           </div>
           <label className="fieldLabel">Call Time {travelDate ? `(${travelDate})` : ""}</label>
           <input type="time" value={form.call_time || ""} onChange={e => setForm({...form, call_time: e.target.value})} />
-          <label className="fieldLabel">Pickup Time {travelDate ? `(${travelDate})` : ""}</label>
-          <input type="time" value={form.pickup_time || ""} onChange={e => setForm({...form, pickup_time: e.target.value})} />
+          <label className="fieldLabel">Packup Time {travelDate ? `(${travelDate})` : ""}</label>
+          <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
           <label className="fieldLabel">Packup Time {returnDate ? `(${returnDate})` : ""}</label>
           <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
           <label className="fieldLabel full">Remarks</label>
@@ -880,7 +880,7 @@ export default function BookingsPage() {
   const [contactAadhar, setContactAadhar] = useState("");
   const [contacts, setContacts] = useState([{ ...blankContact }]);
   const [callTime, setCallTime] = useState("");
-  const [pickupTime, setPickupTime] = useState("");
+  const [packupTime, setPickupTime] = useState("");
   const [packupTime, setPackupTime] = useState("");
   const [parentBookingId, setParentBookingId] = useState("");
 
@@ -1227,7 +1227,7 @@ export default function BookingsPage() {
         contact_person_aadhar: contactAadhar || null,
         contacts: normalizedContacts(),
         call_time: composeDateTime(travelDay, callTime),
-        pickup_time: composeDateTime(travelDay, pickupTime),
+        packup_time: composeDateTime(travelDay, packupTime),
         packup_time: composeDateTime(returnDay, packupTime),
       });
       setMessage(projectMode === "new" ? "Project and booking created together. Job card & challan are ready." : "Booking created. Job card & challan available for download.");
@@ -1430,7 +1430,7 @@ export default function BookingsPage() {
     setContactAadhar(b.contact_person_aadhar || "");
     setContacts(b.contacts?.length ? b.contacts : [{ name: b.contact_person_name || "", mobile: b.contact_person_mobile || "", aadhar: b.contact_person_aadhar || "" }]);
     setCallTime(extractTimeValue(b.call_time));
-    setPickupTime(extractTimeValue(b.pickup_time));
+    setPickupTime(extractTimeValue(b.packup_time));
     setPackupTime(extractTimeValue(b.packup_time));
     setEquipmentSelected(oldMainEquipment);
     setAccessorySelected(oldAccessories);
@@ -1712,8 +1712,8 @@ export default function BookingsPage() {
             </div>
             <label className="fieldLabel">Call Time {travelDay ? `(${travelDay})` : ""}</label>
             <input type="time" value={callTime} onChange={e=>setCallTime(e.target.value)} />
-            <label className="fieldLabel">Pickup Time {travelDay ? `(${travelDay})` : ""}</label>
-            <input type="time" value={pickupTime} onChange={e=>setPickupTime(e.target.value)} />
+            <label className="fieldLabel">Packup Time {travelDay ? `(${travelDay})` : ""}</label>
+            <input type="time" value={packupTime} onChange={e=>setPickupTime(e.target.value)} />
             <label className="fieldLabel">Packup Time {returnDay ? `(${returnDay})` : ""}</label>
             <input type="time" value={packupTime} onChange={e=>setPackupTime(e.target.value)} />
             <label className="fieldLabel full">Remarks</label>
@@ -1915,7 +1915,7 @@ export default function BookingsPage() {
                     {b.transport_mode ? <span className="badge">{b.transport_mode}</span> : "-"}
                     {b.awb_number ? <div style={{fontSize:11,color:"#999"}}>AWB: {b.awb_number}</div> : null}
                     {b.call_time ? <div style={{fontSize:11,color:"#999"}}>Call: {new Date(b.call_time).toLocaleString()}</div> : null}
-                    {b.pickup_time ? <div style={{fontSize:11,color:"#999"}}>Pickup: {new Date(b.pickup_time).toLocaleString()}</div> : null}
+                    {b.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.packup_time).toLocaleString()}</div> : null}
                     {b.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.packup_time).toLocaleString()}</div> : null}
                   </td>
                   <td>
