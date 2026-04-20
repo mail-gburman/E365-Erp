@@ -1646,15 +1646,34 @@ export default function BookingsPage() {
                   .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
                   .sort((a, b) => b.id - a.id)[0];
                 if (latest) {
-                  const eq = (latest.equipment || []).filter(i => i.item_type !== "accessory").map(i => ({
-                    ...i, label: `${i.asset_code || i.id} · ${i.name || "Equipment"}`,
-                  }));
-                  const acc = (latest.equipment || []).filter(i => i.item_type === "accessory").map(i => ({
-                    ...i, label: `${i.asset_code || i.id} · ${i.name || "Accessory"}`,
-                  }));
-                  const crew = (latest.crew || []).map(i => ({
-                    ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}`,
-                  }));
+                  // collect parent + all its supplementaries for this project
+                  const allRelated = bookingDetails.filter(b =>
+                    b.status !== "cancelled" && (
+                      b.id === latest.id ||
+                      b.parent_booking_id === latest.id
+                    )
+                  );
+
+                  const seenEq = new Set();
+                  const seenCrew = new Set();
+                  const eq = [], acc = [];
+                  const crew = [];
+
+                  for (const booking of allRelated) {
+                    for (const i of (booking.equipment || [])) {
+                      if (seenEq.has(i.id)) continue;
+                      seenEq.add(i.id);
+                      const item = { ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` };
+                      if (i.item_type === "accessory") acc.push(item);
+                      else eq.push(item);
+                    }
+                    for (const i of (booking.crew || [])) {
+                      if (seenCrew.has(i.id)) continue;
+                      seenCrew.add(i.id);
+                      crew.push({ ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}` });
+                    }
+                  }
+
                   setEquipmentSelected(eq);
                   setAccessorySelected(acc);
                   setCrewSelected(crew);
@@ -1673,7 +1692,8 @@ export default function BookingsPage() {
                   // dates & timings intentionally left blank
                   setCallTime("");
                   setPackupTime("");
-                  setMessage(`Pre-filled from ${latest.job_card_id}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
+                  const supCount = allRelated.length - 1;
+                  setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
                 }
               }
             }}>
