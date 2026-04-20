@@ -731,7 +731,6 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
         contact_person_aadhar: booking.contact_person_aadhar || "",
         call_time: extractTimeValue(booking.call_time),
         packup_time: extractTimeValue(booking.packup_time),
-        packup_time: extractTimeValue(booking.packup_time),
       });
       const normalized = booking.contacts?.length ? booking.contacts : [{ name: booking.contact_person_name || "", mobile: booking.contact_person_mobile || "", aadhar: booking.contact_person_aadhar || "" }];
       setContacts(normalized);
@@ -760,7 +759,6 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           contacts,
           call_time: composeDateTime(travelDate, form.call_time),
           packup_time: composeDateTime(travelDate, form.packup_time),
-          packup_time: composeDateTime(returnDate, form.packup_time),
         });
         onClose();
       } catch (e) { alert(String(e.message || e)); }
@@ -805,8 +803,6 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           <label className="fieldLabel">Call Time {travelDate ? `(${travelDate})` : ""}</label>
           <input type="time" value={form.call_time || ""} onChange={e => setForm({...form, call_time: e.target.value})} />
           <label className="fieldLabel">Packup Time {travelDate ? `(${travelDate})` : ""}</label>
-          <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
-          <label className="fieldLabel">Packup Time {returnDate ? `(${returnDate})` : ""}</label>
           <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
           <label className="fieldLabel full">Remarks</label>
           <textarea className="full" value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} placeholder="Remarks" />
@@ -1227,7 +1223,6 @@ export default function BookingsPage() {
         contacts: normalizedContacts(),
         call_time: composeDateTime(travelDay, callTime),
         packup_time: composeDateTime(travelDay, packupTime),
-        packup_time: composeDateTime(returnDay, packupTime),
       });
       setMessage(projectMode === "new" ? "Project and booking created together. Job card & challan are ready." : "Booking created. Job card & challan available for download.");
       setProjectMode("existing");
@@ -1911,7 +1906,6 @@ export default function BookingsPage() {
                     {b.transport_mode ? <span className="badge">{b.transport_mode}</span> : "-"}
                     {b.awb_number ? <div style={{fontSize:11,color:"#999"}}>AWB: {b.awb_number}</div> : null}
                     {b.call_time ? <div style={{fontSize:11,color:"#999"}}>Call: {new Date(b.call_time).toLocaleString()}</div> : null}
-                    {b.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.packup_time).toLocaleString()}</div> : null}
                     {b.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(b.packup_time).toLocaleString()}</div> : null}
                   </td>
                   <td>
