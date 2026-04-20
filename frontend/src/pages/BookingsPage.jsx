@@ -880,7 +880,6 @@ export default function BookingsPage() {
   const [contactAadhar, setContactAadhar] = useState("");
   const [contacts, setContacts] = useState([{ ...blankContact }]);
   const [callTime, setCallTime] = useState("");
-  const [packupTime, setPickupTime] = useState("");
   const [packupTime, setPackupTime] = useState("");
   const [parentBookingId, setParentBookingId] = useState("");
 
@@ -1236,7 +1235,7 @@ export default function BookingsPage() {
       setProjectForm(blankProject);
       setSelectedDates([]);
       setDestination(""); setBookingStatus("planned"); setEquipmentSelected([]); setAccessorySelected([]); setCrewSelected([]);
-      setRemarks(""); setTransportMode(""); setAwbNumber(""); setContactName(""); setContactMobile(""); setContactAadhar(""); setContacts([{ ...blankContact }]); setCallTime(""); setPickupTime(""); setParentBookingId("");
+      setRemarks(""); setTransportMode(""); setAwbNumber(""); setContactName(""); setContactMobile(""); setContactAadhar(""); setContacts([{ ...blankContact }]); setCallTime(""); setPackupTime(""); setParentBookingId("");
       setConfirmModal(false);
       load();
     } catch (e) { setMessage(String(e.message || e)); setConfirmModal(false); }
@@ -1430,7 +1429,6 @@ export default function BookingsPage() {
     setContactAadhar(b.contact_person_aadhar || "");
     setContacts(b.contacts?.length ? b.contacts : [{ name: b.contact_person_name || "", mobile: b.contact_person_mobile || "", aadhar: b.contact_person_aadhar || "" }]);
     setCallTime(extractTimeValue(b.call_time));
-    setPickupTime(extractTimeValue(b.packup_time));
     setPackupTime(extractTimeValue(b.packup_time));
     setEquipmentSelected(oldMainEquipment);
     setAccessorySelected(oldAccessories);
@@ -1713,8 +1711,6 @@ export default function BookingsPage() {
             <label className="fieldLabel">Call Time {travelDay ? `(${travelDay})` : ""}</label>
             <input type="time" value={callTime} onChange={e=>setCallTime(e.target.value)} />
             <label className="fieldLabel">Packup Time {travelDay ? `(${travelDay})` : ""}</label>
-            <input type="time" value={packupTime} onChange={e=>setPickupTime(e.target.value)} />
-            <label className="fieldLabel">Packup Time {returnDay ? `(${returnDay})` : ""}</label>
             <input type="time" value={packupTime} onChange={e=>setPackupTime(e.target.value)} />
             <label className="fieldLabel full">Remarks</label>
             <textarea className="full" placeholder="Remarks / special instructions" value={remarks} onChange={e=>setRemarks(e.target.value)}></textarea>
