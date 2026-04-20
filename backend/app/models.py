@@ -209,7 +209,6 @@ class EventBooking(Base):
     booking_contacts_json = Column(Text, nullable=True)
     # New fields
     call_time = Column(DateTime, nullable=True)
-    pickup_time = Column(DateTime, nullable=True)
     packup_time = Column(DateTime, nullable=True)
     is_demo = Column(Boolean, default=False)
 

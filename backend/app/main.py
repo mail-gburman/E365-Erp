@@ -111,7 +111,6 @@ _MIGRATIONS = [
     ("event_bookings", "contact_person_aadhar", "VARCHAR"),
     ("event_bookings", "booking_contacts_json", "TEXT"),
     ("event_bookings", "call_time", "DATETIME"),
-    ("event_bookings", "pickup_time", "DATETIME"),
     ("event_bookings", "is_demo", "BOOLEAN DEFAULT 0"),
     ("clients", "is_demo", "BOOLEAN DEFAULT 0"),
     ("service_jobs", "is_demo", "BOOLEAN DEFAULT 0"),

@@ -371,7 +371,7 @@ def list_booking_details(db: Session = Depends(get_db)):
             "contact_person_aadhar": b.contact_person_aadhar,
             "contacts": _booking_contacts(b),
             "call_time": b.call_time.isoformat() if b.call_time else None,
-            "pickup_time": b.pickup_time.isoformat() if b.pickup_time else None,
+            "packup_time": b.packup_time.isoformat() if b.packup_time else None,
             "reference_job_card_id": _root_job_card_id(b),
             "job_card_pdf_url": f"/bookings/{b.id}/job-card-pdf",
             "dates": project_dates,
@@ -608,7 +608,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
         ("Date", project.shoot_start.strftime("%d/%m/%Y") if project and project.shoot_start else "-"),
         ("Location", booking.destination or "-"),
         ("Call Time", booking.call_time.strftime("%d/%m/%Y %H:%M") if booking.call_time else "-"),
-        ("Pickup Time", booking.pickup_time.strftime("%d/%m/%Y %H:%M") if booking.pickup_time else "-"),
+        ("Packup Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
         ("Packup Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
     ]
     if booking.transport_mode:
@@ -677,7 +677,7 @@ def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db)):
         client_name=client_name,
         delivery_address=booking.destination or "",
         vehicle_no="",
-        time_out=booking.pickup_time.strftime("%H:%M") if booking.pickup_time else "",
+        time_out=booking.packup_time.strftime("%H:%M") if booking.packup_time else "",
         contact_person=booking.contact_person_name or "",
         deliver_through=booking.contact_person_name or "",
         items=items,
@@ -823,7 +823,7 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
             contact_person_aadhar=primary_contact.get("aadhar"),
             booking_contacts_json=json.dumps(contacts, default=str) if contacts else None,
             call_time=payload.call_time,
-            pickup_time=payload.pickup_time,
+            packup_time=payload.packup_time,
         )
         db.add(booking)
         db.flush()
@@ -869,12 +869,12 @@ def update_booking(booking_id: int, payload: dict, db: Session = Depends(get_db)
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
     if booking.status == "dispatched":
-        locked_fields = {"destination", "transport_mode", "awb_number", "contact_person_name", "contact_person_mobile", "contact_person_aadhar", "call_time", "pickup_time", "contacts"}
+        locked_fields = {"destination", "transport_mode", "awb_number", "contact_person_name", "contact_person_mobile", "contact_person_aadhar", "call_time", "packup_time", "contacts"}
         if any(field in payload for field in locked_fields):
             raise HTTPException(status_code=400, detail="Operational booking fields are locked after dispatch. Return or re-issue the booking before editing them.")
     updatable = ["destination", "remarks", "transport_mode", "awb_number",
                  "contact_person_name", "contact_person_mobile", "contact_person_aadhar",
-                 "call_time", "pickup_time"]
+                 "call_time", "packup_time"]
     for key in updatable:
         if key in payload:
             setattr(booking, key, payload[key])
