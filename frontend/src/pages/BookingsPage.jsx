@@ -1637,7 +1637,46 @@ export default function BookingsPage() {
             </div>
             </> : null}
             <label className="fieldLabel">Project</label>
-            <select value={bookingProjectId} onChange={e=>setBookingProjectId(e.target.value)}>
+            <select value={bookingProjectId} onChange={e => {
+              const pid = e.target.value;
+              setBookingProjectId(pid);
+              if (pid && existingBookingMode === "normal") {
+                // prefill from latest booking of this project (dates/timings excluded)
+                const latest = [...bookingDetails]
+                  .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
+                  .sort((a, b) => b.id - a.id)[0];
+                if (latest) {
+                  const eq = (latest.equipment || []).filter(i => i.item_type !== "accessory").map(i => ({
+                    ...i, label: `${i.asset_code || i.id} · ${i.name || "Equipment"}`,
+                  }));
+                  const acc = (latest.equipment || []).filter(i => i.item_type === "accessory").map(i => ({
+                    ...i, label: `${i.asset_code || i.id} · ${i.name || "Accessory"}`,
+                  }));
+                  const crew = (latest.crew || []).map(i => ({
+                    ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}`,
+                  }));
+                  setEquipmentSelected(eq);
+                  setAccessorySelected(acc);
+                  setCrewSelected(crew);
+                  setDestination(latest.destination || "");
+                  setTransportMode(latest.transport_mode || "");
+                  setAwbNumber(latest.awb_number || "");
+                  setContactName(latest.contact_person_name || "");
+                  setContactMobile(latest.contact_person_mobile || "");
+                  setContactAadhar(latest.contact_person_aadhar || "");
+                  setContacts(latest.contacts?.length
+                    ? latest.contacts
+                    : latest.contact_person_name
+                      ? [{ name: latest.contact_person_name, mobile: latest.contact_person_mobile || "", aadhar: latest.contact_person_aadhar || "" }]
+                      : [{ ...blankContact }]);
+                  setRemarks(latest.remarks || "");
+                  // dates & timings intentionally left blank
+                  setCallTime("");
+                  setPackupTime("");
+                  setMessage(`Pre-filled from ${latest.job_card_id}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
+                }
+              }
+            }}>
               <option value="">Select Project</option>
               {clientFilteredProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.status})</option>)}
             </select>
