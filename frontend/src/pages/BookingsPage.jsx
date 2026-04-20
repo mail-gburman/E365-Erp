@@ -859,6 +859,7 @@ export default function BookingsPage() {
   const [message, setMessage] = useState("");
   const [projectForm, setProjectForm] = useState(blankProject);
   const [projectMode, setProjectMode] = useState("existing");
+  const [prefillPreview, setPrefillPreview] = useState(null); // { latest, allRelated, eq, acc, crew }
   const [existingBookingMode, setExistingBookingMode] = useState("normal");
   const [selectedDates, setSelectedDates] = useState([]);
   const [bookingProjectId, setBookingProjectId] = useState("");
@@ -1432,6 +1433,31 @@ export default function BookingsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function applyPrefill() {
+    if (!prefillPreview) return;
+    const { latest, allRelated, eq, acc, crew } = prefillPreview;
+    setEquipmentSelected(eq);
+    setAccessorySelected(acc);
+    setCrewSelected(crew);
+    setDestination(latest.destination || "");
+    setTransportMode(latest.transport_mode || "");
+    setAwbNumber(latest.awb_number || "");
+    setContactName(latest.contact_person_name || "");
+    setContactMobile(latest.contact_person_mobile || "");
+    setContactAadhar(latest.contact_person_aadhar || "");
+    setContacts(latest.contacts?.length
+      ? latest.contacts
+      : latest.contact_person_name
+        ? [{ name: latest.contact_person_name, mobile: latest.contact_person_mobile || "", aadhar: latest.contact_person_aadhar || "" }]
+        : [{ ...blankContact }]);
+    setRemarks(latest.remarks || "");
+    setCallTime("");
+    setPackupTime("");
+    const supCount = allRelated.length - 1;
+    setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
+    setPrefillPreview(null);
+  }
+
   function openModifyShoot(b) {
     const normalizeInventory = (item) => ({
       ...item,
@@ -1641,31 +1667,21 @@ export default function BookingsPage() {
               const pid = e.target.value;
               setBookingProjectId(pid);
               if (pid && existingBookingMode === "normal") {
-                // prefill from latest booking of this project (dates/timings excluded)
                 const latest = [...bookingDetails]
                   .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
                   .sort((a, b) => b.id - a.id)[0];
                 if (latest) {
-                  // collect parent + all its supplementaries for this project
                   const allRelated = bookingDetails.filter(b =>
-                    b.status !== "cancelled" && (
-                      b.id === latest.id ||
-                      b.parent_booking_id === latest.id
-                    )
+                    b.status !== "cancelled" && (b.id === latest.id || b.parent_booking_id === latest.id)
                   );
-
-                  const seenEq = new Set();
-                  const seenCrew = new Set();
-                  const eq = [], acc = [];
-                  const crew = [];
-
+                  const seenEq = new Set(), seenCrew = new Set();
+                  const eq = [], acc = [], crew = [];
                   for (const booking of allRelated) {
                     for (const i of (booking.equipment || [])) {
                       if (seenEq.has(i.id)) continue;
                       seenEq.add(i.id);
                       const item = { ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` };
-                      if (i.item_type === "accessory") acc.push(item);
-                      else eq.push(item);
+                      if (i.item_type === "accessory") acc.push(item); else eq.push(item);
                     }
                     for (const i of (booking.crew || [])) {
                       if (seenCrew.has(i.id)) continue;
@@ -1673,27 +1689,8 @@ export default function BookingsPage() {
                       crew.push({ ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}` });
                     }
                   }
-
-                  setEquipmentSelected(eq);
-                  setAccessorySelected(acc);
-                  setCrewSelected(crew);
-                  setDestination(latest.destination || "");
-                  setTransportMode(latest.transport_mode || "");
-                  setAwbNumber(latest.awb_number || "");
-                  setContactName(latest.contact_person_name || "");
-                  setContactMobile(latest.contact_person_mobile || "");
-                  setContactAadhar(latest.contact_person_aadhar || "");
-                  setContacts(latest.contacts?.length
-                    ? latest.contacts
-                    : latest.contact_person_name
-                      ? [{ name: latest.contact_person_name, mobile: latest.contact_person_mobile || "", aadhar: latest.contact_person_aadhar || "" }]
-                      : [{ ...blankContact }]);
-                  setRemarks(latest.remarks || "");
-                  // dates & timings intentionally left blank
-                  setCallTime("");
-                  setPackupTime("");
-                  const supCount = allRelated.length - 1;
-                  setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
+                  // show preview modal — user must confirm before applying
+                  setPrefillPreview({ latest, allRelated, eq, acc, crew });
                 }
               }
             }}>
@@ -2078,6 +2075,67 @@ export default function BookingsPage() {
 
       <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? bookingDetails.find(b => String(b.id) === String(parentBookingId))?.reference_job_card_id || bookingDetails.find(b => String(b.id) === String(parentBookingId))?.job_card_id : null} contacts={normalizedContacts()} />
       <QuickProjectModal open={quickProjectOpen} onClose={() => setQuickProjectOpen(false)} onSave={handleQuickProjectCreate} saving={quickProjectSaving} clientSuggestions={clientNameSuggestions} />
+
+      {/* ── Prefill preview / confirmation modal ── */}
+      {prefillPreview && (
+        <div className="modalOverlay" onClick={() => setPrefillPreview(null)}>
+          <div className="modalCard" style={{ maxWidth: 680, width: "96vw", maxHeight: "88vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
+            <div className="modalHeader">
+              <h2>Copy Details from Previous Booking?</h2>
+              <button className="ghostBtn modalCloseBtn" onClick={() => setPrefillPreview(null)}>Close</button>
+            </div>
+            <p className="helperText" style={{ marginBottom: 12 }}>
+              Found <strong>{prefillPreview.allRelated.length}</strong> job card{prefillPreview.allRelated.length > 1 ? "s" : ""} ({prefillPreview.allRelated.map(b => b.job_card_id).join(", ")}) for this project.
+              The following will be copied — <strong>dates and timings will remain blank</strong>.
+            </p>
+
+            {/* Destination & logistics */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", marginBottom: 14, fontSize: 13 }}>
+              <div><strong>Destination:</strong> {prefillPreview.latest.destination || "—"}</div>
+              <div><strong>Transport:</strong> {prefillPreview.latest.transport_mode || "—"}</div>
+              <div><strong>Remarks:</strong> {prefillPreview.latest.remarks || "—"}</div>
+            </div>
+
+            {/* Equipment */}
+            {prefillPreview.eq.length > 0 && <>
+              <h4 style={{ margin: "10px 0 6px" }}>Equipment ({prefillPreview.eq.length})</h4>
+              <div className="tableWrap" style={{ marginBottom: 10 }}>
+                <table className="dataTable" style={{ fontSize: 12 }}>
+                  <thead><tr><th>Asset Code</th><th>Name</th><th>Type</th></tr></thead>
+                  <tbody>{prefillPreview.eq.map(i => <tr key={i.id}><td>{i.asset_code || "—"}</td><td>{i.name}</td><td>{i.item_type}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </>}
+
+            {/* Accessories */}
+            {prefillPreview.acc.length > 0 && <>
+              <h4 style={{ margin: "10px 0 6px" }}>Accessories ({prefillPreview.acc.length})</h4>
+              <div className="tableWrap" style={{ marginBottom: 10 }}>
+                <table className="dataTable" style={{ fontSize: 12 }}>
+                  <thead><tr><th>Asset Code</th><th>Name</th></tr></thead>
+                  <tbody>{prefillPreview.acc.map(i => <tr key={i.id}><td>{i.asset_code || "—"}</td><td>{i.name}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </>}
+
+            {/* Crew */}
+            {prefillPreview.crew.length > 0 && <>
+              <h4 style={{ margin: "10px 0 6px" }}>Manpower ({prefillPreview.crew.length})</h4>
+              <div className="tableWrap" style={{ marginBottom: 10 }}>
+                <table className="dataTable" style={{ fontSize: 12 }}>
+                  <thead><tr><th>Name</th><th>Role</th></tr></thead>
+                  <tbody>{prefillPreview.crew.map(i => <tr key={i.id}><td>{i.name || i.full_name}</td><td>{i.role || "—"}</td></tr>)}</tbody>
+                </table>
+              </div>
+            </>}
+
+            <div className="modalFooter" style={{ marginTop: 16 }}>
+              <button className="ghostBtn" onClick={() => setPrefillPreview(null)}>No, start fresh</button>
+              <button className="primaryBtn" onClick={applyPrefill}>Yes, copy these details</button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
