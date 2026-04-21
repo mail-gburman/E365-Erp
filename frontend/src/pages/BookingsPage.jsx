@@ -816,6 +816,161 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
   );
 }
 
+/* ───────── BOOKING DETAIL MODAL ───────── */
+function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower }) {
+  if (!booking) return null;
+
+  const fmt = (v) => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
+  const isPending = ["planned"].includes(booking.status);
+  const isConfirmed = ["confirmed","blocked"].includes(booking.status);
+  const isDispatched = booking.status === "dispatched";
+  const isReturned = booking.status === "returned";
+  const isCancelled = booking.status === "cancelled";
+
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modalCard" style={{ maxWidth:720, width:"96vw", maxHeight:"92vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="modalHeader">
+          <div>
+            <h2 style={{margin:0}}>{booking.job_card_id}</h2>
+            <span className={`statusBadge status-${booking.status}`} style={{marginTop:4,display:"inline-block"}}>{booking.status}</span>
+            {booking.parent_booking_id && <span className="badge badgeOptional" style={{marginLeft:6,fontSize:11}}>Supplementary — Ref: {booking.reference_job_card_id}</span>}
+          </div>
+          <button className="ghostBtn modalCloseBtn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Project + Logistics */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 24px", marginBottom:16, fontSize:13 }}>
+          <div><span style={{color:"var(--muted)"}}>Project</span><br/><strong>{booking.project_title || "—"}</strong></div>
+          <div><span style={{color:"var(--muted)"}}>Destination</span><br/><strong>{booking.destination || "—"}</strong></div>
+          <div><span style={{color:"var(--muted)"}}>Transport</span><br/>{booking.transport_mode || "—"}{booking.awb_number ? <span style={{color:"var(--muted)",marginLeft:6}}>AWB: {booking.awb_number}</span> : null}</div>
+          <div><span style={{color:"var(--muted)"}}>Call Date/Time</span><br/>{fmt(booking.call_time)}</div>
+          <div><span style={{color:"var(--muted)"}}>Packup Date/Time</span><br/>{fmt(booking.packup_time)}</div>
+          {booking.remarks && <div className="full" style={{gridColumn:"1/-1"}}><span style={{color:"var(--muted)"}}>Remarks</span><br/>{booking.remarks}</div>}
+        </div>
+
+        {/* Contacts */}
+        {(booking.contacts?.length > 0 || booking.contact_person_name) && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>Contacts</strong>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:6}}>
+              {(booking.contacts?.length ? booking.contacts : [{ name: booking.contact_person_name, mobile: booking.contact_person_mobile }]).map((c,i) => (
+                <div key={i} style={{background:"var(--surface2)",borderRadius:6,padding:"4px 10px",fontSize:12}}>
+                  <strong>{c.name}</strong>{c.mobile ? <span style={{color:"var(--muted)",marginLeft:6}}>{c.mobile}</span> : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Equipment */}
+        {(booking.equipment || []).length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>Equipment ({booking.equipment.length})</strong>
+            <div className="tableWrap" style={{marginTop:6}}>
+              <table className="dataTable" style={{fontSize:12}}>
+                <thead><tr><th>Asset Code</th><th>Name</th><th>Type</th><th>Owner</th></tr></thead>
+                <tbody>{booking.equipment.map(i => (
+                  <tr key={i.id}>
+                    <td>{i.asset_code || "—"}</td>
+                    <td>{i.name}</td>
+                    <td>{i.item_type}</td>
+                    <td>{i.owner_type === "third_party" ? <span className="badge badgeThirdParty">3P</span> : "Inhouse"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Accessories */}
+        {(booking.accessories || []).length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>Accessories ({booking.accessories.length})</strong>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+              {booking.accessories.map(i => (
+                <span key={i.id} className="badge">{i.asset_code || i.name}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Crew */}
+        {(booking.crew || []).length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>Manpower ({booking.crew.length})</strong>
+            <div className="tableWrap" style={{marginTop:6}}>
+              <table className="dataTable" style={{fontSize:12}}>
+                <thead><tr><th>Name</th><th>Role</th><th>Type</th></tr></thead>
+                <tbody>{booking.crew.map(c => (
+                  <tr key={c.id}>
+                    <td>{c.name || c.full_name}</td>
+                    <td>{c.role || "—"}</td>
+                    <td>{c.manpower_type !== "inhouse" ? <span className="badge badgeExternal">{c.manpower_type}</span> : "Inhouse"}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Damages */}
+        {(booking.damages || []).length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13,color:"#f87171"}}>Damages / Issues</strong>
+            {booking.damages.map(d => (
+              <div key={d.id} style={{fontSize:12,marginTop:4}}>
+                <span className={`badge ${d.severity === "critical" ? "badgeMandatory" : d.severity === "major" ? "badgeThirdParty" : "badgeOptional"}`}>{d.severity}</span>
+                {" "}{d.description}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="modalFooter" style={{marginTop:18,flexWrap:"wrap",gap:8}}>
+          {/* Planned → direct edit */}
+          {isPending && <>
+            <button className="primaryBtn" onClick={() => { onEdit(); onClose(); }}>Edit Booking</button>
+            <button className="dangerBtn" onClick={() => { onCancel(); onClose(); }}>Cancel</button>
+          </>}
+
+          {/* Confirmed/Blocked → supplementary flow */}
+          {isConfirmed && <>
+            <button className="primaryBtn" onClick={() => { onSupplementary(); onClose(); }}>
+              + Create Supplementary Job Card
+            </button>
+            <button className="ghostBtn" onClick={() => { onDispatch(); onClose(); }}>Dispatch</button>
+            <button className="dangerBtn" onClick={() => { onCancel(); onClose(); }}>Cancel</button>
+          </>}
+
+          {/* Dispatched */}
+          {isDispatched && <>
+            <button className="ghostBtn compactBtn" onClick={onDownloadJobCard}>⬇ Job Card</button>
+            <button className="ghostBtn compactBtn" onClick={onDownloadChallan}>⬇ Challan</button>
+            <button className="ghostBtn compactBtn" onClick={onDownloadManpower}>⬇ Manpower</button>
+            <button className="ghostBtn" onClick={() => { onPartialReturn(); onClose(); }}>Partial Return</button>
+            <button className="primaryBtn" onClick={() => { onComplete(); onClose(); }}>Complete Booking</button>
+            <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>
+          </>}
+
+          {/* Returned */}
+          {isReturned && <>
+            <button className="ghostBtn compactBtn" onClick={onDownloadJobCard}>⬇ Job Card</button>
+            <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>
+          </>}
+
+          {isCancelled && <p className="helperText" style={{margin:0}}>This booking is cancelled — no actions available.</p>}
+
+          <button className="ghostBtn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ───────── SELECTED ITEMS BLOCK ───────── */
 function SelectedBlock({ title, items, onAddMore, onRemove, badgeField, badgeValues, infoText, availableCount = 0, availabilityMode = "overall" }) {
   return (
@@ -910,6 +1065,7 @@ export default function BookingsPage() {
   const [returnServiceIssues, setReturnServiceIssues] = useState([]);
   const [editModal, setEditModal] = useState(false);
   const [editBooking, setEditBooking] = useState(null);
+  const [viewDetailBooking, setViewDetailBooking] = useState(null);
   const [plannedShoots, setPlannedShoots] = useState([]);
   const [plannedSelected, setPlannedSelected] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -1960,7 +2116,15 @@ export default function BookingsPage() {
                   <td><input type="checkbox" checked={plannedSelected.includes(p.id)} onChange={e => {
                     setPlannedSelected(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id));
                   }} /></td>
-                  <td>{p.title}</td>
+                  <td>
+                    <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
+                      onClick={() => {
+                        const b = bookingDetails.find(bk => bk.project_id === p.id && !bk.parent_booking_id && bk.status !== "cancelled");
+                        if (b) setViewDetailBooking(b);
+                      }}>
+                      {p.title}
+                    </button>
+                  </td>
                   <td style={{fontSize:12}}>{formatProjectDates(p)}</td>
                   <td style={{fontSize:12}}>
                     {projectSummaries[p.id]?.equipmentCount
@@ -2015,7 +2179,12 @@ export default function BookingsPage() {
                     {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {b.reference_job_card_id}</div> : null}
                     {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
                   </td>
-                  <td>{b.project_title}</td>
+                  <td>
+                    <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
+                      onClick={() => setViewDetailBooking(b)}>
+                      {b.project_title}
+                    </button>
+                  </td>
                   <td>{b.destination}</td>
                   <td>
                     {b.transport_mode ? <span className="badge">{b.transport_mode}</span> : "-"}
@@ -2082,6 +2251,30 @@ export default function BookingsPage() {
         </div>
         <Pagination total={bkPg.total} page={bkPg.page} pageSize={bkPg.pageSize} onPageChange={bkPg.setPage} onPageSizeChange={bkPg.setPageSize} />
       </Card>}
+
+      {/* ──── BOOKING DETAIL MODAL ──── */}
+      {viewDetailBooking && (
+        <BookingDetailModal
+          booking={viewDetailBooking}
+          onClose={() => setViewDetailBooking(null)}
+          onEdit={() => {
+            setEditBooking(viewDetailBooking);
+            setEditModal(true);
+          }}
+          onSupplementary={() => {
+            prefillFromBooking(viewDetailBooking);
+            setBookingTab("new");
+          }}
+          onDispatch={() => doDispatch(viewDetailBooking.id)}
+          onComplete={() => doCompleteBooking(viewDetailBooking.id)}
+          onDamage={() => { setDamageBooking(viewDetailBooking); setDamageModal(true); }}
+          onPartialReturn={() => { setPartialReturnBooking(viewDetailBooking); setPartialReturnModal(true); }}
+          onCancel={() => { setCancelBookingId(viewDetailBooking.id); setCancelModal(true); }}
+          onDownloadJobCard={() => doJobCardDownload(viewDetailBooking.id, viewDetailBooking.job_card_id)}
+          onDownloadChallan={async () => { try { await downloadAuthorized(api.roadChallanPdfUrl(viewDetailBooking.id), `challan_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          onDownloadManpower={async () => { try { await downloadAuthorized(api.manpowerPdfUrl(viewDetailBooking.id), `manpower_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+        />
+      )}
 
       {/* ──── MODALS ──── */}
       <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title="Search Equipment (Devices / Kits / 3rd Party)" resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
