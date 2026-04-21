@@ -1,0 +1,6 @@
+frontend/Dockerfile
+tally_connector/
+deploy/
+exports/
+*.sqlite3
+*.db
