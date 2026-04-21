@@ -92,6 +92,15 @@ function formatProjectDates(project) {
   return entries.join(" | ") || "-";
 }
 
+function projectDateTags(project) {
+  return (project?.dates || [])
+    .map((row) => ({
+      type: ({ start_date: "shoot_date", end_date: "end_day" }[row.date_type] || row.date_type),
+      date: row.date_value,
+    }))
+    .filter((row) => row.type && row.date);
+}
+
 function rangesOverlap(a, b) {
   return a?.block_start && a?.block_end && b?.block_start && b?.block_end
     ? a.block_start < b.block_end && b.block_start < a.block_end
@@ -1081,6 +1090,7 @@ export default function BookingsPage() {
   const [prefillPreview, setPrefillPreview] = useState(null); // { latest, allRelated, eq, acc, crew }
   const [existingBookingMode, setExistingBookingMode] = useState("normal");
   const [selectedDates, setSelectedDates] = useState([]);
+  const [templateBookingId, setTemplateBookingId] = useState("");
   const [bookingProjectId, setBookingProjectId] = useState("");
   const [destination, setDestination] = useState("");
   const [bookingStatus, setBookingStatus] = useState("planned");
@@ -1208,9 +1218,6 @@ export default function BookingsPage() {
   }, [projects, activeBookingsByProject]);
 
   const availabilityWindow = useMemo(() => {
-    if (projectMode === "existing") {
-      return null;
-    }
     const datedEntries = selectedDates.map((entry) => entry.date).filter(Boolean).sort();
     if (datedEntries.length) {
       return {
@@ -1219,7 +1226,7 @@ export default function BookingsPage() {
       };
     }
     return null;
-  }, [projectMode, selectedDates]);
+  }, [selectedDates]);
 
   const currentProject = useMemo(
     () => projects.find((item) => String(item.id) === String(bookingProjectId)) || null,
@@ -1235,15 +1242,11 @@ export default function BookingsPage() {
     return map;
   }, [currentProject]);
   const travelDay = useMemo(
-    () => (projectMode === "new"
-      ? selectedDates.find((entry) => entry.type === "travel_day")?.date
-      : currentProjectDates.travel_day?.[0]) || "",
+    () => selectedDates.find((entry) => entry.type === "travel_day")?.date || currentProjectDates.travel_day?.[0] || "",
     [projectMode, selectedDates, currentProjectDates]
   );
   const returnDay = useMemo(
-    () => (projectMode === "new"
-      ? selectedDates.find((entry) => entry.type === "return_day")?.date
-      : currentProjectDates.return_day?.slice(-1)[0]) || displayDateOnly(currentProject?.shoot_end),
+    () => selectedDates.find((entry) => entry.type === "return_day")?.date || currentProjectDates.return_day?.slice(-1)[0] || displayDateOnly(currentProject?.shoot_end),
     [projectMode, selectedDates, currentProjectDates, currentProject]
   );
 
@@ -1261,6 +1264,13 @@ export default function BookingsPage() {
       return String(project?.client_id || "") === String(projectForm.client_id);
     });
   }, [bookingDetails, projectForm.client_id, projects]);
+
+  const templateChoices = useMemo(() => {
+    if (!bookingProjectId) return [];
+    return [...bookingDetails]
+      .filter((booking) => String(booking.project_id) === String(bookingProjectId) && booking.status !== "cancelled")
+      .sort((a, b) => b.id - a.id);
+  }, [bookingDetails, bookingProjectId]);
 
   const availableCounts = useMemo(() => {
     const activeInventory = inventory.filter((item) => !["inactive", "cancelled"].includes(item.status));
@@ -1444,7 +1454,7 @@ export default function BookingsPage() {
         contact_person_aadhar: contactAadhar || null,
         contacts: normalizedContacts(),
         call_time: composeDateTime(travelDay, callTime),
-        packup_time: composeDateTime(travelDay, packupTime),
+        packup_time: composeDateTime(returnDay, packupTime),
       });
       setMessage(projectMode === "new" ? "Project and booking created together. Job card & challan are ready." : "Booking created. Job card & challan available for download.");
       setProjectMode("existing");
@@ -1701,16 +1711,17 @@ export default function BookingsPage() {
     setProjectMode("existing");
     setExistingBookingMode("normal");
     setBookingProjectId(String(project.id));
+    setTemplateBookingId("");
+    if (project.client_id) setProjectForm((prev) => ({ ...prev, client_id: String(project.client_id) }));
+    setDestination(project.venue || "");
+    setRemarks(project.notes || "");
     // Pre-fill dates from the project schedule
-    const mapped = (project.dates || []).map(d => ({
-      type: { start_date:"shoot_date", end_date:"end_day" }[d.date_type] || d.date_type,
-      date: d.date_value,
-    }));
+    const mapped = projectDateTags(project);
     if (mapped.length) setSelectedDates(mapped);
     setViewProjectModal(null);
     setBookingTab("new");
     window.scrollTo({ top: 0, behavior: "smooth" });
-    setMessage(`Project "${project.title}" pre-selected. Add equipment, crew, and destination to complete the booking.`);
+    setMessage(`Project "${project.title}" pre-selected with client, destination, and dates. Add equipment and manpower to complete booking.`);
   }
 
   function computePrefill(pid) {
@@ -1743,6 +1754,47 @@ export default function BookingsPage() {
     return { latest, allRelated, eq, acc, crew };
   }
 
+  function applyBookingTemplate(booking, options = {}) {
+    if (!booking) return;
+    const oldEquipment = (booking.equipment || []).map((item) => ({
+      ...item,
+      label: item.label || `${item.asset_code || item.id} · ${item.name || "Equipment"}`,
+    }));
+    const oldAccessories = (booking.accessories || []).map((item) => ({
+      ...item,
+      label: item.label || `${item.asset_code || item.id} · ${item.name || "Accessory"}`,
+    }));
+    const oldCrew = (booking.crew || []).map((item) => ({
+      ...item,
+      label: item.label || `${item.name || item.full_name || item.id}${item.role ? ` · ${item.role}` : ""}`,
+    }));
+    const project = projects.find((item) => String(item.id) === String(booking.project_id));
+    setProjectMode("existing");
+    if (!options.keepBookingType) setExistingBookingMode("normal");
+    setBookingProjectId(String(booking.project_id));
+    setTemplateBookingId(String(booking.id));
+    if (project?.client_id) setProjectForm((prev) => ({ ...prev, client_id: String(project.client_id) }));
+    setSelectedDates((booking.dates || projectDateTags(project)).filter((row) => row.date && row.type));
+    setDestination(booking.destination || project?.venue || "");
+    setTransportMode(booking.transport_mode || "");
+    setAwbNumber(booking.awb_number || "");
+    setContactName(booking.contact_person_name || "");
+    setContactMobile(booking.contact_person_mobile || "");
+    setContactAadhar(booking.contact_person_aadhar || "");
+    setContacts(booking.contacts?.length
+      ? booking.contacts
+      : booking.contact_person_name
+        ? [{ name: booking.contact_person_name, mobile: booking.contact_person_mobile || "", aadhar: booking.contact_person_aadhar || "" }]
+        : [{ ...blankContact }]);
+    setCallTime(extractTimeValue(booking.call_time));
+    setPackupTime(extractTimeValue(booking.packup_time));
+    setRemarks(booking.remarks || "");
+    setEquipmentSelected(oldEquipment);
+    setAccessorySelected(oldAccessories);
+    setCrewSelected(oldCrew);
+    setMessage(`Template ${booking.job_card_id} loaded. Dates, resources, contacts, and logistics are pre-filled for a new booking.`);
+  }
+
   function applyPrefill() {
     if (!prefillPreview) return;
     const { latest, allRelated, eq, acc, crew } = prefillPreview;
@@ -1761,10 +1813,12 @@ export default function BookingsPage() {
         ? [{ name: latest.contact_person_name, mobile: latest.contact_person_mobile || "", aadhar: latest.contact_person_aadhar || "" }]
         : [{ ...blankContact }]);
     setRemarks(latest.remarks || "");
-    setCallTime("");
-    setPackupTime("");
+    setCallTime(extractTimeValue(latest.call_time));
+    setPackupTime(extractTimeValue(latest.packup_time));
+    setSelectedDates((latest.dates || []).filter((row) => row.date && row.type));
+    setTemplateBookingId(String(latest.id));
     const supCount = allRelated.length - 1;
-    setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower. Select dates to continue.`);
+    setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower.`);
     setPrefillPreview(null);
   }
 
@@ -1936,12 +1990,14 @@ export default function BookingsPage() {
             <select value={projectMode} onChange={e => {
               const value = e.target.value;
               setProjectMode(value);
-              if (value === "new") {
-                setExistingBookingMode("normal");
-                setParentBookingId("");
-                setBookingProjectId("");
-              }
-            }}>
+	              if (value === "new") {
+	                setExistingBookingMode("normal");
+	                setParentBookingId("");
+	                setBookingProjectId("");
+	                setTemplateBookingId("");
+	                setSelectedDates([]);
+	              }
+	            }}>
               <option value="existing">Use Existing Project</option>
               <option value="new">Create New Project + Booking</option>
             </select>
@@ -1952,11 +2008,12 @@ export default function BookingsPage() {
             </select>
             {projectMode === "existing" ? <>
             <label className="fieldLabel">Booking Type</label>
-            <select value={existingBookingMode} onChange={e => {
-              const value = e.target.value;
-              setExistingBookingMode(value);
-              if (value !== "supplementary") setParentBookingId("");
-            }}>
+	            <select value={existingBookingMode} onChange={e => {
+	              const value = e.target.value;
+	              setExistingBookingMode(value);
+	              if (value !== "supplementary") setParentBookingId("");
+	              setTemplateBookingId("");
+	            }}>
               <option value="normal">New Booking / First Job Card</option>
               <option value="supplementary">Supplementary</option>
             </select>
@@ -1964,13 +2021,15 @@ export default function BookingsPage() {
             <label className="fieldLabel">Supplementary Against</label>
             <select value={parentBookingId} onChange={e=>{
               const value = e.target.value;
-              setParentBookingId(value);
-              if (value) {
-                const parent = bookingDetails.find((booking) => String(booking.id) === String(value));
-                if (parent) {
-                  setBookingProjectId(String(parent.project_id));
-                }
-              }
+	              setParentBookingId(value);
+	              if (value) {
+	                const parent = bookingDetails.find((booking) => String(booking.id) === String(value));
+	                if (parent) {
+	                  applyBookingTemplate(parent, { keepBookingType: true });
+	                  setExistingBookingMode("supplementary");
+	                  setParentBookingId(value);
+	                }
+	              }
             }}>
               <option value="">Select original job card</option>
               {supplementaryChoices.map(b => <option key={b.id} value={b.id}>{b.job_card_id} - {b.project_title}</option>)}
@@ -1982,31 +2041,58 @@ export default function BookingsPage() {
             </div>
             </> : null}
             <label className="fieldLabel">Project</label>
-            <select value={bookingProjectId} onChange={e => {
-              const pid = e.target.value;
-              setBookingProjectId(pid);
-              if (pid && existingBookingMode === "normal") {
-                const preview = computePrefill(pid);
-                if (preview) setPrefillPreview(preview);
-              }
-            }}>
+	            <select value={bookingProjectId} onChange={e => {
+	              const pid = e.target.value;
+	              setBookingProjectId(pid);
+	              setTemplateBookingId("");
+	              const project = projects.find((item) => String(item.id) === String(pid));
+	              if (project?.client_id) setProjectForm((prev) => ({ ...prev, client_id: String(project.client_id) }));
+	              setSelectedDates(projectDateTags(project));
+	              setDestination(project?.venue || "");
+	              setEquipmentSelected([]);
+	              setAccessorySelected([]);
+	              setCrewSelected([]);
+	            }}>
               <option value="">Select Project</option>
-              {clientFilteredProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.status})</option>)}
-            </select>
-            {bookingProjectId && existingBookingMode === "normal" && (() => {
-              const hasPrior = bookingDetails.some(b => String(b.project_id) === String(bookingProjectId) && b.status !== "cancelled");
-              return hasPrior ? (
+	              {clientFilteredProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.status})</option>)}
+	            </select>
+	            {bookingProjectId && existingBookingMode === "normal" ? <>
+	            <label className="fieldLabel">Job Card Template</label>
+	            <select value={templateBookingId} onChange={e => {
+	              const value = e.target.value;
+	              setTemplateBookingId(value);
+	              const booking = bookingDetails.find((item) => String(item.id) === String(value));
+	              if (booking) {
+	                applyBookingTemplate(booking);
+	              } else {
+	                const project = projects.find((item) => String(item.id) === String(bookingProjectId));
+	                setSelectedDates(projectDateTags(project));
+	                setDestination(project?.venue || "");
+	                setEquipmentSelected([]);
+	                setAccessorySelected([]);
+	                setCrewSelected([]);
+	              }
+	            }}>
+	              <option value="">No template / project dates only</option>
+	              {templateChoices.map((booking) => (
+	                <option key={booking.id} value={booking.id}>{booking.job_card_id} - {booking.destination || booking.project_title}</option>
+	              ))}
+	            </select>
+	            </> : null}
+	            {bookingProjectId && existingBookingMode === "normal" && (() => {
+	              const hasPrior = bookingDetails.some(b => String(b.project_id) === String(bookingProjectId) && b.status !== "cancelled");
+	              return hasPrior ? (
                 <button type="button" className="ghostBtn compactBtn" style={{ marginTop: 4 }}
                   onClick={() => { const p = computePrefill(bookingProjectId); if (p) setPrefillPreview(p); }}>
                   Load Previous Booking Details
                 </button>
               ) : null;
             })()}
-            <div className="full" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+	            <div className="full" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <button type="button" className="ghostBtn compactBtn" onClick={() => setQuickProjectOpen(true)}>Create Project</button>
               {!clientFilteredProjects.length ? <span className="helperText">No project found for this client yet. Create one here.</span> : null}
             </div>
-            </> : <>
+	            </> : <>
             <label className="fieldLabel">Project Title</label>
             <input placeholder="Example: IPL Match Day 4" value={projectForm.title} onChange={e=>setProjectForm({...projectForm, title:e.target.value})} required={projectMode === "new"} />
             <label className="fieldLabel">Show Type</label>
@@ -2028,8 +2114,15 @@ export default function BookingsPage() {
               <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={['travel_day', 'setup_date', 'technical_date', 'shoot_date', 'off_day', 'end_day', 'return_day']} />
               <p className="helperText" style={{ marginTop: 8 }}>Use Travel Day, Setup Day, Technical Day, Shoot Day, Off Day, End Day, and Return Day below. The top project window auto-runs from setup through return, while blocking still includes travel day.</p>
             </div>
-            </>}
-            <label className="fieldLabel">Destination</label>
+	            </>}
+	            {projectMode === "existing" && bookingProjectId ? (
+	              <div className="full">
+	                <label className="fieldLabel">Project / Template Dates</label>
+	                <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={['travel_day', 'setup_date', 'technical_date', 'shoot_date', 'off_day', 'end_day', 'return_day']} />
+	                <p className="helperText" style={{ marginTop: 8 }}>Dates are pre-filled from the selected project or job card template. They are highlighted here for review before booking.</p>
+	              </div>
+	            ) : null}
+	            <label className="fieldLabel">Destination</label>
             <LocationAutocomplete value={destination} onChange={setDestination} extraSuggestions={[...new Set(bookingDetails.map(b => b.destination).filter(Boolean))]} placeholder="Search Indian location..." required />
             <label className="fieldLabel">Booking Status</label>
             <select value={bookingStatus} onChange={e=>setBookingStatus(e.target.value)}>
@@ -2441,10 +2534,10 @@ export default function BookingsPage() {
               <h2>Copy Details from Previous Booking?</h2>
               <button className="ghostBtn modalCloseBtn" onClick={() => setPrefillPreview(null)}>Close</button>
             </div>
-            <p className="helperText" style={{ marginBottom: 12 }}>
-              Found <strong>{prefillPreview.allRelated.length}</strong> job card{prefillPreview.allRelated.length > 1 ? "s" : ""} ({prefillPreview.allRelated.map(b => b.job_card_id).join(", ")}) for this project.
-              The following will be copied — <strong>dates and timings will remain blank</strong>.
-            </p>
+	            <p className="helperText" style={{ marginBottom: 12 }}>
+	              Found <strong>{prefillPreview.allRelated.length}</strong> job card{prefillPreview.allRelated.length > 1 ? "s" : ""} ({prefillPreview.allRelated.map(b => b.job_card_id).join(", ")}) for this project.
+	              The following will be copied, including project dates and timings where available.
+	            </p>
 
             {/* Destination & logistics */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 20px", marginBottom: 14, fontSize: 13 }}>
