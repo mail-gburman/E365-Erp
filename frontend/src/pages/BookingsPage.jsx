@@ -816,6 +816,70 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
   );
 }
 
+/* ───────── PROJECT DETAIL MODAL (no booking yet) ───────── */
+function ProjectDetailModal({ project, clientName, onClose, onCreateBooking }) {
+  if (!project) return null;
+  const dateRows = (project.dates || []).map(d => {
+    const type = ({ start_date:"shoot_date", end_date:"end_day" }[d.date_type] || d.date_type);
+    return { type, date: d.date_value };
+  });
+  const labelMap = {
+    travel_day:"Travel Day", setup_date:"Setup Date", technical_date:"Technical / Recce",
+    shoot_date:"Shoot Date", end_day:"End Day", return_day:"Return Day", off_day:"Off Day",
+  };
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modalCard" style={{ maxWidth:620, width:"96vw", maxHeight:"88vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+        <div className="modalHeader">
+          <div>
+            <h2 style={{margin:0}}>{project.title}</h2>
+            <span className="badge badgeOptional" style={{marginTop:4,display:"inline-block"}}>{project.show_type}</span>
+            <span className={`statusBadge status-${project.status}`} style={{marginLeft:6}}>{project.status}</span>
+          </div>
+          <button className="ghostBtn modalCloseBtn" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 24px", marginBottom:16, fontSize:13 }}>
+          {clientName && <div><span style={{color:"var(--muted)"}}>Client</span><br/><strong>{clientName}</strong></div>}
+          <div><span style={{color:"var(--muted)"}}>Venue</span><br/><strong>{project.venue || "—"}</strong></div>
+          {project.shoot_start && <div><span style={{color:"var(--muted)"}}>Shoot Start</span><br/>{project.shoot_start?.slice(0,10)}</div>}
+          {project.shoot_end && <div><span style={{color:"var(--muted)"}}>Shoot End</span><br/>{project.shoot_end?.slice(0,10)}</div>}
+        </div>
+
+        {dateRows.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>Scheduled Dates</strong>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:8}}>
+              {dateRows.map((d, i) => (
+                <div key={i} style={{background:"var(--surface2)",borderRadius:6,padding:"4px 10px",fontSize:12}}>
+                  <span style={{color:"var(--muted)",marginRight:6}}>{labelMap[d.type] || d.type}</span>
+                  <strong>{d.date}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {project.notes && (
+          <div style={{marginBottom:14,fontSize:13}}>
+            <span style={{color:"var(--muted)"}}>Notes</span><br/>{project.notes}
+          </div>
+        )}
+
+        <div style={{background:"#1e3a2f",borderRadius:8,padding:"10px 14px",fontSize:13,marginBottom:16}}>
+          <strong style={{color:"#4ade80"}}>No booking created for this project yet.</strong>
+          <br/>Click below to open the New Booking form with this project pre-selected and dates pre-filled.
+        </div>
+
+        <div className="modalFooter">
+          <button className="primaryBtn" onClick={onCreateBooking}>Create Booking for this Project →</button>
+          <button className="ghostBtn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ───────── BOOKING DETAIL MODAL ───────── */
 function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower }) {
   if (!booking) return null;
@@ -1066,6 +1130,7 @@ export default function BookingsPage() {
   const [editModal, setEditModal] = useState(false);
   const [editBooking, setEditBooking] = useState(null);
   const [viewDetailBooking, setViewDetailBooking] = useState(null);
+  const [viewProjectModal, setViewProjectModal] = useState(null);
   const [plannedShootsRaw, setPlannedShootsRaw] = useState([]);
   const [plannedSelected, setPlannedSelected] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -1632,6 +1697,22 @@ export default function BookingsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function createBookingFromProject(project) {
+    setProjectMode("existing");
+    setExistingBookingMode("normal");
+    setBookingProjectId(String(project.id));
+    // Pre-fill dates from the project schedule
+    const mapped = (project.dates || []).map(d => ({
+      type: { start_date:"shoot_date", end_date:"end_day" }[d.date_type] || d.date_type,
+      date: d.date_value,
+    }));
+    if (mapped.length) setSelectedDates(mapped);
+    setViewProjectModal(null);
+    setBookingTab("new");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setMessage(`Project "${project.title}" pre-selected. Add equipment, crew, and destination to complete the booking.`);
+  }
+
   function computePrefill(pid) {
     const latest = [...bookingDetails]
       .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
@@ -2134,7 +2215,7 @@ export default function BookingsPage() {
                           bk.status === "planned"
                         );
                         if (b) setViewDetailBooking(b);
-                        else setMessage(`No planned booking found for "${p.title}" yet — create one in New Booking.`);
+                        else setViewProjectModal(p);
                       }}>
                       {p.title}
                     </button>
@@ -2265,6 +2346,16 @@ export default function BookingsPage() {
         </div>
         <Pagination total={bkPg.total} page={bkPg.page} pageSize={bkPg.pageSize} onPageChange={bkPg.setPage} onPageSizeChange={bkPg.setPageSize} />
       </Card>}
+
+      {/* ──── PROJECT DETAIL MODAL (no booking yet) ──── */}
+      {viewProjectModal && (
+        <ProjectDetailModal
+          project={viewProjectModal}
+          clientName={clients.find(c => c.id === viewProjectModal.client_id)?.name}
+          onClose={() => setViewProjectModal(null)}
+          onCreateBooking={() => createBookingFromProject(viewProjectModal)}
+        />
+      )}
 
       {/* ──── BOOKING DETAIL MODAL ──── */}
       {viewDetailBooking && (
