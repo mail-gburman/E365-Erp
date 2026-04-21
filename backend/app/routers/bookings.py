@@ -21,7 +21,7 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(
 ACTIVE_STATUSES = ["confirmed", "blocked", "dispatched"]
 CREATE_BOOKING_STATUSES = {"planned", "confirmed"}
 
-UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def _required_optional_for_items(db: Session, equipment_ids: list[int]):
