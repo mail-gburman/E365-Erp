@@ -1066,7 +1066,7 @@ export default function BookingsPage() {
   const [editModal, setEditModal] = useState(false);
   const [editBooking, setEditBooking] = useState(null);
   const [viewDetailBooking, setViewDetailBooking] = useState(null);
-  const [plannedShoots, setPlannedShoots] = useState([]);
+  const [plannedShootsRaw, setPlannedShootsRaw] = useState([]);
   const [plannedSelected, setPlannedSelected] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
@@ -1098,7 +1098,7 @@ export default function BookingsPage() {
   const load = () => {
     api.projects().then((x)=>{ 
       setProjects(x); 
-      setPlannedShoots(x.filter(p => p.status === "planned"));
+      setPlannedShootsRaw(x.filter(p => p.status === "planned"));
     });
     api.clients().then(setClients);
     api.warehouses().then(setWarehouses);
@@ -1801,6 +1801,15 @@ export default function BookingsPage() {
     return data;
   }, [bookingDetails, bookingSearch, bookingStatusFilter]);
   const bkPg = usePagination(filteredBookings, 10);
+
+  // Planned tab: only projects that have NO confirmed/blocked/dispatched/returned booking yet
+  const ISSUED_STATUSES = ["confirmed","blocked","dispatched","returned"];
+  const plannedShoots = useMemo(() => {
+    return plannedShootsRaw.filter(p =>
+      !bookingDetails.some(b => b.project_id === p.id && ISSUED_STATUSES.includes(b.status))
+    );
+  }, [plannedShootsRaw, bookingDetails]);
+
   const filteredPlannedShoots = useSearch(plannedShoots, plannedSearch);
   const plannedPg = usePagination(filteredPlannedShoots, 10);
 
@@ -2119,8 +2128,13 @@ export default function BookingsPage() {
                   <td>
                     <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
                       onClick={() => {
-                        const b = bookingDetails.find(bk => bk.project_id === p.id && !bk.parent_booking_id && bk.status !== "cancelled");
+                        const b = bookingDetails.find(bk =>
+                          bk.project_id === p.id &&
+                          !bk.parent_booking_id &&
+                          bk.status === "planned"
+                        );
                         if (b) setViewDetailBooking(b);
+                        else setMessage(`No planned booking found for "${p.title}" yet — create one in New Booking.`);
                       }}>
                       {p.title}
                     </button>
