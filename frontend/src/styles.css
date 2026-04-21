@@ -30,7 +30,7 @@ body{
 .nav::-webkit-scrollbar{width:4px;}
 .nav::-webkit-scrollbar-thumb{background:rgba(229,9,47,.3);border-radius:4px;}
 .navLink{padding:10px 12px;border-radius:12px;color:#d4d4d8;border:1px solid transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.shell.sidebarCollapsed .navLink{padding:10px;text-align:center;font-size:11px;font-weight:700;position:relative;}
+.shell.sidebarCollapsed .navLink{padding:10px;text-align:center;font-size:11px;font-weight:700;position:relative;overflow:visible;}
 .navLink:hover,.navLink.active{background:rgba(229,9,47,.12);border-color:rgba(229,9,47,.22);color:#fff;}
 /* Tooltip for collapsed sidebar */
 .shell.sidebarCollapsed .navLink::after{
