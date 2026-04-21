@@ -767,7 +767,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           ...form,
           contacts,
           call_time: composeDateTime(travelDate, form.call_time),
-          packup_time: composeDateTime(travelDate, form.packup_time),
+          packup_time: composeDateTime(returnDate, form.packup_time),
         });
         onClose();
       } catch (e) { alert(String(e.message || e)); }
@@ -811,7 +811,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           </div>
           <label className="fieldLabel">Call Time {travelDate ? `(${travelDate})` : ""}</label>
           <input type="time" value={form.call_time || ""} onChange={e => setForm({...form, call_time: e.target.value})} />
-          <label className="fieldLabel">Packup Time {travelDate ? `(${travelDate})` : ""}</label>
+          <label className="fieldLabel">Packup Time {returnDate ? `(${returnDate})` : ""}</label>
           <input type="time" value={form.packup_time || ""} onChange={e => setForm({...form, packup_time: e.target.value})} />
           <label className="fieldLabel full">Remarks</label>
           <textarea className="full" value={form.remarks} onChange={e => setForm({...form, remarks: e.target.value})} placeholder="Remarks" />
@@ -2159,7 +2159,7 @@ export default function BookingsPage() {
             </div>
             <label className="fieldLabel">Call Time {travelDay ? `(${travelDay})` : ""}</label>
             <input type="time" value={callTime} onChange={e=>setCallTime(e.target.value)} />
-            <label className="fieldLabel">Packup Time {travelDay ? `(${travelDay})` : ""}</label>
+            <label className="fieldLabel">Packup Time {returnDay ? `(${returnDay})` : ""}</label>
             <input type="time" value={packupTime} onChange={e=>setPackupTime(e.target.value)} />
             <label className="fieldLabel full">Remarks</label>
             <textarea className="full" placeholder="Remarks / special instructions" value={remarks} onChange={e=>setRemarks(e.target.value)}></textarea>
