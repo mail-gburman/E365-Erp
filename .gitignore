@@ -39,6 +39,6 @@ backend/app/uploads/
 exports/
 
 # Env / secrets
-.env
+tally_connector/.env
 .env.local
 *.pem

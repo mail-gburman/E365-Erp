@@ -4,6 +4,10 @@ from sqlalchemy import inspect, text
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from .env import load_env
+
+load_env()
+
 from .database import Base, engine, SessionLocal
 from .seed import seed_db
 from .routers import auth_router, masters, projects, bookings, service_jobs, papers, dashboard, admin_router, system_router, audit_router, accounts, tally
