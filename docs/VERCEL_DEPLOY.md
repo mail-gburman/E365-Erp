@@ -1,18 +1,19 @@
 # Vercel Deploy
 
-This repo deploys as one Vercel project:
+This repo deploys as one Vercel Services project:
 
-- Frontend: Vite build from `frontend/`
-- API: FastAPI serverless function at `/api`
+- Frontend service: Vite app from `frontend/`, mounted at `/`
+- Backend service: FastAPI app from `api/index.py`, mounted at `/api`
 - Local dev API path: `/api`, proxied by Vite to `http://localhost:8000`
 
 ## Vercel settings
 
-Use default project import. `vercel.json` sets:
+Use default project import. Set framework to **Services** if Vercel asks.
 
-- Install: `npm install --prefix frontend`
-- Build: `npm run build`
-- Output: `frontend/dist`
+`vercel.json` defines `experimentalServices`, so Vercel should show:
+
+- `frontend` -> `frontend`, route `/`, framework `vite`
+- `backend` -> `api/index.py`, route `/api`, framework `fastapi`
 
 ## Environment
 
