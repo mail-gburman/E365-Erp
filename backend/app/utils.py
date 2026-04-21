@@ -1069,6 +1069,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
     left = 50
+    right = width - 50
     usable_width = width - 100
 
     def wrap_text(text_value, font="Helvetica", size=11):
@@ -1089,7 +1090,25 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
             out.append(current)
         return out
 
-    y = height - 60
+    # ── Letterhead ──────────────────────────────────────────────────────────
+    y = height - 40
+    if LOGO_PATH.exists():
+        c.drawImage(str(LOGO_PATH), left, y - 48, width=110, height=48,
+                    preserveAspectRatio=True, mask="auto")
+    c.setFont("Helvetica-Bold", 15)
+    c.drawRightString(right, y - 10, "KPS PRODUCTIONS AND SERVICES LLP")
+    c.setFont("Helvetica", 8.5)
+    c.drawRightString(right, y - 24, "326, Shantipally, Kolkata – 700107")
+    c.drawRightString(right, y - 36, "GSTIN: 19AALFK2467Q1ZG  |  Tel: 033-4073 4036  |  Mob: 8697738894")
+    y -= 60
+    c.setLineWidth(1.2)
+    c.line(left, y, right, y)
+    y -= 6
+    c.setLineWidth(0.4)
+    c.line(left, y, right, y)
+    y -= 22
+    # ────────────────────────────────────────────────────────────────────────
+
     c.setFont("Helvetica-Bold", 14)
     c.drawCentredString(width / 2, y, "TO WHOM IT MAY CONCERN")
     y -= 30
