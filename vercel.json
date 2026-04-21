@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "functions": {
     "api/index.py": {
       "includeFiles": "frontend/dist/**",
