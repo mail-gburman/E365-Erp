@@ -91,11 +91,17 @@ class InventoryItem(Base):
     statutory_tag = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
     equipment_master_id = Column(Integer, ForeignKey("equipment_master.id"), nullable=True)
+    # Third-party rental window — item is only available within these dates
+    vendor_available_from = Column(Date, nullable=True)
+    vendor_available_until = Column(Date, nullable=True)
+    # Consumable stock tracking
+    qty_in_stock = Column(Integer, nullable=True)
     is_demo = Column(Boolean, default=False)
 
     warehouse = relationship("Warehouse")
     vendor = relationship("Vendor")
-    parent_item = relationship("InventoryItem", remote_side=[id])
+    parent_item = relationship("InventoryItem", remote_side=[id], back_populates="children")
+    children = relationship("InventoryItem", foreign_keys="InventoryItem.parent_item_id", back_populates="parent_item")
     equipment_master = relationship("EquipmentMaster")
 
 

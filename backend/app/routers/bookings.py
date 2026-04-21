@@ -56,6 +56,18 @@ def _inventory_status_for_window(db: Session, item: models.InventoryItem, block_
         return "unavailable"
     if not block_start or not block_end:
         return "available"
+    # Third-party: check vendor rental window
+    if item.owner_type == "third_party":
+        avail_from = item.vendor_available_from
+        avail_until = item.vendor_available_until
+        if avail_from or avail_until:
+            from datetime import datetime as _dt
+            bs_date = block_start.date() if hasattr(block_start, "date") else block_start
+            be_date = block_end.date() if hasattr(block_end, "date") else block_end
+            if avail_from and bs_date < avail_from:
+                return "unavailable"
+            if avail_until and be_date > avail_until:
+                return "unavailable"
     existing = db.query(models.BookingEquipment).join(models.EventBooking).join(models.ProjectEvent).filter(
         models.BookingEquipment.inventory_item_id == item.id,
         models.EventBooking.status.in_(ACTIVE_STATUSES)
@@ -607,9 +619,8 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
         ("Programme", project.title if project else "-"),
         ("Date", project.shoot_start.strftime("%d/%m/%Y") if project and project.shoot_start else "-"),
         ("Location", booking.destination or "-"),
-        ("Call Time", booking.call_time.strftime("%d/%m/%Y %H:%M") if booking.call_time else "-"),
-        ("Packup Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
-        ("Packup Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
+        ("Call Date/Time", booking.call_time.strftime("%d/%m/%Y %H:%M") if booking.call_time else "-"),
+        ("Packup Date/Time", booking.packup_time.strftime("%d/%m/%Y %H:%M") if booking.packup_time else "-"),
     ]
     if booking.transport_mode:
         meta.append(("Transport Mode", booking.transport_mode))
@@ -747,8 +758,26 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
 
     equipment_only = list(dict.fromkeys(payload.equipment_ids))
     accessory_only = list(dict.fromkeys(payload.accessory_ids))
-    merged_ids = list(dict.fromkeys(equipment_only + accessory_only))
     crew_ids = list(dict.fromkeys(payload.crew_ids))
+
+    # Expand kits/bundles: auto-add all child items (parent_item_id = kit.id)
+    expanded_equipment = list(equipment_only)
+    for eq_id in equipment_only:
+        parent = db.query(models.InventoryItem).filter(models.InventoryItem.id == eq_id).first()
+        if parent and parent.item_type in ("kit", "bundle"):
+            children = db.query(models.InventoryItem).filter(
+                models.InventoryItem.parent_item_id == parent.id,
+                models.InventoryItem.status.notin_(["inactive", "cancelled", "servicing"])
+            ).all()
+            for child in children:
+                if child.id not in expanded_equipment:
+                    if child.item_type == "accessory":
+                        if child.id not in accessory_only:
+                            accessory_only.append(child.id)
+                    else:
+                        expanded_equipment.append(child.id)
+    equipment_only = list(dict.fromkeys(expanded_equipment))
+    merged_ids = list(dict.fromkeys(equipment_only + accessory_only))
 
     if accessory_only and not equipment_only:
         raise HTTPException(status_code=400, detail="Accessory-only booking is not allowed. Select at least one main device/kit/bundle/third-party equipment.")
@@ -772,6 +801,14 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
             raise HTTPException(status_code=404, detail=f"Inventory item {inv_id} not found.")
         if item.status in ["servicing", "inactive", "cancelled"] or item.service_status == "in_service":
             raise HTTPException(status_code=400, detail=f"{item.asset_code} cannot be booked because it is under service or inactive.")
+        # Third-party: enforce vendor rental window
+        if item.owner_type == "third_party" and (item.vendor_available_from or item.vendor_available_until):
+            bs = project.block_start.date() if project.block_start else None
+            be = project.block_end.date() if project.block_end else None
+            if bs and item.vendor_available_from and bs < item.vendor_available_from:
+                raise HTTPException(status_code=400, detail=f"{item.name} is a third-party item only available from {item.vendor_available_from}. Your booking starts {bs}.")
+            if be and item.vendor_available_until and be > item.vendor_available_until:
+                raise HTTPException(status_code=400, detail=f"{item.name} is a third-party item only available until {item.vendor_available_until}. Your booking ends {be}.")
         if locks_resources:
             existing = db.query(models.BookingEquipment).join(models.EventBooking).join(models.ProjectEvent).filter(
                 models.BookingEquipment.inventory_item_id == inv_id,

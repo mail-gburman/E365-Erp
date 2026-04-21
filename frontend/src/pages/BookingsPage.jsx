@@ -1237,8 +1237,51 @@ export default function BookingsPage() {
     } catch (e) { setMessage(String(e.message || e)); setConfirmModal(false); }
   }
 
-  function addEquipment(items) {
-    setEquipmentSelected(prev => { const existing = new Set(prev.map(x => x.id)); return [...prev, ...items.filter(x => !existing.has(x.id))]; });
+  async function addEquipment(items) {
+    // 1. Expand kits/bundles: add all children from inventory
+    const expanded = [];
+    const kitChildren = [];
+    for (const item of items) {
+      expanded.push(item);
+      if (["kit", "bundle"].includes(item.item_type)) {
+        const children = inventory.filter(i => String(i.parent_item_id) === String(item.id));
+        for (const child of children) {
+          const withLabel = { ...child, label: `${child.asset_code || child.id} · ${child.name}` };
+          if (child.item_type === "accessory") kitChildren.push(withLabel);
+          else expanded.push(withLabel);
+        }
+      }
+    }
+    // 2. Add main equipment (dedup)
+    setEquipmentSelected(prev => {
+      const existing = new Set(prev.map(x => x.id));
+      return [...prev, ...expanded.filter(x => !existing.has(x.id))];
+    });
+    // 3. Auto-add kit-child accessories
+    if (kitChildren.length) {
+      setAccessorySelected(prev => {
+        const existing = new Set(prev.map(x => x.id));
+        return [...prev, ...kitChildren.filter(x => !existing.has(x.id))];
+      });
+    }
+    // 4. Fetch mandatory accessories from equipment master rules
+    const allEquipmentIds = [...equipmentSelected.map(x => x.id), ...expanded.map(x => x.id)];
+    if (allEquipmentIds.length) {
+      try {
+        const reqInfo = await api.requiredAccessories(allEquipmentIds);
+        const mandatoryItems = (reqInfo.required_matches || []).map(i => ({
+          ...i, label: `${i.asset_code || i.id} · ${i.name} [mandatory]`,
+        }));
+        if (mandatoryItems.length) {
+          setAccessorySelected(prev => {
+            const existing = new Set(prev.map(x => x.id));
+            const toAdd = mandatoryItems.filter(x => !existing.has(x.id));
+            if (toAdd.length) setMessage(`Auto-added ${toAdd.length} mandatory accessor${toAdd.length === 1 ? "y" : "ies"} — review and deselect if not needed.`);
+            return [...prev, ...toAdd];
+          });
+        }
+      } catch (_) { /* non-blocking */ }
+    }
   }
   function addAccessories(items) {
     setAccessorySelected(prev => { const existing = new Set(prev.map(x => x.id)); return [...prev, ...items.filter(x => !existing.has(x.id))]; });
@@ -1431,6 +1474,36 @@ export default function BookingsPage() {
     setCrewSelected(oldCrew);
     setMessage(`Pre-filled from ${b.job_card_id}: ${oldMainEquipment.length} equipment, ${oldAccessories.length} accessories, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function computePrefill(pid) {
+    const latest = [...bookingDetails]
+      .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
+      .sort((a, b) => b.id - a.id)[0];
+    if (!latest) return null;
+    const allRelated = bookingDetails.filter(b =>
+      b.status !== "cancelled" && (b.id === latest.id || b.parent_booking_id === latest.id)
+    );
+    const seenEq = new Set(), seenCrew = new Set();
+    const eq = [], acc = [], crew = [];
+    for (const booking of allRelated) {
+      for (const i of (booking.equipment || [])) {
+        if (seenEq.has(i.id)) continue;
+        seenEq.add(i.id);
+        eq.push({ ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` });
+      }
+      for (const i of (booking.accessories || [])) {
+        if (seenEq.has(i.id)) continue;
+        seenEq.add(i.id);
+        acc.push({ ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` });
+      }
+      for (const i of (booking.crew || [])) {
+        if (seenCrew.has(i.id)) continue;
+        seenCrew.add(i.id);
+        crew.push({ ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}` });
+      }
+    }
+    return { latest, allRelated, eq, acc, crew };
   }
 
   function applyPrefill() {
@@ -1667,36 +1740,22 @@ export default function BookingsPage() {
               const pid = e.target.value;
               setBookingProjectId(pid);
               if (pid && existingBookingMode === "normal") {
-                const latest = [...bookingDetails]
-                  .filter(b => String(b.project_id) === String(pid) && b.status !== "cancelled")
-                  .sort((a, b) => b.id - a.id)[0];
-                if (latest) {
-                  const allRelated = bookingDetails.filter(b =>
-                    b.status !== "cancelled" && (b.id === latest.id || b.parent_booking_id === latest.id)
-                  );
-                  const seenEq = new Set(), seenCrew = new Set();
-                  const eq = [], acc = [], crew = [];
-                  for (const booking of allRelated) {
-                    for (const i of (booking.equipment || [])) {
-                      if (seenEq.has(i.id)) continue;
-                      seenEq.add(i.id);
-                      const item = { ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` };
-                      if (i.item_type === "accessory") acc.push(item); else eq.push(item);
-                    }
-                    for (const i of (booking.crew || [])) {
-                      if (seenCrew.has(i.id)) continue;
-                      seenCrew.add(i.id);
-                      crew.push({ ...i, label: `${i.name || i.id}${i.role ? ` · ${i.role}` : ""}` });
-                    }
-                  }
-                  // show preview modal — user must confirm before applying
-                  setPrefillPreview({ latest, allRelated, eq, acc, crew });
-                }
+                const preview = computePrefill(pid);
+                if (preview) setPrefillPreview(preview);
               }
             }}>
               <option value="">Select Project</option>
               {clientFilteredProjects.map(p => <option key={p.id} value={p.id}>{p.title} ({p.status})</option>)}
             </select>
+            {bookingProjectId && existingBookingMode === "normal" && (() => {
+              const hasPrior = bookingDetails.some(b => String(b.project_id) === String(bookingProjectId) && b.status !== "cancelled");
+              return hasPrior ? (
+                <button type="button" className="ghostBtn compactBtn" style={{ marginTop: 4 }}
+                  onClick={() => { const p = computePrefill(bookingProjectId); if (p) setPrefillPreview(p); }}>
+                  Load Previous Booking Details
+                </button>
+              ) : null;
+            })()}
             <div className="full" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <button type="button" className="ghostBtn compactBtn" onClick={() => setQuickProjectOpen(true)}>Create Project</button>
               {!clientFilteredProjects.length ? <span className="helperText">No project found for this client yet. Create one here.</span> : null}

@@ -265,36 +265,84 @@ def ensure_demo_data(db: Session):
     # Extra inventory types for demo filters
     eqm_fx9 = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01000")
     eqm_halo = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01032")
-    for asset_code, product_code, name, category, item_type, warehouse_id, owner_type, vendor_id, equipment_master_id, location_text, notes in [
-        ("KPS/KIT/ENG-01", "PRD-900001", "ENG Camera Kit Demo", "CAMERA KIT", "kit", warehouse_main.id, "inhouse", None, eqm_fx9.id if eqm_fx9 else None, "Demo Bay", "Demo kit for grouped booking selection."),
-        ("KPS/BND/STREAM-01", "PRD-900002", "Streaming Bundle Demo", "STREAMING", "bundle", warehouse_main.id, "inhouse", None, eqm_halo.id if eqm_halo else None, "Demo Bay", "Demo bundle for corporate webcast setup."),
-        ("KPS/CON/GAFF-01", "PRD-900003", "Gaffer Tape Box Demo", "CONSUMABLE", "consumable", warehouse_main.id, "inhouse", None, None, "Consumables Shelf", "Demo consumable stock item."),
-        ("3P/LGT/ASTERA-01", "PRD-900004", "Astera Tube Light Set Demo", "LIGHTING", "third_party_equipment", warehouse_mumbai.id, "third_party", vendor_equipment.id, None, "Mumbai Transit", "Demo third-party lighting add-on."),
+
+    # Kit parent items
+    kit_eng = _ensure(
+        db, models.InventoryItem, {"asset_code": "KPS/KIT/ENG-01"},
+        {
+            "product_code": "PRD-900001", "name": "ENG Camera Kit", "category": "CAMERA KIT",
+            "item_type": "kit", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
+            "status": "available", "location_text": "Kolkata – Bay A",
+            "service_status": "not_in_service", "warranty_expiry": date(2027, 6, 30),
+            "statutory_tag": "KPS/KIT/ENG-01",
+            "equipment_master_id": eqm_fx9.id if eqm_fx9 else None,
+            "notes": "ENG Kit: FX9 body + V-mount battery + charger. Auto-expands in booking.", "is_demo": True,
+        },
+    )[0]
+
+    bundle_stream = _ensure(
+        db, models.InventoryItem, {"asset_code": "KPS/BND/STREAM-01"},
+        {
+            "product_code": "PRD-900002", "name": "Corporate Streaming Bundle", "category": "STREAMING",
+            "item_type": "bundle", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
+            "status": "available", "location_text": "Kolkata – Bay B",
+            "service_status": "not_in_service", "warranty_expiry": date(2027, 3, 31),
+            "statutory_tag": "KPS/BND/STREAM-01",
+            "equipment_master_id": eqm_halo.id if eqm_halo else None,
+            "notes": "Streaming bundle: encoder + switcher + PTZ cam. Auto-expands in booking.", "is_demo": True,
+        },
+    )[0]
+
+    # Consumables with qty_in_stock
+    for asset_code, product_code, name, category, qty, notes in [
+        ("KPS/CON/GAFF-01", "PRD-900003", "Gaffer Tape (Box of 12)", "CONSUMABLE", 12, "Heavy-duty gaffer tape, black."),
+        ("KPS/CON/CF-01", "PRD-900010", "CFexpress Card Type B 512GB", "MEMORY CARD", 6, "CFexpress B cards for FX9 / FX6."),
+        ("KPS/CON/BATT-AA-01", "PRD-900011", "AA Batteries (Pack of 24)", "CONSUMABLE", 20, "For wireless mics and remotes."),
     ]:
         _ensure(
-            db,
-            models.InventoryItem,
-            {"asset_code": asset_code},
+            db, models.InventoryItem, {"asset_code": asset_code},
             {
-                "product_code": product_code,
-                "serial_number": None if item_type in {"consumable", "third_party_equipment"} else f"SN-{product_code[-6:]}",
-                "name": name,
-                "category": category,
-                "item_type": item_type,
-                "warehouse_id": warehouse_id,
-                "owner_type": owner_type,
-                "vendor_id": vendor_id,
-                "status": "available",
-                "location_text": location_text,
-                "service_status": "not_in_service",
-                "warranty_expiry": date(2026, 4, 18) if item_type != "consumable" else None,
-                "service_due": date(2026, 5, 10) if item_type != "consumable" else None,
-                "statutory_tag": asset_code,
-                "equipment_master_id": equipment_master_id,
-                "notes": notes,
-                "is_demo": True,
+                "product_code": product_code, "name": name, "category": category,
+                "item_type": "consumable", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
+                "status": "available", "location_text": "Kolkata – Consumables Shelf",
+                "service_status": "not_in_service", "qty_in_stock": qty,
+                "notes": f"Demo consumable — {notes}", "is_demo": True,
             },
         )
+
+    # Third-party equipment WITH rental windows
+    for asset_code, product_code, name, category, avail_from, avail_until, notes in [
+        ("3P/LGT/ASTERA-01", "PRD-900004", "Astera Tube Light Set (8pcs)", "LIGHTING",
+         date(2026, 4, 20), date(2026, 5, 15), "Rented from Filmlite India for April–May shoots."),
+        ("3P/CAM/MOVI-01", "PRD-900005", "DJI Ronin 4D Gimbal Rental", "GIMBAL",
+         date(2026, 4, 25), date(2026, 5, 10), "Rented from CineGear Mumbai. Available only Apr 25 – May 10."),
+        ("3P/AUD/SENN-01", "PRD-900006", "Sennheiser MKH 8050 + Boom Rental", "AUDIO",
+         date(2026, 4, 21), date(2026, 6, 30), "Rented from Sound Solutions Kolkata. Long-term rental."),
+    ]:
+        _ensure(
+            db, models.InventoryItem, {"asset_code": asset_code},
+            {
+                "product_code": product_code, "name": name, "category": category,
+                "item_type": "third_party_equipment", "warehouse_id": warehouse_mumbai.id,
+                "owner_type": "third_party", "vendor_id": vendor_equipment.id,
+                "status": "available", "location_text": "Mumbai – Vendor Premises",
+                "service_status": "not_in_service",
+                "vendor_available_from": avail_from,
+                "vendor_available_until": avail_until,
+                "notes": f"Demo 3rd-party — {notes}", "is_demo": True,
+            },
+        )
+
+    # Kit child items linked to kit_eng
+    cam_body = _query_one(db, models.InventoryItem, asset_code="KPS/CAM/FX9-03")
+    bat_vm = _query_one(db, models.InventoryItem, asset_code="KPS/BAT/VM-03")
+    charger = _query_one(db, models.InventoryItem, asset_code="KPS/CHR/02")
+    if cam_body and not cam_body.parent_item_id:
+        cam_body.parent_item_id = kit_eng.id
+    if bat_vm and not bat_vm.parent_item_id:
+        bat_vm.parent_item_id = kit_eng.id
+    if charger and not charger.parent_item_id:
+        charger.parent_item_id = kit_eng.id
 
     demo_crew, _ = _ensure(
         db,
@@ -456,7 +504,9 @@ def ensure_demo_data(db: Session):
             "KPS/TRI/S18-02", "KPS/WLS/BOLT-01", "KPS/COM/BP-01", "KPS/SSD/T7-01",
             "KPS/PWR/EXT-01", "KPS/PWR/EXT-02", "KPS/AUD/XLR-02", "KPS/RPL/3P-01",
             "KPS/CNV/FS-01", "KPS/STR/HELO-01", "3P/CAM/RED-01", "3P/CAM/ARRI-01",
-            "KPS/KIT/ENG-01", "KPS/BND/STREAM-01", "3P/LGT/ASTERA-01",
+            "KPS/KIT/ENG-01", "KPS/BND/STREAM-01",
+            "3P/LGT/ASTERA-01", "3P/CAM/MOVI-01", "3P/AUD/SENN-01",
+            "KPS/CON/GAFF-01", "KPS/CON/CF-01",
         ]
     }
     crew = {
@@ -767,11 +817,102 @@ def ensure_demo_data(db: Session):
     for demo_booking in [parent_booking, supplementary_booking, dispatched_booking, returned_booking, cancelled_booking]:
         _ensure_booking_crew_documents(db, demo_booking)
 
+    # ── Demo: Kit auto-expansion booking (ENG Kit → children auto-added) ──
+    kit_demo_project, _ = _ensure(
+        db, models.ProjectEvent, {"title": "Demo Reality Show – ENG Kit Booking"},
+        {
+            "show_type": "Reality Show", "client_id": demo_client_b.id,
+            "venue": "Eco Park, Kolkata", "origin_warehouse_id": warehouse_main.id,
+            "shoot_start": datetime(2026, 5, 5, 8, 0), "shoot_end": datetime(2026, 5, 5, 20, 0),
+            "block_start": datetime(2026, 5, 4, 0, 0), "block_end": datetime(2026, 5, 6, 23, 59, 59),
+            "status": "planned",
+            "notes": "Demo: ENG Camera Kit booked as a single unit. Children (camera, battery, charger) auto-linked.",
+            "is_demo": True,
+        },
+    )
+    for dt, dv in [("setup_date", date(2026, 5, 4)), ("start_date", date(2026, 5, 5)), ("end_date", date(2026, 5, 5))]:
+        _ensure_project_date(db, kit_demo_project.id, dt, dv)
+
+    kit_booking, _ = _ensure(
+        db, models.EventBooking, {"job_card_id": "JC-90005"},
+        {
+            "project_id": kit_demo_project.id, "destination": "Eco Park, Kolkata",
+            "status": "planned", "remarks": "ENG Kit booked — auto-expands to FX9 body + battery + charger.",
+            "transport_mode": "company_vehicle", "awb_number": "KPS-DEMO-KIT-01",
+            "contact_person_name": "Reema Dutt", "contact_person_mobile": "9820002001",
+            "call_time": datetime(2026, 5, 5, 7, 0), "packup_time": datetime(2026, 5, 5, 21, 0),
+            "is_demo": True,
+        },
+    )
+    # Add kit parent + its children to booking (demonstrating auto-expansion)
+    for code in ["KPS/KIT/ENG-01", "KPS/CAM/FX9-03", "KPS/BAT/VM-03", "KPS/CHR/02"]:
+        item = assets.get(code)
+        if item:
+            _ensure_booking_equipment(db, kit_booking.id, item.id)
+    for code in ["EMP-00007"]:
+        person = crew.get(code)
+        if person:
+            _ensure_booking_crew(db, kit_booking.id, person.id)
+
+    # ── Demo: Third-party vendor window booking (Astera lights, within window) ──
+    tp_demo_project, _ = _ensure(
+        db, models.ProjectEvent, {"title": "Demo Corporate Event – Third-Party Lighting"},
+        {
+            "show_type": "Event", "client_id": demo_client_a.id,
+            "venue": "ITC Sonar, Kolkata", "origin_warehouse_id": warehouse_main.id,
+            "shoot_start": datetime(2026, 5, 2, 10, 0), "shoot_end": datetime(2026, 5, 2, 22, 0),
+            "block_start": datetime(2026, 5, 1, 0, 0), "block_end": datetime(2026, 5, 3, 23, 59, 59),
+            "status": "confirmed",
+            "notes": "Demo: Astera Tube Lights (3rd-party) rented for this event. Available Apr 20 – May 15.",
+            "is_demo": True,
+        },
+    )
+    for dt, dv in [("setup_date", date(2026, 5, 1)), ("start_date", date(2026, 5, 2)), ("end_date", date(2026, 5, 2))]:
+        _ensure_project_date(db, tp_demo_project.id, dt, dv)
+
+    tp_booking, _ = _ensure(
+        db, models.EventBooking, {"job_card_id": "JC-90006"},
+        {
+            "project_id": tp_demo_project.id, "destination": "ITC Sonar, Kolkata",
+            "status": "confirmed", "remarks": "Astera tubes rented from Filmlite India. Vendor window: Apr 20 – May 15.",
+            "transport_mode": "vendor_transport", "awb_number": "ASTERA-DEMO-90006",
+            "contact_person_name": "Nisha Kapoor", "contact_person_mobile": "9810001001",
+            "call_time": datetime(2026, 5, 2, 8, 0), "packup_time": datetime(2026, 5, 2, 23, 30),
+            "is_demo": True,
+        },
+    )
+    for code in ["KPS/CAM/FX9-04", "3P/LGT/ASTERA-01", "3P/AUD/SENN-01"]:
+        item = assets.get(code)
+        if item:
+            _ensure_booking_equipment(db, tp_booking.id, item.id)
+            item.status = "reserved"
+    for code in ["EMP-00010", "EMP-00014"]:
+        person = crew.get(code)
+        if person:
+            _ensure_booking_crew(db, tp_booking.id, person.id)
+            person.status = "blocked"
+    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90006"}, {
+        "booking_id": tp_booking.id, "pass_type": "gate_out", "approved_by": "System Auto",
+        "status": "issued", "remarks": "Demo third-party lighting booking gate pass"
+    })
+
+    # ── Demo: Consumable usage ──
+    if assets.get("KPS/CON/GAFF-01"):
+        _ensure_booking_equipment(db, returned_booking.id, assets["KPS/CON/GAFF-01"].id)
+    if assets.get("KPS/CON/CF-01"):
+        _ensure_booking_equipment(db, dispatched_booking.id, assets["KPS/CON/CF-01"].id)
+
+    # Statutory documents for new items
+    if assets.get("3P/LGT/ASTERA-01"):
+        _ensure_document(db, "inventory", assets["3P/LGT/ASTERA-01"].id, "Vendor Rental Agreement", "store", "Demo 3rd-party rental agreement — Astera lights")
+    if assets.get("KPS/KIT/ENG-01"):
+        _ensure_document(db, "inventory", assets["KPS/KIT/ENG-01"].id, "Kit Asset Register", "store", "Demo ENG Kit statutory registration")
+
     audit(db, "admin", "seed", "demo_data", details={
         "message": "Demo dataset ensured for client presentation",
         "clients": ["CLI-90001", "CLI-90002"],
         "projects": [spec["title"] for spec in project_specs],
-        "bookings": ["JC-90001", "JC-90001-S1", "JC-90002", "JC-90003", "JC-90004"],
+        "bookings": ["JC-90001", "JC-90001-S1", "JC-90002", "JC-90003", "JC-90004", "JC-90005", "JC-90006"],
     })
     db.commit()
 

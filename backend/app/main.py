@@ -152,6 +152,10 @@ _MIGRATIONS = [
     ("service_jobs", "declared_value", "FLOAT"),
     ("service_jobs", "package_notes", "TEXT"),
     ("service_jobs", "service_payment_details", "TEXT"),
+    # 0006 — inventory extensions
+    ("inventory_items", "vendor_available_from", "DATE"),
+    ("inventory_items", "vendor_available_until", "DATE"),
+    ("inventory_items", "qty_in_stock", "INTEGER"),
 ]
 with engine.connect() as conn:
     insp = inspect(engine)

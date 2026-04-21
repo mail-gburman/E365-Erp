@@ -14,7 +14,7 @@ const blankWarehouse = { code:"", name:"", city:"", address:"", manager_name:"",
 const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", pan_number:"", notes:"" };
 const blankClient = { name:"", industry_type:"", billing_address:"", gst_number:"", pan_number:"", notes:"", contacts:[{contact_name:"", designation:"", email:"", phone_country_code:"+91", phone_number:"", is_primary:true}] };
 const blankEquipmentMaster = { equipment_code:"", name:"", category:"Camera", item_type:"device", brand:"", model_no:"", mandatory_accessory_codes:"", optional_accessory_codes:"", notes:"" };
-const blankInventory = { asset_code:"", name:"", category:"Camera", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"" };
+const blankInventory = { asset_code:"", name:"", category:"Camera", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"", vendor_available_from:"", vendor_available_until:"", qty_in_stock:"" };
 const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inhouse", vendor_id:"", home_station:"", phone:"", address:"", aadhar_number:"", pan_number:"", blood_group:"", emergency_contact:"", emergency_contact_phone:"", id_proof_type:"Aadhaar", id_proof_number:"", status:"available" };
 const BLOOD_GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
 const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID", "Others"];
@@ -428,7 +428,30 @@ export default function AdditionsPage() {
   async function saveVendor(e){ e.preventDefault(); try { const created = await api.createVendor(vendorForm); const uploaded = await uploadEntityDocuments("vendor", created.id, vendorForm.name); setVendorForm(blankVendor); setMessage(uploaded ? `Vendor added with ${uploaded} document(s).` : "Vendor added."); load(); } catch(e){ setMessage(String(e.message||e)); } }
   async function saveClient(e){ e.preventDefault(); try { const created = await api.createClient(clientForm); const uploaded = await uploadEntityDocuments("client", created.id, clientForm.name); setClientForm(blankClient); setMessage(uploaded ? `Client added with contacts and ${uploaded} document(s).` : "Client added with contacts."); load(); } catch(e){ setMessage(String(e.message||e)); } }
   async function saveEquipmentMaster(e){ e.preventDefault(); try { await api.createEquipmentMaster(equipmentMasterForm); setEquipmentMasterForm(blankEquipmentMaster); setMessage("Equipment master added with accessory rules."); load(); } catch(e){ setMessage(String(e.message||e)); } }
-  async function saveInventory(e){ e.preventDefault(); try { const created = await api.createInventory({ ...inventoryForm, parent_item_id: inventoryForm.parent_item_id ? Number(inventoryForm.parent_item_id) : null, warehouse_id: inventoryForm.warehouse_id ? Number(inventoryForm.warehouse_id) : null, vendor_id: inventoryForm.vendor_id ? Number(inventoryForm.vendor_id) : null, equipment_master_id: inventoryForm.equipment_master_id ? Number(inventoryForm.equipment_master_id) : null, warranty_expiry: inventoryForm.warranty_expiry || null, service_due: inventoryForm.service_due || null }); const uploaded = await uploadEntityDocuments("inventory", created.id, inventoryForm.name); setInventoryForm(blankInventory); setMessage(uploaded ? `Inventory added with ${uploaded} document(s).` : "Inventory added."); load(); } catch(e){ setMessage(String(e.message||e)); } }
+  async function saveInventory(e){
+    e.preventDefault();
+    try {
+      const created = await api.createInventory({
+        ...inventoryForm,
+        parent_item_id: inventoryForm.parent_item_id ? Number(inventoryForm.parent_item_id) : null,
+        warehouse_id: inventoryForm.warehouse_id ? Number(inventoryForm.warehouse_id) : null,
+        vendor_id: inventoryForm.vendor_id ? Number(inventoryForm.vendor_id) : null,
+        equipment_master_id: inventoryForm.equipment_master_id ? Number(inventoryForm.equipment_master_id) : null,
+        warranty_expiry: inventoryForm.warranty_expiry || null,
+        service_due: inventoryForm.service_due || null,
+        vendor_available_from: inventoryForm.vendor_available_from || null,
+        vendor_available_until: inventoryForm.vendor_available_until || null,
+        qty_in_stock: inventoryForm.qty_in_stock ? Number(inventoryForm.qty_in_stock) : null,
+        // service_status: only set on inhouse non-consumable, otherwise default
+        service_status: (inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable")
+          ? inventoryForm.service_status : "not_in_service",
+      });
+      const uploaded = await uploadEntityDocuments("inventory", created.id, inventoryForm.name);
+      setInventoryForm(blankInventory);
+      setMessage(uploaded ? `Inventory item added with ${uploaded} document(s).` : "Inventory item added.");
+      load();
+    } catch(e){ setMessage(String(e.message||e)); }
+  }
   const updateCrewIdProof = (key, patch) => {
     setCrewIdProofs(rows => rows.map(row => row.key === key ? { ...row, ...patch } : row));
   };
@@ -582,7 +605,17 @@ export default function AdditionsPage() {
             <label className="fieldLabel">Name <InfoHint text="Example: Sony FX9 Camera Body, V-Mount Battery Set, Canon CN-E 70-200mm." /></label>
             <input placeholder="Name" value={equipmentMasterForm.name} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, name:e.target.value})} required />
             <AutocompleteInput value={equipmentMasterForm.category} onChange={v=>setEquipmentMasterForm({...equipmentMasterForm, category:v})} suggestions={[...new Set(equipmentMaster.map(e=>e.category).filter(Boolean))]} placeholder="Category" />
-            <select value={equipmentMasterForm.item_type} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, item_type:e.target.value})}><option>device</option><option>accessory</option><option>kit</option><option>bundle</option><option>third_party_equipment</option><option>consumable</option></select>
+            <select value={equipmentMasterForm.item_type} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, item_type:e.target.value})}>
+              <option value="device">Device — standalone bookable unit (camera, lens, monitor)</option>
+              <option value="accessory">Accessory — travels with device (battery, charger, card)</option>
+              <option value="kit">Kit — named group that auto-expands in booking</option>
+              <option value="bundle">Bundle — pre-packaged multi-device set</option>
+              <option value="third_party_equipment">Third-Party — rented from vendor, not owned</option>
+              <option value="consumable">Consumable — stock item (tape, gel, gaffer)</option>
+            </select>
+            {["kit","bundle"].includes(equipmentMasterForm.item_type) && (
+              <p className="helperText full" style={{marginTop:0}}>For kits/bundles: add mandatory/optional accessory codes below so the system auto-validates or pre-selects accessories whenever this kit is booked.</p>
+            )}
             <input placeholder="Brand" value={equipmentMasterForm.brand} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, brand:e.target.value})} />
             <input placeholder="Model No" value={equipmentMasterForm.model_no} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, model_no:e.target.value})} />
             <label className="fieldLabel full">Mandatory Accessory Codes <InfoHint text="Comma-separated accessory equipment master codes required whenever this equipment is booked. Example: EQM-01010, EQM-01011." /></label>
@@ -597,28 +630,110 @@ export default function AdditionsPage() {
       {/* ──── INVENTORY / ASSET ──── */}
       {addTab === "inventory" && <Card title="Inventory / Asset">
           <form className="formGrid" onSubmit={saveInventory}>
+
+            {/* ── Identity ── */}
+            <label className="fieldLabel">Asset Code <InfoHint text="Your internal tag (e.g. KPS/CAM/FX9-01). Leave blank to auto-generate." /></label>
             <input placeholder="Asset Code (optional auto)" value={inventoryForm.asset_code} onChange={e=>setInventoryForm({...inventoryForm, asset_code:e.target.value})} />
+            <label className="fieldLabel">Serial Number <InfoHint text="Manufacturer serial number printed on the device. Leave blank for accessories or consumables without a serial." /></label>
             <input placeholder="Serial Number" value={inventoryForm.serial_number} onChange={e=>setInventoryForm({...inventoryForm, serial_number:e.target.value})} />
+            <label className="fieldLabel">Name <InfoHint text="Descriptive name, e.g. Sony FX9 Camera Body or V-Mount Battery 98Wh." /></label>
             <AutocompleteInput value={inventoryForm.name} onChange={v=>setInventoryForm({...inventoryForm, name:v})} suggestions={[...new Set(inventory.map(i=>i.name))]} placeholder="Name" required />
+            <label className="fieldLabel">Category <InfoHint text="Group similar items — Camera, Lens, Battery, Audio, Lighting, etc." /></label>
             <AutocompleteInput value={inventoryForm.category} onChange={v=>setInventoryForm({...inventoryForm, category:v})} suggestions={[...new Set(inventory.map(i=>i.category).filter(Boolean))]} placeholder="Category" />
-            <select value={inventoryForm.equipment_master_id} onChange={e=>setInventoryForm({...inventoryForm, equipment_master_id:e.target.value})}>
-              <option value="">Link Equipment Master</option>
-              {equipmentMaster.map(m => <option key={m.id} value={m.id}>{m.equipment_code} - {m.name}</option>)}
+
+            {/* ── Classification ── */}
+            <label className="fieldLabel">Item Type <InfoHint text="device = standalone bookable unit. accessory = always accompanies a device (battery, card, charger). kit = named collection of devices/accessories (e.g. ENG Camera Kit). bundle = pre-packaged multi-device set. third_party_equipment = rented from vendor — NOT a company asset. consumable = stock-depleted item (tape, gaffer tape, ink)." /></label>
+            <select value={inventoryForm.item_type} onChange={e=>setInventoryForm({...inventoryForm, item_type:e.target.value, qty_in_stock: e.target.value === "consumable" ? (inventoryForm.qty_in_stock || "1") : inventoryForm.qty_in_stock, owner_type: e.target.value === "third_party_equipment" ? "third_party" : inventoryForm.owner_type})}>
+              <option value="device">Device — standalone bookable unit</option>
+              <option value="accessory">Accessory — travels with a device</option>
+              <option value="kit">Kit — named collection (auto-expands in booking)</option>
+              <option value="bundle">Bundle — pre-packaged multi-device set</option>
+              <option value="third_party_equipment">Third-Party Equipment — rented from vendor</option>
+              <option value="consumable">Consumable — stock-depleted item</option>
             </select>
-            <select value={inventoryForm.item_type} onChange={e=>setInventoryForm({...inventoryForm, item_type:e.target.value})}><option>device</option><option>accessory</option><option>kit</option><option>bundle</option><option>third_party_equipment</option><option>consumable</option></select>
-            <select value={inventoryForm.parent_item_id} onChange={e=>setInventoryForm({...inventoryForm, parent_item_id:e.target.value})}><option value="">Parent Item (optional)</option>{inventory.map(i => <option key={i.id} value={i.id}>{i.asset_code} - {i.name}</option>)}</select>
-            <select value={inventoryForm.warehouse_id} onChange={e=>setInventoryForm({...inventoryForm, warehouse_id:e.target.value})}><option value="">Warehouse</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
-            <select value={inventoryForm.owner_type} onChange={e=>setInventoryForm({...inventoryForm, owner_type:e.target.value})}><option>inhouse</option><option>third_party</option></select>
-            <select value={inventoryForm.vendor_id} onChange={e=>setInventoryForm({...inventoryForm, vendor_id:e.target.value})}><option value="">Vendor (optional)</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select>
-            <select value={inventoryForm.status} onChange={e=>setInventoryForm({...inventoryForm, status:e.target.value})}><option>available</option><option>reserved</option><option>on_shoot</option><option>servicing</option><option>inactive</option></select>
+
+            {/* Consumable qty */}
+            {inventoryForm.item_type === "consumable" && <>
+              <label className="fieldLabel">Quantity in Stock <InfoHint text="Current stock count. Reduces on each booking." /></label>
+              <input type="number" min="0" placeholder="e.g. 10" value={inventoryForm.qty_in_stock} onChange={e=>setInventoryForm({...inventoryForm, qty_in_stock:e.target.value})} />
+            </>}
+
+            {/* Kit/Bundle parent */}
+            {["kit","bundle"].includes(inventoryForm.item_type) && <>
+              <label className="fieldLabel full">Child Items <InfoHint text="Add individual items and set this kit as their Parent Item. All children auto-added when kit is booked." /></label>
+              <p className="helperText full" style={{marginTop:0}}>Save this kit first, then open each child item in Master Registry and set its Parent Item to this kit.</p>
+            </>}
+
+            {/* Accessory / device: link to parent kit */}
+            {["device","accessory"].includes(inventoryForm.item_type) && <>
+              <label className="fieldLabel">Part of Kit / Bundle <InfoHint text="Optional. Select the parent kit this item belongs to. It will auto-include in booking when the kit is selected." /></label>
+              <select value={inventoryForm.parent_item_id} onChange={e=>setInventoryForm({...inventoryForm, parent_item_id:e.target.value})}>
+                <option value="">Not part of a kit</option>
+                {inventory.filter(i => ["kit","bundle"].includes(i.item_type)).map(i => <option key={i.id} value={i.id}>{i.asset_code} — {i.name}</option>)}
+              </select>
+            </>}
+
+            {/* ── Equipment Master Link ── */}
+            <label className="fieldLabel">Link Equipment Master <InfoHint text="Attach to a master spec to inherit mandatory/optional accessory rules. Enables auto-accessory enforcement in booking." /></label>
+            <select value={inventoryForm.equipment_master_id} onChange={e=>setInventoryForm({...inventoryForm, equipment_master_id:e.target.value})}>
+              <option value="">No master link</option>
+              {equipmentMaster.map(m => <option key={m.id} value={m.id}>{m.equipment_code} — {m.name}</option>)}
+            </select>
+
+            {/* ── Ownership ── */}
+            <label className="fieldLabel">Ownership <InfoHint text="Inhouse = company-owned asset (appears in asset register). Third-Party = rented from vendor — not your asset, will not appear in depreciation / statutory." /></label>
+            <select value={inventoryForm.owner_type} onChange={e=>setInventoryForm({...inventoryForm, owner_type:e.target.value})}>
+              <option value="inhouse">Inhouse — company owned</option>
+              <option value="third_party">Third-Party — rented from vendor</option>
+            </select>
+            <label className="fieldLabel">Vendor <InfoHint text="Required for third-party items. Identifies which vendor the item is rented from." /></label>
+            <select value={inventoryForm.vendor_id} onChange={e=>setInventoryForm({...inventoryForm, vendor_id:e.target.value})}>
+              <option value="">No vendor / inhouse</option>
+              {vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+
+            {/* Third-party rental window */}
+            {inventoryForm.owner_type === "third_party" && <>
+              <label className="fieldLabel">Vendor Available From <InfoHint text="Date from which this rented item is available. System will block bookings before this date." /></label>
+              <input type="date" value={inventoryForm.vendor_available_from} onChange={e=>setInventoryForm({...inventoryForm, vendor_available_from:e.target.value})} />
+              <label className="fieldLabel">Vendor Available Until <InfoHint text="Last date this rented item is available. System will block bookings after this date." /></label>
+              <input type="date" value={inventoryForm.vendor_available_until} onChange={e=>setInventoryForm({...inventoryForm, vendor_available_until:e.target.value})} />
+            </>}
+
+            {/* ── Storage ── */}
+            <label className="fieldLabel">Warehouse <InfoHint text="Home warehouse where this item is stored when not on shoot." /></label>
+            <select value={inventoryForm.warehouse_id} onChange={e=>setInventoryForm({...inventoryForm, warehouse_id:e.target.value})}>
+              <option value="">Select Warehouse</option>
+              {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} — {w.city}</option>)}
+            </select>
+            <label className="fieldLabel">Storage Location <InfoHint text="Specific city, shelf, or bay within the warehouse." /></label>
             <LocationAutocomplete value={inventoryForm.location_text} onChange={v=>setInventoryForm({...inventoryForm, location_text:v})} extraSuggestions={[...new Set(inventory.map(i=>i.location_text).filter(Boolean))]} placeholder="Location (Indian city/locality)" />
-            <input type="date" placeholder="Warranty Expiry" value={inventoryForm.warranty_expiry} onChange={e=>setInventoryForm({...inventoryForm, warranty_expiry:e.target.value})} />
-            <input type="date" placeholder="Service Due" value={inventoryForm.service_due} onChange={e=>setInventoryForm({...inventoryForm, service_due:e.target.value})} />
-            <select value={inventoryForm.service_status} onChange={e=>setInventoryForm({...inventoryForm, service_status:e.target.value})}><option>not_in_service</option><option>ok</option><option>in_service</option></select>
-            <input placeholder="Statutory Tag / Asset Register" value={inventoryForm.statutory_tag} onChange={e=>setInventoryForm({...inventoryForm, statutory_tag:e.target.value})} />
-            <textarea className="full" placeholder="Notes" value={inventoryForm.notes} onChange={e=>setInventoryForm({...inventoryForm, notes:e.target.value})}></textarea>
-            <DocumentUploadFields entityType="inventory" files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />
-            <button className="full primaryBtn" type="submit">Save Inventory</button>
+
+            {/* ── Initial Status ── */}
+            <label className="fieldLabel">Initial Status <InfoHint text="Available = ready for booking. Inactive = decommissioned or written off. Note: Reserved, On Shoot, and Servicing are set automatically by the system during booking and service workflows — do not set manually." /></label>
+            <select value={inventoryForm.status} onChange={e=>setInventoryForm({...inventoryForm, status:e.target.value})}>
+              <option value="available">Available — ready for booking</option>
+              <option value="inactive">Inactive — decommissioned / written off</option>
+            </select>
+
+            {/* ── Condition & Service ── (only for inhouse, not consumables) */}
+            {inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable" && <>
+              <label className="fieldLabel">Condition <InfoHint text="Current working condition. 'Needs Service' flags it for the service team. 'In Service' is set automatically when a service job is opened." /></label>
+              <select value={inventoryForm.service_status} onChange={e=>setInventoryForm({...inventoryForm, service_status:e.target.value})}>
+                <option value="not_in_service">Good — no service needed</option>
+                <option value="ok">Good — recently serviced</option>
+              </select>
+              <label className="fieldLabel">Warranty Expiry <InfoHint text="Manufacturer warranty end date. System will warn when approaching expiry." /></label>
+              <input type="date" value={inventoryForm.warranty_expiry} onChange={e=>setInventoryForm({...inventoryForm, warranty_expiry:e.target.value})} />
+              <label className="fieldLabel">Next Service Due <InfoHint text="Scheduled date for next preventive maintenance or calibration." /></label>
+              <input type="date" value={inventoryForm.service_due} onChange={e=>setInventoryForm({...inventoryForm, service_due:e.target.value})} />
+              <label className="fieldLabel">Statutory Tag / Asset Register <InfoHint text="Your asset register number, depreciation ledger code, or statutory ID for accounting." /></label>
+              <input placeholder="Statutory Tag / Asset Register" value={inventoryForm.statutory_tag} onChange={e=>setInventoryForm({...inventoryForm, statutory_tag:e.target.value})} />
+            </>}
+
+            <textarea className="full" placeholder="Notes (optional)" value={inventoryForm.notes} onChange={e=>setInventoryForm({...inventoryForm, notes:e.target.value})}></textarea>
+            {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType="inventory" files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
+            <button className="full primaryBtn" type="submit">Save Inventory Item</button>
           </form>
           <div className="helperText" style={{marginTop:12}}>Quick View — see <strong>Master Registry</strong> for full details.</div>
           <div className="listToolbar" style={{marginTop:8}}>
