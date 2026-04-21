@@ -178,6 +178,9 @@ class InventoryBase(BaseModel):
     statutory_tag: Optional[str] = None
     notes: Optional[str] = None
     equipment_master_id: Optional[int] = None
+    vendor_available_from: Optional[date] = None
+    vendor_available_until: Optional[date] = None
+    qty_in_stock: Optional[int] = None
 
 class InventoryCreate(InventoryBase): pass
 class InventoryUpdate(BaseModel):
@@ -197,6 +200,9 @@ class InventoryUpdate(BaseModel):
     statutory_tag: Optional[str] = None
     notes: Optional[str] = None
     equipment_master_id: Optional[int] = None
+    vendor_available_from: Optional[date] = None
+    vendor_available_until: Optional[date] = None
+    qty_in_stock: Optional[int] = None
 class InventoryRead(InventoryBase):
     id: int
     product_code: str
