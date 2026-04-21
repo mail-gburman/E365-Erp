@@ -42,3 +42,5 @@ exports/
 tally_connector/.env
 .env.local
 *.pem
+.vercel
+.env*.local
