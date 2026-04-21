@@ -56,6 +56,7 @@ export default function Layout({ children }) {
   const [demoState, setDemoState] = useState({ installed: false, counts: {} });
   const [demoLoading, setDemoLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     api.me().then((user) => {
@@ -156,30 +157,44 @@ export default function Layout({ children }) {
   const pageTitle = links.find(([href]) => href === location.pathname)?.[1] || "KPS ERP";
 
   return (
-    <div className={`shell${sidebarOpen ? " sidebarOpen" : ""}`}>
+    <div className={`shell${sidebarOpen ? " sidebarOpen" : ""}${sidebarCollapsed ? " sidebarCollapsed" : ""}`}>
+      {/* Mobile hamburger */}
       <button className="hamburgerBtn" onClick={() => setSidebarOpen(p => !p)} aria-label="Menu">&#9776;</button>
       <div className="sidebarOverlay" onClick={() => setSidebarOpen(false)} />
       <aside className="sidebar">
         <div className="sidebarInner">
+          {/* Desktop collapse toggle */}
+          <button className="sidebarCollapseBtn" onClick={() => setSidebarCollapsed(p => !p)} title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}>
+            {sidebarCollapsed ? "▶" : "◀"}
+          </button>
           <div className="brand">
             <img src="/logo.png" alt="KPS Studios" className="brandLogo" />
-            <div>
-              <div className="brandTitle">KPS Studios</div>
-              <div className="brandSub">ERP Enterprise</div>
+            {!sidebarCollapsed && (
+              <div>
+                <div className="brandTitle">KPS Studios</div>
+                <div className="brandSub">ERP Enterprise</div>
+              </div>
+            )}
+          </div>
+          {!sidebarCollapsed && (
+            <div className="brandMeta">
+              <div>KPS PRODUCTIONS AND SERVICES LLP</div>
+              <div>{profile?.full_name || getUsername()} · {role}</div>
             </div>
-          </div>
-          <div className="brandMeta">
-            <div>KPS PRODUCTIONS AND SERVICES LLP</div>
-            <div>{profile?.full_name || getUsername()} · {role}</div>
-          </div>
+          )}
           <nav className="nav">
             {links.map(([href, label]) => (
-              <Link key={href} to={href} className={location.pathname === href ? "navLink active" : "navLink"} onClick={() => setSidebarOpen(false)}>{label}</Link>
+              <Link
+                key={href}
+                to={href}
+                className={location.pathname === href ? "navLink active" : "navLink"}
+                onClick={() => setSidebarOpen(false)}
+                data-label={label}
+              >
+                {sidebarCollapsed ? label.slice(0, 2) : label}
+              </Link>
             ))}
           </nav>
-          <div className="sidebarBottom">
-            <div className="helperText">Sticky navigation stays visible while pages scroll.</div>
-          </div>
         </div>
       </aside>
       <main className="main">
