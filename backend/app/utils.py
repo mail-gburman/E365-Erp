@@ -639,7 +639,10 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     c.setFont("Helvetica", 9)
     colx = [left_margin + 2, 300]
     
-    _filtered_meta = [(k, v) for (k, v) in meta_pairs]
+    _filtered_meta = [
+        (k, v) for (k, v) in meta_pairs
+        if "packup" not in str(k).lower()
+    ]
     for idx, (k, v) in enumerate(_filtered_meta):
         # Guard: if meta section itself overflows (many pairs), break to new page
         if y < 120:
