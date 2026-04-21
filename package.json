@@ -1,0 +1,10 @@
+{
+  "name": "kps-erp-enterprise",
+  "private": true,
+  "version": "8.9.10",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "preview": "npm --prefix frontend run preview"
+  }
+}

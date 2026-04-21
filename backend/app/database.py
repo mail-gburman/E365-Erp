@@ -1,6 +1,9 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from .env import load_env
+
+load_env()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./kps_erp_tier_v01.db")
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
