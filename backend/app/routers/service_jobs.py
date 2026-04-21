@@ -14,7 +14,7 @@ from ..codegen import next_service_job_number
 from ..audit import audit
 
 router = APIRouter(prefix="/service-jobs", tags=["Service Jobs"])
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads")
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

@@ -24,10 +24,14 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": f"Internal server error: {str(exc)}"},
     )
 
-origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+_raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+origins = [x.strip() for x in _raw_origins.split(",") if x.strip()]
+# Allow all vercel.app preview URLs automatically
+allow_origin_regex = r"https://.*\.vercel\.app"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[x.strip() for x in origins if x.strip()],
+    allow_origins=origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
