@@ -13,7 +13,7 @@ from .. import models, schemas
 from ..audit import audit
 
 router = APIRouter(tags=["System"])
-UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TALLY_CONNECTOR_DIR = REPO_ROOT / "tally_connector"
