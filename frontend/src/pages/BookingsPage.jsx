@@ -1289,6 +1289,7 @@ export default function BookingsPage() {
   const [confirmAction, setConfirmAction] = useState(null);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
   const [quickProjectSaving, setQuickProjectSaving] = useState(false);
+  const [expandedBookingGroups, setExpandedBookingGroups] = useState({});
 
 
   function openReturnServiceFlow(issues) {
@@ -1303,6 +1304,10 @@ export default function BookingsPage() {
       }
       return next;
     });
+  }
+
+  function toggleBookingGroup(id) {
+    setExpandedBookingGroups(prev => ({ ...prev, [id]: !prev[id] }));
   }
 
   async function doJobCardDownload(id, jobCardId) {
@@ -2503,12 +2508,23 @@ export default function BookingsPage() {
               {bkPg.pageData.map(b => {
                 const pendingReturnCount = getPendingReturnCount(b);
                 const childBookings = bookingDetails.filter(child => child.parent_booking_id === b.id);
+                const isGroupExpanded = Boolean(expandedBookingGroups[b.id]);
                 return (
                 <React.Fragment key={b.id}>
                 <tr className={childBookings.length ? "bookingGroupParent" : ""}>
                   <td>
+                    {childBookings.length ? (
+                      <button
+                        type="button"
+                        className="bookingGroupToggle"
+                        onClick={() => toggleBookingGroup(b.id)}
+                        aria-label={`${isGroupExpanded ? "Collapse" : "Expand"} supplementary job cards for ${b.job_card_id}`}
+                      >
+                        {isGroupExpanded ? "v" : ">"}
+                      </button>
+                    ) : null}
                     <strong>{b.job_card_id}</strong>
-                    {childBookings.length ? <div className="supplementaryCountBadge">{"->"} {childBookings.length} supplementary job card{childBookings.length > 1 ? "s" : ""}</div> : null}
+                    {childBookings.length ? <button type="button" className="supplementaryCountBadge" onClick={() => toggleBookingGroup(b.id)}>{isGroupExpanded ? "Hide" : "Show"} {childBookings.length} supplementary job card{childBookings.length > 1 ? "s" : ""}</button> : null}
                     {b.parent_booking_id ? <span className="badge badgeOptional" style={{marginLeft:4,fontSize:10}}>Supplementary</span> : null}
                     {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {b.reference_job_card_id}</div> : null}
                     {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
@@ -2578,7 +2594,7 @@ export default function BookingsPage() {
                     </div>
                   </td>
                 </tr>
-                {childBookings.map(child => (
+                {isGroupExpanded && childBookings.map(child => (
                   <tr key={child.id} className="bookingGroupChild">
                     <td>
                       <span className="supplementaryArrow">{"->"}</span><strong>{child.job_card_id}</strong>
