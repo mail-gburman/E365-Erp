@@ -29,7 +29,7 @@ def paper_pdf(paper_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Paper not found.")
     pdf = make_branded_pdf(
-        "KPS Studios - Outbound / Movement Paper",
+        "Kaleidoscope Productions - Outbound / Movement Paper",
         "Branded printable equipment and crew movement document",
         [
             f"Paper Number: {item.paper_number}",

@@ -890,7 +890,14 @@ function ProjectDetailModal({ project, clientName, onClose, onCreateBooking }) {
 }
 
 /* ───────── BOOKING DETAIL MODAL ───────── */
-function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower }) {
+function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower, supplementaryBookings = [], onDownloadChildJobCard, onDownloadChildChallan }) {
+  const equipCount = (booking?.equipment || []).length;
+  const accCount = (booking?.accessories || []).length;
+  const crewCount = (booking?.crew || []).length;
+  const [equipOpen, setEquipOpen] = useState(() => equipCount <= 5);
+  const [accOpen, setAccOpen] = useState(() => accCount <= 3);
+  const [crewOpen, setCrewOpen] = useState(() => crewCount <= 5);
+
   if (!booking) return null;
 
   const fmt = (v) => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
@@ -939,53 +946,65 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
         )}
 
         {/* Equipment */}
-        {(booking.equipment || []).length > 0 && (
+        {equipCount > 0 && (
           <div style={{marginBottom:14}}>
-            <strong style={{fontSize:13}}>Equipment ({booking.equipment.length})</strong>
-            <div className="tableWrap" style={{marginTop:6}}>
-              <table className="dataTable" style={{fontSize:12}}>
-                <thead><tr><th>Asset Code</th><th>Name</th><th>Type</th><th>Owner</th></tr></thead>
-                <tbody>{booking.equipment.map(i => (
-                  <tr key={i.id}>
-                    <td>{i.asset_code || "—"}</td>
-                    <td>{i.name}</td>
-                    <td>{i.item_type}</td>
-                    <td>{i.owner_type === "third_party" ? <span className="badge badgeThirdParty">3P</span> : "Inhouse"}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <button type="button" onClick={() => setEquipOpen(o => !o)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+              <strong style={{fontSize:13}}>Equipment ({equipCount}) {equipOpen ? "▼" : "▶"}</strong>
+            </button>
+            {equipOpen && (
+              <div className="tableWrap" style={{marginTop:6}}>
+                <table className="dataTable" style={{fontSize:12}}>
+                  <thead><tr><th>Asset Code</th><th>Name</th><th>Type</th><th>Owner</th></tr></thead>
+                  <tbody>{booking.equipment.map(i => (
+                    <tr key={i.id}>
+                      <td>{i.asset_code || "—"}</td>
+                      <td>{i.name}</td>
+                      <td>{i.item_type}</td>
+                      <td>{i.owner_type === "third_party" ? <span className="badge badgeThirdParty">3P</span> : "Inhouse"}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
         {/* Accessories */}
-        {(booking.accessories || []).length > 0 && (
+        {accCount > 0 && (
           <div style={{marginBottom:14}}>
-            <strong style={{fontSize:13}}>Accessories ({booking.accessories.length})</strong>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
-              {booking.accessories.map(i => (
-                <span key={i.id} className="badge">{i.asset_code || i.name}</span>
-              ))}
-            </div>
+            <button type="button" onClick={() => setAccOpen(o => !o)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+              <strong style={{fontSize:13}}>Accessories ({accCount}) {accOpen ? "▼" : "▶"}</strong>
+            </button>
+            {accOpen && (
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginTop:6}}>
+                {booking.accessories.map(i => (
+                  <span key={i.id} className="badge">{i.asset_code || i.name}</span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* Crew */}
-        {(booking.crew || []).length > 0 && (
+        {crewCount > 0 && (
           <div style={{marginBottom:14}}>
-            <strong style={{fontSize:13}}>Manpower ({booking.crew.length})</strong>
-            <div className="tableWrap" style={{marginTop:6}}>
-              <table className="dataTable" style={{fontSize:12}}>
-                <thead><tr><th>Name</th><th>Role</th><th>Type</th></tr></thead>
-                <tbody>{booking.crew.map(c => (
-                  <tr key={c.id}>
-                    <td>{c.name || c.full_name}</td>
-                    <td>{c.role || "—"}</td>
-                    <td>{c.manpower_type !== "inhouse" ? <span className="badge badgeExternal">{c.manpower_type}</span> : "Inhouse"}</td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
+            <button type="button" onClick={() => setCrewOpen(o => !o)} style={{background:"none",border:"none",padding:0,cursor:"pointer",textAlign:"left"}}>
+              <strong style={{fontSize:13}}>Manpower ({crewCount}) {crewOpen ? "▼" : "▶"}</strong>
+            </button>
+            {crewOpen && (
+              <div className="tableWrap" style={{marginTop:6}}>
+                <table className="dataTable" style={{fontSize:12}}>
+                  <thead><tr><th>Name</th><th>Role</th><th>Type</th></tr></thead>
+                  <tbody>{booking.crew.map(c => (
+                    <tr key={c.id}>
+                      <td>{c.name || c.full_name}</td>
+                      <td>{c.role || "—"}</td>
+                      <td>{c.manpower_type !== "inhouse" ? <span className="badge badgeExternal">{c.manpower_type}</span> : "Inhouse"}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -999,6 +1018,27 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
                 {" "}{d.description}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Supplementary Job Cards */}
+        {supplementaryBookings.length > 0 && (
+          <div style={{marginBottom:14}}>
+            <strong style={{fontSize:13}}>SUPPLEMENTARY JOB CARDS ({supplementaryBookings.length})</strong>
+            <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
+              {supplementaryBookings.map(child => (
+                <div key={child.id} style={{background:"var(--surface2)",borderRadius:6,padding:"8px 12px",fontSize:12,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  <strong>{child.job_card_id}</strong>
+                  <span className={`statusBadge status-${booking.status}`} style={{fontSize:11}}>{booking.status}</span>
+                  {onDownloadChildJobCard && (
+                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildJobCard(child.id, child.job_card_id)}>⬇ Job Card</button>
+                  )}
+                  {onDownloadChildChallan && (
+                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildChallan(child.id, child.job_card_id)}>⬇ Challan</button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1920,7 +1960,7 @@ export default function BookingsPage() {
   }
 
   const filteredBookings = useMemo(() => {
-    let data = bookingDetails;
+    let data = bookingDetails.filter(b => !b.parent_booking_id);
     if (bookingStatusFilter) data = data.filter(b => b.status === bookingStatusFilter);
     if (bookingSearch) {
       const q = bookingSearch.toLowerCase();
@@ -2471,6 +2511,9 @@ export default function BookingsPage() {
           onDownloadJobCard={() => doJobCardDownload(viewDetailBooking.id, viewDetailBooking.job_card_id)}
           onDownloadChallan={async () => { try { await downloadAuthorized(api.roadChallanPdfUrl(viewDetailBooking.id), `challan_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
           onDownloadManpower={async () => { try { await downloadAuthorized(api.manpowerPdfUrl(viewDetailBooking.id), `manpower_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          supplementaryBookings={bookingDetails.filter(b => b.parent_booking_id === viewDetailBooking.id)}
+          onDownloadChildJobCard={async (childId, childJobCardId) => { try { await downloadAuthorized(api.jobCardPdfUrl(childId), `jobcard_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          onDownloadChildChallan={async (childId, childJobCardId) => { try { await downloadAuthorized(api.roadChallanPdfUrl(childId), `challan_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
         />
       )}
 
