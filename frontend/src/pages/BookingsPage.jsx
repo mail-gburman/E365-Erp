@@ -890,6 +890,108 @@ function ProjectDetailModal({ project, clientName, onClose, onCreateBooking }) {
 }
 
 /* ───────── BOOKING DETAIL MODAL ───────── */
+function CreateSupplementaryModal({ open, onClose, parentBooking, onCreated, downloadAuthorized }) {
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    if (open) { setNotes(""); setResult(null); }
+  }, [open, parentBooking]);
+
+  if (!open || !parentBooking) return null;
+
+  const equipList = [...(parentBooking.equipment || []), ...(parentBooking.accessories || [])];
+
+  async function handleCreate() {
+    setSaving(true);
+    try {
+      const res = await api.createSupplementaryBooking(parentBooking.id, {
+        equipment_ids: (parentBooking.equipment || []).map(e => e.id),
+        accessory_ids: (parentBooking.accessories || []).map(e => e.id),
+        crew_ids: (parentBooking.crew || []).map(c => c.id),
+        notes,
+      });
+      setResult(res);
+      onCreated?.();
+    } catch (e) { alert(e.message || String(e)); }
+    setSaving(false);
+  }
+
+  async function handleDownloadJobCard() {
+    if (!result) return;
+    try { await downloadAuthorized(api.jobCardPdfUrl(result.booking_id || result.id), `jobcard_${result.job_card_id}.pdf`); }
+    catch (e) { alert(e.message || String(e)); }
+  }
+
+  async function handleDownloadChallan() {
+    if (!result) return;
+    try { await downloadAuthorized(api.roadChallanPdfUrl(result.booking_id || result.id), `challan_${result.job_card_id}.pdf`); }
+    catch (e) { alert(e.message || String(e)); }
+  }
+
+  return (
+    <div className="modalOverlay" onClick={onClose}>
+      <div className="modalCard" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+        <div className="modalHeader">
+          <h2>Create Supplementary Job Card</h2>
+          <button className="ghostBtn modalCloseBtn" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ background: "var(--bgAlt)", borderRadius: 6, padding: "10px 14px", marginBottom: 14, fontSize: 13 }}>
+          <div style={{ fontWeight: 600 }}>{parentBooking.job_card_id} — {parentBooking.project_title}</div>
+          <div style={{ color: "var(--muted)", marginTop: 2 }}>{parentBooking.destination}</div>
+        </div>
+
+        {!result ? (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Equipment ({equipList.length} items — inherited from parent)</div>
+              {equipList.slice(0, 8).map(i => (
+                <div key={i.id} style={{ fontSize: 12, color: "var(--muted)", padding: "2px 0" }}>{i.name} {i.asset_code ? `[${i.asset_code}]` : ""}</div>
+              ))}
+              {equipList.length > 8 && <div style={{ fontSize: 12, color: "var(--muted)" }}>...and {equipList.length - 8} more</div>}
+            </div>
+
+            <label className="fieldLabel">Notes / Reason for Supplementary</label>
+            <textarea
+              rows={3}
+              style={{ width: "100%", marginTop: 6, marginBottom: 14 }}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Describe the reason for this supplementary job card (date change, equipment addition, etc.)"
+            />
+
+            <div className="modalFooter">
+              <button className="ghostBtn" onClick={onClose}>Cancel</button>
+              <button className="primaryBtn" onClick={handleCreate} disabled={saving}>
+                {saving ? "Creating..." : "Create Supplementary Job Card"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ textAlign: "center", padding: "16px 0" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#16a34a", marginBottom: 6 }}>✓ Supplementary Created</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{result.job_card_id}</div>
+              {result.conflicts?.length > 0 && (
+                <div style={{ color: "#d97706", fontSize: 12, marginTop: 6 }}>
+                  {result.conflicts.length} conflict(s) detected — review before dispatching
+                </div>
+              )}
+            </div>
+            <div className="modalFooter" style={{ justifyContent: "center", gap: 10 }}>
+              <button className="ghostBtn compactBtn" onClick={handleDownloadJobCard}>⬇ Job Card PDF</button>
+              <button className="ghostBtn compactBtn" onClick={handleDownloadChallan}>⬇ Challan PDF</button>
+              <button className="primaryBtn" onClick={onClose}>Done</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower, supplementaryBookings = [], onDownloadChildJobCard, onDownloadChildChallan }) {
   const equipCount = (booking?.equipment || []).length;
   const accCount = (booking?.accessories || []).length;
@@ -1052,7 +1154,7 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
 
           {/* Confirmed/Blocked → supplementary flow */}
           {isConfirmed && <>
-            <button className="primaryBtn" onClick={() => { onSupplementary(); onClose(); }}>
+            <button className="primaryBtn" onClick={() => { onClose(); onSupplementary(); }}>
               + Create Supplementary Job Card
             </button>
             <button className="ghostBtn" onClick={() => { onDispatch(); onClose(); }}>Dispatch</button>
@@ -1181,6 +1283,7 @@ export default function BookingsPage() {
   const [editBooking, setEditBooking] = useState(null);
   const [viewDetailBooking, setViewDetailBooking] = useState(null);
   const [viewProjectModal, setViewProjectModal] = useState(null);
+  const [supplementaryTarget, setSupplementaryTarget] = useState(null);
   const [plannedShootsRaw, setPlannedShootsRaw] = useState([]);
   const [plannedSelected, setPlannedSelected] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -2466,7 +2569,7 @@ export default function BookingsPage() {
                       {b.status === "dispatched" && <button className="primaryBtn compactBtn" onClick={()=>doCompleteBooking(b.id)}>Complete Booking</button>}
                       {["dispatched", "returned"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage / Missing</button>}
                       {! ["dispatched", "returned", "cancelled"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>}
-                      {["confirmed","blocked"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>prefillFromBooking(b)}>Supplementary</button>}
+                      {["confirmed","blocked"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>setSupplementaryTarget(b)}>Supplementary</button>}
                       {["confirmed","blocked"].includes(b.status) && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
                       {b.status !== "returned" && b.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(b.id);setCancelModal(true);}}>Cancel</button>}
                     </div>
@@ -2500,8 +2603,7 @@ export default function BookingsPage() {
             setEditModal(true);
           }}
           onSupplementary={() => {
-            prefillFromBooking(viewDetailBooking);
-            setBookingTab("new");
+            setSupplementaryTarget(viewDetailBooking);
           }}
           onDispatch={() => doDispatch(viewDetailBooking.id)}
           onComplete={() => doCompleteBooking(viewDetailBooking.id)}
@@ -2516,6 +2618,15 @@ export default function BookingsPage() {
           onDownloadChildChallan={async (childId, childJobCardId) => { try { await downloadAuthorized(api.roadChallanPdfUrl(childId), `challan_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
         />
       )}
+
+      {/* ──── CREATE SUPPLEMENTARY MODAL ──── */}
+      <CreateSupplementaryModal
+        open={!!supplementaryTarget}
+        onClose={() => setSupplementaryTarget(null)}
+        parentBooking={supplementaryTarget}
+        onCreated={() => { load(); setViewDetailBooking(null); }}
+        downloadAuthorized={downloadAuthorized}
+      />
 
       {/* ──── MODALS ──── */}
       <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title="Search Equipment (Devices / Kits / 3rd Party)" resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
