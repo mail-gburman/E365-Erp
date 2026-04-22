@@ -178,13 +178,13 @@ def _log_custody(db: Session, booking_id, inventory_item_id, crew_member_id, eve
     ))
 
 
-DOC_ALLOWED_STATUSES = {"confirmed", "blocked", "dispatched", "returned", "closed", "completed"}
+DOC_ALLOWED_STATUSES = {"planned", "confirmed", "blocked", "dispatched", "returned", "closed", "completed"}
 RETURN_ACCOUNTED_CONDITIONS = {"good", "damaged", "missing", "incomplete"}
 
 
 def _ensure_document_allowed(booking: models.EventBooking):
     if (booking.status or "").lower() not in DOC_ALLOWED_STATUSES:
-        raise HTTPException(status_code=400, detail="Documents are available only after the shoot is confirmed.")
+        raise HTTPException(status_code=400, detail="Documents are not available for cancelled bookings.")
 
 
 def _partial_return_rows(db: Session, booking_id: int) -> list[models.PartialReturn]:

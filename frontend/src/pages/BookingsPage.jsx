@@ -2555,14 +2555,14 @@ export default function BookingsPage() {
                     ) : <span style={{color:"#4ade80",fontSize:12}}>None</span>}
                   </td>
                   <td className="pdfCell">
-                    { ["confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(b.status) ? (
+                    { ["planned", "confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(b.status) ? (
                       <div className="documentDownloadCell">
                         <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, b.job_card_id)}>Job Card</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                       </div>
                     ) : (
-                      <span className="helperText">Confirm shoot first</span>
+                      <span className="helperText">Cancelled</span>
                     )}
                   </td>
                   <td className="actionCell">
@@ -2613,13 +2613,13 @@ export default function BookingsPage() {
                     <td><span className={`statusBadge status-${child.status}`}>{child.status}</span></td>
                     <td>{(child.damages || []).length > 0 ? <span className="badge badgeMandatory">{child.damages.length}</span> : <span style={{color:"#4ade80",fontSize:12}}>None</span>}</td>
                     <td className="pdfCell">
-                      { ["confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(child.status) ? (
+                      { ["planned", "confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(child.status) ? (
                         <div className="documentDownloadCell">
                           <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(child.id, child.job_card_id)}>Job Card</button>
                           <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(child.id), `challan_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
                           <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(child.id), `manpower_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                         </div>
-                      ) : <span className="helperText">Confirm shoot first</span>}
+                      ) : <span className="helperText">Cancelled</span>}
                     </td>
                     <td className="actionCell">
                       <div className="actionButtonGroup">
