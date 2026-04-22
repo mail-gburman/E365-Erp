@@ -2497,7 +2497,7 @@ export default function BookingsPage() {
           <span style={{fontSize:11,color:"var(--muted)"}}>{filteredBookings.length} bookings</span>
         </div>
         <div className="tableWrap">
-          <table>
+          <table className="allBookingsTable">
             <thead><tr><th>Job Card ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>Equipment</th><th>Crew</th><th>Status</th><th>Damages</th><th>Downloadable Documents</th><th>Actions</th></tr></thead>
             <tbody>
               {bkPg.pageData.map(b => {

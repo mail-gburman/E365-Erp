@@ -18,8 +18,7 @@ body{
   color:var(--text);
   font-size:13px;
   zoom:var(--ui-scale);
-  width:calc(100% / var(--ui-scale));
-  min-height:calc(100vh / var(--ui-scale));
+  overflow-x:hidden;
 }
 .shell{display:grid;grid-template-columns:clamp(150px,12vw,176px) minmax(0,1fr);min-height:100vh;align-items:start;transition:grid-template-columns .22s ease;}
 .shell.sidebarCollapsed{grid-template-columns:45px minmax(0,1fr);}
@@ -148,7 +147,7 @@ input[type="time"]::-webkit-inner-spin-button{
 .primaryBtn:disabled,.downloadBtn:disabled,.ghostBtn:disabled,.actionCell button:disabled{opacity:.45;cursor:not-allowed;}
 .ghostBtn{background:rgba(255,255,255,.06);border:1px solid var(--line);}
 .dangerBtn{background:#dc2626 !important;}
-.tableWrap{overflow:auto;}
+.tableWrap{max-width:100%;overflow:auto;}
 table{width:100%;border-collapse:collapse;}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:11px;}
 th{color:var(--muted);font-weight:600;}
@@ -270,6 +269,13 @@ th{color:var(--muted);font-weight:600;}
 .servicePdfActions .compactBtn,.serviceActionGroup .compactBtn{width:100%;white-space:normal;line-height:1.2;}
 .tableWrap td{vertical-align:top;}
 .actionButtonGroup{display:flex;gap:8px;flex-wrap:wrap;min-width:180px;max-width:260px;}
+.allBookingsTable{table-layout:fixed;min-width:0;}
+.allBookingsTable th,.allBookingsTable td{padding:8px;overflow-wrap:anywhere;word-break:break-word;}
+.allBookingsTable .pdfCell{min-width:0;}
+.allBookingsTable .documentDownloadCell,.allBookingsTable .actionButtonGroup{min-width:0;max-width:none;gap:6px;}
+.allBookingsTable .documentDownloadCell .compactBtn{flex:1 1 64px;}
+.allBookingsTable .compactBtn{padding:7px 9px;font-size:11px;line-height:1.15;white-space:normal;}
+.allBookingsTable .statusBadge{font-size:10px;padding:4px 8px;}
 .invoiceActionGroup{display:flex;gap:8px;flex-wrap:wrap;}
 .sectionJumpBar{
   display:flex;
