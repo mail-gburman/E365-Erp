@@ -583,7 +583,7 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
     manpower = [{"name": x.crew_member.full_name} for x in booking.crew if booking and x.crew_member]
     pdf = make_job_card_pdf(
         "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "KPS PRODUCTIONS AND SERVICES LLP",
+        "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
         [
             ("M/s", project_title),
             ("Programme", project_title),
@@ -653,7 +653,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
 
     pdf = make_job_card_pdf(
         "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "KPS PRODUCTIONS AND SERVICES LLP",
+        "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
         meta,
         items,
         manpower,
@@ -943,6 +943,10 @@ def dispatch_booking(booking_id: int, db: Session = Depends(get_db)):
         if crew.crew_member:
             crew.crew_member.status = "on_shoot"
             _log_custody(db, booking.id, None, crew.crew_member_id, "gate_out", from_person="Office", to_person=booking.destination)
+    # Cascade status to supplementary bookings
+    for child in db.query(models.EventBooking).filter(models.EventBooking.parent_booking_id == booking_id).all():
+        if child.status in ("confirmed", "blocked"):
+            child.status = "dispatched"
     db.commit()
     db.refresh(booking)
     return booking
@@ -993,6 +997,10 @@ def mark_returned(booking_id: int, db: Session = Depends(get_db)):
         status="issued",
         remarks="Auto-generated on return closure"
     ))
+    # Cascade status to supplementary bookings
+    for child in db.query(models.EventBooking).filter(models.EventBooking.parent_booking_id == booking_id).all():
+        if child.status in ("confirmed", "blocked", "dispatched"):
+            child.status = "returned"
     db.commit()
     db.refresh(booking)
     return booking
@@ -1165,6 +1173,10 @@ def complete_booking(booking_id: int, payload: dict = {}, db: Session = Depends(
         status="issued",
         remarks="Auto-generated on complete booking closure"
     ))
+    # Cascade status to supplementary bookings
+    for child in db.query(models.EventBooking).filter(models.EventBooking.parent_booking_id == booking_id).all():
+        if child.status in ("confirmed", "blocked", "dispatched"):
+            child.status = "returned"
     db.commit()
     db.refresh(booking)
     return {"ok": True, "booking_id": booking.id, "status": booking.status, **check}

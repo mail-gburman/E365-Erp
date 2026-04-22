@@ -255,7 +255,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
     expected_ret_str = item.expected_return_date.strftime("%d/%m/%Y") if getattr(item, "expected_return_date", None) else "-"
     actual_ret_str = item.actual_return_date.strftime("%d/%m/%Y") if getattr(item, "actual_return_date", None) else "-"
     pdf = make_branded_pdf(
-        "KPS Studios - Service Outbound Paper",
+        "Kaleidoscope Productions - Service Outbound Paper",
         "Equipment servicing movement document",
         [
             f"Job Number: {item.job_number}",
@@ -308,7 +308,7 @@ def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
         item_desc += f", with {len(item.attachments)} damage photo(s) on record"
     vendor = item.vendor
     to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "KPS Inhouse Service")
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "KPS Studios, Kolkata")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "Kaleidoscope Productions and Services LLP, Kolkata")
     to_contact_parts = [
         _coalesce(item.contact_person_mobile, vendor.phone if vendor else None),
         item.contact_email,
@@ -337,7 +337,7 @@ def service_address_label_pdf(job_id: int, db: Session = Depends(get_db)):
     vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "KPS Inhouse Service")
     contact_name = item.contact_person_name or None
     to_name = vendor_name if not contact_name else f"{vendor_name}\nAttn: {contact_name}"
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "KPS Studios, Kolkata")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "Kaleidoscope Productions and Services LLP, Kolkata")
     to_contact_parts = [item.contact_person_mobile, item.alternate_contact_mobile, item.contact_email, vendor.phone if vendor else None]
     to_contact = " | ".join([str(x) for x in to_contact_parts if x])
     to_gstin = vendor.gst_number if vendor else None

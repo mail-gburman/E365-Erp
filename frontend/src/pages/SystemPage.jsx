@@ -39,7 +39,7 @@ export default function SystemPage() {
     machine_name: "Office Tally PC",
     tally_host: "127.0.0.1",
     tally_port: 9000,
-    company_name: "KPS PRODUCTIONS AND SERVICES LLP",
+    company_name: "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
     import_mode: "hybrid",
     odbc_enabled: false,
   });
@@ -48,7 +48,7 @@ export default function SystemPage() {
     connector_token: "",
     tally_host: "127.0.0.1",
     tally_port: 9000,
-    tally_company_name: "KPS PRODUCTIONS AND SERVICES LLP",
+    tally_company_name: "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
     tally_mode: "hybrid",
     tally_export_folder: "exports",
     poll_seconds: 45,

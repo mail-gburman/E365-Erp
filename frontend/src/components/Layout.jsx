@@ -168,17 +168,17 @@ export default function Layout({ children }) {
             {sidebarCollapsed ? "▶" : "◀"}
           </button>
           <div className="brand">
-            <img src="/logo.png" alt="KPS Studios" className="brandLogo" />
+            <img src="/logo.png" alt="Kaleidoscope" className="brandLogo" />
             {!sidebarCollapsed && (
               <div>
-                <div className="brandTitle">KPS Studios</div>
+                <div className="brandTitle">Kaleidoscope</div>
                 <div className="brandSub">ERP Enterprise</div>
               </div>
             )}
           </div>
           {!sidebarCollapsed && (
             <div className="brandMeta">
-              <div>KPS PRODUCTIONS AND SERVICES LLP</div>
+              <div>KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP</div>
               <div>{profile?.full_name || getUsername()} · {role}</div>
             </div>
           )}

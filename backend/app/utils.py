@@ -107,7 +107,7 @@ def make_branded_pdf(title, subtitle, lines):
         c.setFont("Helvetica", 11)
         c.drawString(left, height - 148, subtitle)
         c.setFont("Helvetica", 8)
-        c.drawString(left, height - 162, "KPS Productions and Services LLP | 326 Shantipally, Kolkata 700107")
+        c.drawString(left, height - 162, "Kaleidoscope Productions and Services LLP | 326 Shantipally, Kolkata 700107")
         return height - 180
 
     def _branded_new_page():
@@ -195,7 +195,7 @@ def make_audit_pdf(title, subtitle, rows):
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, height - 58, width=80, height=32, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 13)
-        c.drawString(left + 90, height - 28, "KPS PRODUCTIONS AND SERVICES LLP")
+        c.drawString(left + 90, height - 28, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica-Bold", 10)
         c.drawString(left + 90, height - 42, title)
         c.setFont("Helvetica", 8)
@@ -294,7 +294,7 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"KPS Manpower Details {job_card_id}")
-    c.setAuthor("KPS Productions and Services LLP")
+    c.setAuthor("Kaleidoscope Productions and Services LLP")
     width, height = A4
     left = 42
     right = width - 42
@@ -319,7 +319,7 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, height - 82, width=92, height=34, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(left + 104, height - 46, "KPS PRODUCTIONS AND SERVICES LLP")
+        c.drawString(left + 104, height - 46, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica-Bold", 11)
         c.drawString(left + 104, height - 62, "MANPOWER DETAILS & ID VERIFICATION")
         c.setFont("Helvetica", 8.5)
@@ -439,7 +439,7 @@ def make_calendar_day_summary_pdf(summary_date, rows):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"KPS Calendar Day Summary {summary_date}")
-    c.setAuthor("KPS Productions and Services LLP")
+    c.setAuthor("Kaleidoscope Productions and Services LLP")
     c.setSubject(f"Calendar day summary for {summary_date}")
     width, height = A4
     left = 36
@@ -454,7 +454,7 @@ def make_calendar_day_summary_pdf(summary_date, rows):
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, y_pos - 38, width=100, height=34, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 15)
-        c.drawString(left + 112, y_pos - 8, "KPS PRODUCTIONS AND SERVICES LLP")
+        c.drawString(left + 112, y_pos - 8, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica-Bold", 12)
         c.drawString(left + 112, y_pos - 24, "CALENDAR DAY SUMMARY")
         c.setFont("Helvetica", 9)
@@ -617,7 +617,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         _title = "SUPPLEMENTARY JOB CARD & CHALLAN FOR VIDEO EQUIPMENT" if supplementary_of else "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT"
         c.drawCentredString(width / 2, height - 35, _title)
         c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width / 2, height - 52, company_line.upper() if company_line else "KPS PRODUCTIONS AND SERVICES LLP")
+        c.drawCentredString(width / 2, height - 52, company_line.upper() if company_line else "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica", 8)
         c.drawCentredString(width / 2, height - 64, "326, Shantipally, Kolkata - 700107 | Tel: 033-4073 4036")
         # Page number at bottom right
@@ -648,7 +648,16 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         if y < 120:
             y = _new_page()
         x = colx[idx % 2]
-        c.drawString(x, y, f"{k}: {v}")
+        kl = k.lower()
+        # Show call time as time-only in the meta header (full date+time goes in the table header line)
+        if "call" in kl and "time" in kl:
+            parts = str(v).split()
+            display_v = parts[-1] if len(parts) > 1 else v
+            display_k = "Call Time"
+        else:
+            display_k = k
+            display_v = v
+        c.drawString(x, y, f"{display_k}: {display_v}")
         if idx % 2 == 1:
             y -= 14
     if len(_filtered_meta) % 2 == 1:
@@ -684,7 +693,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
             categorized[section] = []
         categorized[section].append(item)
 
-    # Table columns: SL NO | EQUIPMENT DETAILS | QUANTITY (Remarks/Serial No columns removed per spec)
+    # Table columns: SL NO | EQUIPMENT DETAILS | QUANTITY (Serial No / Remarks columns removed)
     col_sl_x = left_margin
     col_sl_w = 40
     col_qty_w = 90
@@ -708,23 +717,15 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     if y < 60:
         y = _new_page()
 
-    # CALL time and PICKUP time printed in header. Packup time intentionally excluded.
-    call_time = ""
-    call_date = ""
-    packup_time_val = ""
+    # CALL time and PACKUP time printed above table. Call shows full date+time; Packup always blank.
+    call_time_full = ""
     for k, v in meta_pairs:
         kl = k.lower()
         if "call" in kl and "time" in kl:
-            call_time = v
-        if kl == "date":
-            call_date = v
-        if "packup" in kl and "time" in kl:
-            packup_time_val = v
-    if call_time or call_date or packup_time_val:
+            call_time_full = v
+    if call_time_full:
         c.setFont("Helvetica-Bold", 8)
-        header_line = f"CALL: {call_time}    DATE: {call_date}"
-        if packup_time_val:
-            header_line += f"    PACKUP: {packup_time_val}"
+        header_line = f"CALL TIME: {call_time_full}    PACKUP TIME: ___________"
         c.drawString(left_margin + 2, y - 10, header_line)
         y -= 14
 
@@ -763,12 +764,9 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
 
             c.drawCentredString(col_sl_x + col_sl_w / 2, y - 11, str(sl_no))
 
-            # Equipment detail: name + asset code (3rd Party / Serial / Remarks removed per spec)
+            # Equipment detail: name only (asset code, serial number, remarks excluded)
             detail = item.get("name", "-")
-            asset_code = item.get("asset_code", "")
-            if asset_code:
-                detail = f"{detail} [{asset_code}]"
-            c.drawString(col_detail_x + 3, y - 11, str(detail)[:80])
+            c.drawString(col_detail_x + 3, y - 11, str(detail)[:90])
 
             qty = str(item.get("quantity", 1))
             c.drawCentredString(col_qty_x + col_qty_w / 2, y - 11, qty)
@@ -888,7 +886,7 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
         c.setFont("Helvetica-Bold", 12)
         c.drawCentredString(width / 2, height - 35, "ROAD CHALLAN")
         c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(width / 2, height - 52, "KALEIDOSCOPE PRODUCTIONS & SERVICES LLP")
+        c.drawCentredString(width / 2, height - 52, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica", 8)
         c.drawCentredString(width / 2, height - 64, "326, Santi Pally, Kolkata - 700107 | Tel: 033 4073 4036")
         # Page number at bottom right
@@ -933,7 +931,7 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
         y -= meta_h
     y -= 4
 
-    # Equipment table columns. Serial, remarks, and 3rd-party markers are intentionally omitted.
+    # Equipment table columns. Serial numbers, remarks, and 3rd-party markers intentionally omitted.
     cw = [34, tw - 34 - 96, 96]
     ch = ["SL NO.", "EQUIPMENT DESCRIPTION", "QTY"]
     cx = [left_margin]
@@ -957,7 +955,7 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
             y = _draw_equip_header(y)
         vals = [
             str(idx),
-            str(item.get("name", ""))[:82],
+            str(item.get("name", ""))[:82],  # name only — no serial number
             str(item.get("quantity", 1)),
         ]
         for x, w, val in zip(cx, cw, vals):
@@ -1050,7 +1048,7 @@ def make_address_label_pdf(to_name, to_address, to_contact, to_gstin=None, extra
     y -= 22
     c.setFont("Helvetica", 12)
     for line in [
-        "Kaleidoscope Productions & Services LLP,",
+        "Kaleidoscope Productions and Services LLP,",
         "326, Shantipally, Near Siemens,",
         "Kolkata : 700107.",
         "Contact : 033-4073 4036",
@@ -1096,7 +1094,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
         c.drawImage(str(LOGO_PATH), left, y - 48, width=110, height=48,
                     preserveAspectRatio=True, mask="auto")
     c.setFont("Helvetica-Bold", 15)
-    c.drawRightString(right, y - 10, "KPS PRODUCTIONS AND SERVICES LLP")
+    c.drawRightString(right, y - 10, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
     c.setFont("Helvetica", 8.5)
     c.drawRightString(right, y - 24, "326, Shantipally, Kolkata – 700107")
     c.drawRightString(right, y - 36, "GSTIN: 19AALFK2467Q1ZG  |  Tel: 033-4073 4036  |  Mob: 8697738894")
@@ -1114,7 +1112,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     y -= 30
     c.setFont("Helvetica", 11)
     body = (
-        "This is to inform you that we KALEIDOSCOPE PRODUCTIONS & SERVICES LLP, "
+        "This is to inform you that we KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP, "
         "KOLKATA (GSTIN NUMBER-19AALFK2467Q1ZG) are sending broadcast shooting "
         "equipment for repair to the below mentioned address by courier."
     )
@@ -1153,7 +1151,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     y -= 18
     c.setFont("Helvetica", 11)
     for line in [
-        "Kaleidoscope Productions & Services LLP,",
+        "Kaleidoscope Productions and Services LLP,",
         "326, Santipally,",
         "Kolkata : 700107",
         "Contact No. 8697738894, 033-4073 4036",
@@ -1177,7 +1175,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c.setFont("Helvetica", 10)
     c.drawString(left, y, "(Authorised Signatory)")
     y -= 14
-    c.drawString(left, y, "For Kaleidoscope Productions & Services LLP")
+    c.drawString(left, y, "For Kaleidoscope Productions and Services LLP")
     y -= 20
     dt = declaration_date or date.today().strftime("%d/%m/%Y")
     c.drawString(left, y, f"Dated: {dt}")
@@ -1239,7 +1237,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, y - 24, width=110, height=40, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 16)
-        c.drawRightString(right, y, "KPS PRODUCTIONS AND SERVICES LLP")
+        c.drawRightString(right, y, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica-Bold", 12)
         c.drawRightString(right, y - 18, "TAX INVOICE")
         c.setFont("Helvetica", 8.5)
@@ -1249,7 +1247,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         y -= 18
 
     c.setTitle(f"Invoice {getattr(invoice, 'invoice_number', '')}")
-    c.setAuthor("KPS Productions and Services LLP")
+    c.setAuthor("Kaleidoscope Productions and Services LLP")
     draw_header()
 
     invoice_number = getattr(invoice, 'invoice_number', '-')
@@ -1390,7 +1388,7 @@ def make_quotation_pdf(quote, client_name, project_title=None):
     c.setFont("Helvetica-Bold", 20)
     c.drawRightString(right, y - 18, "QUOTATION")
     c.setFont("Helvetica", 9)
-    c.drawRightString(right, y - 32, "KPS Productions and Services LLP")
+    c.drawRightString(right, y - 32, "Kaleidoscope Productions and Services LLP")
     c.drawRightString(right, y - 44, "326 Shantipally, Kolkata 700107")
     y -= 90
 
@@ -1517,7 +1515,7 @@ def make_quotation_pdf(quote, client_name, project_title=None):
 
     # ── Footer ────────────────────────────────────────────────────────────────
     c.setFont("Helvetica", 8)
-    c.drawString(left, 38, "For KPS Productions and Services LLP")
+    c.drawString(left, 38, "For Kaleidoscope Productions and Services LLP")
     c.drawRightString(right, 38, "Authorised Signatory")
     c.line(left, 54, right, 54)
     c.drawCentredString(width / 2, 24, "This is a computer-generated quotation.")
