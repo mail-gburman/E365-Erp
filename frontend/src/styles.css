@@ -9,7 +9,7 @@
   --ui-scale:.8;
 }
 *{box-sizing:border-box;}
-html{font-size:80%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;}
+html{font-size:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;text-rendering:optimizeLegibility;}
 body{
   background:
     radial-gradient(circle at top left, rgba(229,9,47,.18), transparent 25%),
@@ -17,6 +17,9 @@ body{
     var(--bg);
   color:var(--text);
   font-size:13px;
+  zoom:var(--ui-scale);
+  width:calc(100% / var(--ui-scale));
+  min-height:calc(100vh / var(--ui-scale));
 }
 .shell{display:grid;grid-template-columns:clamp(150px,12vw,176px) minmax(0,1fr);min-height:100vh;align-items:start;transition:grid-template-columns .22s ease;}
 .shell.sidebarCollapsed{grid-template-columns:45px minmax(0,1fr);}
@@ -150,6 +153,12 @@ table{width:100%;border-collapse:collapse;}
 th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:11px;}
 th{color:var(--muted);font-weight:600;}
 .actionCell{min-width:180px;}
+.bookingGroupParent td{background:rgba(229,9,47,.018);}
+.bookingGroupParent td:first-child{box-shadow:inset 3px 0 0 var(--accent);}
+.bookingGroupChild td{background:rgba(229,9,47,.035);border-bottom-color:rgba(229,9,47,.14);}
+.bookingGroupChild td:first-child{box-shadow:inset 3px 0 0 var(--accent);padding-left:28px;}
+.supplementaryArrow{display:inline-block;color:#ff6b7d;font-weight:900;margin-right:5px;}
+.supplementaryCountBadge{display:inline-flex;align-items:center;gap:4px;margin-top:5px;color:#ffb4c0;font-size:10px;font-weight:800;text-transform:uppercase;}
 .alertList{margin:0;padding-left:18px;}
 .alertList li{margin-bottom:10px;color:#e4e4e7;}
 .messageBar{background:rgba(220,38,38,.16);color:#fecaca;padding:10px 11px;border:1px solid rgba(220,38,38,.26);border-radius:11px;display:flex;justify-content:space-between;align-items:center;gap:10px;}

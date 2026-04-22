@@ -2502,10 +2502,13 @@ export default function BookingsPage() {
             <tbody>
               {bkPg.pageData.map(b => {
                 const pendingReturnCount = getPendingReturnCount(b);
+                const childBookings = bookingDetails.filter(child => child.parent_booking_id === b.id);
                 return (
-                <tr key={b.id}>
+                <React.Fragment key={b.id}>
+                <tr className={childBookings.length ? "bookingGroupParent" : ""}>
                   <td>
                     <strong>{b.job_card_id}</strong>
+                    {childBookings.length ? <div className="supplementaryCountBadge">{"->"} {childBookings.length} supplementary job card{childBookings.length > 1 ? "s" : ""}</div> : null}
                     {b.parent_booking_id ? <span className="badge badgeOptional" style={{marginLeft:4,fontSize:10}}>Supplementary</span> : null}
                     {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {b.reference_job_card_id}</div> : null}
                     {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
@@ -2575,6 +2578,59 @@ export default function BookingsPage() {
                     </div>
                   </td>
                 </tr>
+                {childBookings.map(child => (
+                  <tr key={child.id} className="bookingGroupChild">
+                    <td>
+                      <span className="supplementaryArrow">{"->"}</span><strong>{child.job_card_id}</strong>
+                      <div><span className="badge badgeOptional" style={{fontSize:10}}>Supplementary</span></div>
+                      <div style={{fontSize:11,color:"#999"}}>Ref: {child.reference_job_card_id || b.job_card_id}</div>
+                    </td>
+                    <td>
+                      <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
+                        onClick={() => setViewDetailBooking(child)}>
+                        {child.project_title}
+                      </button>
+                    </td>
+                    <td>{child.destination}</td>
+                    <td>
+                      {child.transport_mode ? <span className="badge">{child.transport_mode}</span> : "-"}
+                      {child.awb_number ? <div style={{fontSize:11,color:"#999"}}>AWB: {child.awb_number}</div> : null}
+                      {child.call_time ? <div style={{fontSize:11,color:"#999"}}>Call: {new Date(child.call_time).toLocaleString()}</div> : null}
+                      {child.packup_time ? <div style={{fontSize:11,color:"#999"}}>Packup: {new Date(child.packup_time).toLocaleString()}</div> : null}
+                    </td>
+                    <td>
+                      {(child.equipment_summary || groupEquipment(child.equipment)).map((item) => (
+                        <div key={`${child.id}-${item.name}-${item.ownerType || item.owner_type || ""}`} style={{fontSize:12,marginBottom:2}}>
+                          {item.name} (x{item.count || item.quantity})
+                        </div>
+                      ))}
+                      {(!child.equipment_summary || child.equipment_summary.length === 0) && child.equipment.length === 0 && "-"}
+                    </td>
+                    <td>
+                      {child.crew.map(x => <div key={x.id} style={{fontSize:12,marginBottom:2}}>{x.name}</div>)}
+                      {child.crew.length === 0 && "-"}
+                    </td>
+                    <td><span className={`statusBadge status-${child.status}`}>{child.status}</span></td>
+                    <td>{(child.damages || []).length > 0 ? <span className="badge badgeMandatory">{child.damages.length}</span> : <span style={{color:"#4ade80",fontSize:12}}>None</span>}</td>
+                    <td className="pdfCell">
+                      { ["confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(child.status) ? (
+                        <div className="documentDownloadCell">
+                          <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(child.id, child.job_card_id)}>Job Card</button>
+                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(child.id), `challan_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
+                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(child.id), `manpower_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
+                        </div>
+                      ) : <span className="helperText">Confirm shoot first</span>}
+                    </td>
+                    <td className="actionCell">
+                      <div className="actionButtonGroup">
+                        {(child.status === "confirmed" || child.status === "blocked") && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(child.id)}>Dispatch</button>}
+                        {! ["dispatched", "returned", "cancelled"].includes(child.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(child);setEditModal(true);}}>Edit</button>}
+                        {child.status !== "returned" && child.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(child.id);setCancelModal(true);}}>Cancel</button>}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                </React.Fragment>
                 );
               })}
             </tbody>
