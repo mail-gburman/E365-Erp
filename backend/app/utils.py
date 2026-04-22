@@ -7,6 +7,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "logo.png"
+COMPANY_LEGAL_NAME = "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP"
+COMPANY_ADDRESS_LINE = "326, Shantipally, Kolkata - 700107 | Tel: 033-4073 4036"
 
 def calc_block_window(shoot_start, setup_days, travel_hours, shoot_hours, return_hours):
     if any(x < 0 for x in [setup_days, travel_hours, shoot_hours, return_hours]):
@@ -194,8 +196,8 @@ def make_audit_pdf(title, subtitle, rows):
     def draw_page_header():
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, height - 58, width=80, height=32, preserveAspectRatio=True, mask="auto")
-        c.setFont("Helvetica-Bold", 13)
-        c.drawString(left + 90, height - 28, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(left + 90, height - 28, COMPANY_LEGAL_NAME)
         c.setFont("Helvetica-Bold", 10)
         c.drawString(left + 90, height - 42, title)
         c.setFont("Helvetica", 8)
@@ -318,9 +320,9 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
     def draw_header(page_no, total_pages):
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, height - 82, width=92, height=34, preserveAspectRatio=True, mask="auto")
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(left + 104, height - 46, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
         c.setFont("Helvetica-Bold", 11)
+        c.drawString(left + 104, height - 46, COMPANY_LEGAL_NAME)
+        c.setFont("Helvetica-Bold", 10)
         c.drawString(left + 104, height - 62, "MANPOWER DETAILS & ID VERIFICATION")
         c.setFont("Helvetica", 8.5)
         c.drawRightString(right, height - 42, f"Job Card: {job_card_id}")
@@ -453,8 +455,8 @@ def make_calendar_day_summary_pdf(summary_date, rows):
     def draw_header(y_pos):
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, y_pos - 38, width=100, height=34, preserveAspectRatio=True, mask="auto")
-        c.setFont("Helvetica-Bold", 15)
-        c.drawString(left + 112, y_pos - 8, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(left + 112, y_pos - 8, COMPANY_LEGAL_NAME)
         c.setFont("Helvetica-Bold", 12)
         c.drawString(left + 112, y_pos - 24, "CALENDAR DAY SUMMARY")
         c.setFont("Helvetica", 9)
@@ -611,15 +613,16 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
 
     def _draw_page_header():
         """Draw the letterhead on the current page (called on every page)."""
+        header_text_x = left_margin + 118
         if LOGO_PATH.exists():
-            c.drawImage(str(LOGO_PATH), left_margin, height - 80, width=100, height=40, preserveAspectRatio=True, mask="auto")
+            c.drawImage(str(LOGO_PATH), left_margin, height - 82, width=96, height=42, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 12)
         _title = "SUPPLEMENTARY JOB CARD & CHALLAN FOR VIDEO EQUIPMENT" if supplementary_of else "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT"
-        c.drawCentredString(width / 2, height - 35, _title)
+        c.drawString(header_text_x, height - 35, _title)
         c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width / 2, height - 52, company_line.upper() if company_line else "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+        c.drawString(header_text_x, height - 52, company_line.upper() if company_line else COMPANY_LEGAL_NAME)
         c.setFont("Helvetica", 8)
-        c.drawCentredString(width / 2, height - 64, "326, Shantipally, Kolkata - 700107 | Tel: 033-4073 4036")
+        c.drawString(header_text_x, height - 64, COMPANY_ADDRESS_LINE)
         # Page number at bottom right
         c.setFont("Helvetica", 8)
         c.drawRightString(right_margin, 28, f"Page {page_no[0]}")
@@ -881,14 +884,15 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
 
     def _draw_challan_header():
         """Draw the road challan letterhead on the current page."""
+        header_text_x = left_margin + 78
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left_margin, height - 78, width=60, height=28, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 12)
-        c.drawCentredString(width / 2, height - 35, "ROAD CHALLAN")
+        c.drawString(header_text_x, height - 35, "ROAD CHALLAN")
         c.setFont("Helvetica-Bold", 11)
-        c.drawCentredString(width / 2, height - 52, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+        c.drawString(header_text_x, height - 52, COMPANY_LEGAL_NAME)
         c.setFont("Helvetica", 8)
-        c.drawCentredString(width / 2, height - 64, "326, Santi Pally, Kolkata - 700107 | Tel: 033 4073 4036")
+        c.drawString(header_text_x, height - 64, "326, Santi Pally, Kolkata - 700107 | Tel: 033 4073 4036")
         # Page number at bottom right
         c.drawRightString(right_margin, 28, f"Page {page_no[0]}")
 
