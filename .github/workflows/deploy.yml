@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+      REPO_SLUG: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
 
     steps:
       - name: Checkout code
@@ -33,7 +35,7 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: EC2_APP_DIR
+          envs: EC2_APP_DIR,REPO_SLUG,GH_TOKEN
           script: |
             set -euo pipefail
             APP_DIR="${EC2_APP_DIR}"
@@ -44,17 +46,18 @@ jobs:
             sudo mkdir -p "$APP_DIR"
             sudo mkdir -p "$APP_DIR/frontend/dist"
             sudo chown -R "$USER":"$USER" "$APP_DIR"
-            cd "$APP_DIR"
-            if [ ! -d .git ]; then
-              echo "Git repo not found in $APP_DIR"
-              pwd
-              ls -la
-              exit 1
+            if [ ! -d "$APP_DIR/.git" ]; then
+              TMP_DIR="$(mktemp -d)"
+              git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO_SLUG}.git" "$TMP_DIR/repo"
+              find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+              cp -a "$TMP_DIR/repo/." "$APP_DIR/"
+              rm -rf "$TMP_DIR"
             fi
+            cd "$APP_DIR"
 
             # Pull latest code
-            git fetch origin master
-            git reset --hard origin/master
+            git fetch "https://x-access-token:${GH_TOKEN}@github.com/${REPO_SLUG}.git" master
+            git reset --hard FETCH_HEAD
 
             # Update backend dependencies
             cd backend
