@@ -530,8 +530,10 @@ def ensure_demo_data(db: Session):
     parent_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90001"},
+        {"booking_code": "BK-90001"},
         {
+            "booking_code": "BK-90001",
+            "job_card_id": None,
             "project_id": projects["Demo Planned Brand Launch"].id,
             "destination": "JW Marriott Ballroom, Kolkata",
             "status": "planned",
@@ -567,8 +569,10 @@ def ensure_demo_data(db: Session):
     supplementary_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90001-S1"},
+        {"booking_code": "BK-90001-S1"},
         {
+            "booking_code": "BK-90001-S1",
+            "job_card_id": None,
             "project_id": projects["Demo Planned Brand Launch"].id,
             "parent_booking_id": parent_booking.id,
             "destination": "JW Marriott Ballroom, Kolkata",
@@ -595,8 +599,10 @@ def ensure_demo_data(db: Session):
     dispatched_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90002"},
+        {"booking_code": "BK-90002"},
         {
+            "booking_code": "BK-90002",
+            "job_card_id": "JC-90002",
             "project_id": projects["Demo Confirmed Leadership Summit"].id,
             "destination": "Jio Convention Centre, Mumbai",
             "status": "dispatched",
@@ -638,8 +644,10 @@ def ensure_demo_data(db: Session):
     returned_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90003"},
+        {"booking_code": "BK-90003"},
         {
+            "booking_code": "BK-90003",
+            "job_card_id": "JC-90003",
             "project_id": projects["Demo Returned Wildlife Documentary"].id,
             "destination": "Sundarbans Field Unit",
             "status": "returned",
@@ -710,8 +718,10 @@ def ensure_demo_data(db: Session):
     cancelled_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90004"},
+        {"booking_code": "BK-90004"},
         {
+            "booking_code": "BK-90004",
+            "job_card_id": "JC-90004",
             "project_id": projects["Demo Cancelled Awards Recce"].id,
             "destination": "Science City, Kolkata",
             "status": "cancelled",
@@ -834,8 +844,10 @@ def ensure_demo_data(db: Session):
         _ensure_project_date(db, kit_demo_project.id, dt, dv)
 
     kit_booking, _ = _ensure(
-        db, models.EventBooking, {"job_card_id": "JC-90005"},
+        db, models.EventBooking, {"booking_code": "BK-90005"},
         {
+            "booking_code": "BK-90005",
+            "job_card_id": None,
             "project_id": kit_demo_project.id, "destination": "Eco Park, Kolkata",
             "status": "planned", "remarks": "ENG Kit booked — auto-expands to FX9 body + battery + charger.",
             "transport_mode": "company_vehicle", "awb_number": "KPS-DEMO-KIT-01",
@@ -871,9 +883,11 @@ def ensure_demo_data(db: Session):
         _ensure_project_date(db, tp_demo_project.id, dt, dv)
 
     tp_booking, _ = _ensure(
-        db, models.EventBooking, {"job_card_id": "JC-90006"},
+        db, models.EventBooking, {"booking_code": "BK-90006"},
         {
+            "booking_code": "BK-90006",
             "project_id": tp_demo_project.id, "destination": "ITC Sonar, Kolkata",
+            "job_card_id": "JC-90006",
             "status": "confirmed", "remarks": "Astera tubes rented from Filmlite India. Vendor window: Apr 20 – May 15.",
             "transport_mode": "vendor_transport", "awb_number": "ASTERA-DEMO-90006",
             "contact_person_name": "Nisha Kapoor", "contact_person_mobile": "9810001001",
