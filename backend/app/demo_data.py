@@ -495,6 +495,8 @@ def ensure_demo_data(db: Session):
             _ensure_project_date(db, project.id, date_type, date_value)
         projects[spec["title"]] = project
 
+    db.commit()  # commit clients, crew, inventory, projects
+
     # Resource lookups
     assets = {
         code: _query_one(db, models.InventoryItem, asset_code=code)
@@ -747,6 +749,8 @@ def ensure_demo_data(db: Session):
             person.status = "available"
             _ensure_custody(db, cancelled_booking.id, None, person.id, "cancel", "Office", "Office", "Kolkata Warehouse", "Demo cancelled crew release")
 
+    db.commit()  # commit all bookings, equipment assignments, crew assignments
+
     # More service/procurement/papers coverage
     _ensure(
         db,
@@ -815,6 +819,8 @@ def ensure_demo_data(db: Session):
             },
         )
 
+    db.commit()  # commit service jobs, papers, procurement orders
+
     # Statutory documents for download/demo
     _ensure_document(db, "client", demo_client_a.id, "Client GST Copy", "admin", "Demo statutory client document")
     _ensure_document(db, "inventory", assets["KPS/CAM/HDC-01"].id if assets["KPS/CAM/HDC-01"] else 1, "Equipment Insurance Copy", "store", "Demo inventory document")
@@ -822,6 +828,8 @@ def ensure_demo_data(db: Session):
     _ensure_document(db, "vendor", vendor_service.id, "Vendor Service Agreement", "admin", "Demo vendor compliance document")
     for demo_booking in [parent_booking, supplementary_booking, dispatched_booking, returned_booking, cancelled_booking]:
         _ensure_booking_crew_documents(db, demo_booking)
+
+    db.commit()  # commit documents
 
     # ── Demo: Kit auto-expansion booking (ENG Kit → children auto-added) ──
     kit_demo_project, _ = _ensure(
@@ -903,6 +911,8 @@ def ensure_demo_data(db: Session):
         "booking_id": tp_booking.id, "pass_type": "gate_out", "approved_by": "System Auto",
         "status": "issued", "remarks": "Demo third-party lighting booking gate pass"
     })
+
+    db.commit()  # commit kit + third-party bookings
 
     # ── Demo: Consumable usage ──
     if assets.get("KPS/CON/GAFF-01"):
