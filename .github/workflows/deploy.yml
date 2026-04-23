@@ -7,6 +7,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
 
     steps:
       - name: Checkout code
@@ -15,7 +17,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -31,23 +33,32 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: EC2_APP_DIR
           script: |
-            set -e
-            cd ${{ secrets.EC2_APP_DIR }}
+            set -euo pipefail
+            APP_DIR="${EC2_APP_DIR}"
+            if [ -z "$APP_DIR" ]; then
+              echo "EC2_APP_DIR secret is empty"
+              exit 1
+            fi
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+            if [ ! -d .git ]; then
+              echo "Git repo not found in $APP_DIR"
+              pwd
+              ls -la
+              exit 1
+            fi
 
             # Pull latest code
-            git pull origin master
+            git fetch origin master
+            git reset --hard origin/master
 
             # Update backend dependencies
             cd backend
             source .venv/bin/activate
             pip install -r requirements.txt --quiet
             cd ..
-
-            # Restart backend
-            sudo systemctl restart kps-backend
-            sleep 3
-            sudo systemctl is-active kps-backend || (sudo journalctl -u kps-backend --no-pager -n 20 && exit 1)
 
       - name: Copy built frontend to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -56,13 +67,25 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "frontend/dist/*"
-          target: "${{ secrets.EC2_APP_DIR }}/frontend/dist"
+          target: "${{ env.EC2_APP_DIR }}/frontend/dist"
           strip_components: 2
 
-      - name: Reload Nginx
+      - name: Restart services
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: sudo systemctl reload nginx
+          envs: EC2_APP_DIR
+          script: |
+            set -euo pipefail
+            APP_DIR="${EC2_APP_DIR}"
+            if [ -z "$APP_DIR" ]; then
+              echo "EC2_APP_DIR secret is empty"
+              exit 1
+            fi
+            cd "$APP_DIR"
+            sudo systemctl restart kps-backend
+            sleep 3
+            sudo systemctl is-active kps-backend >/dev/null || (sudo journalctl -u kps-backend --no-pager -n 50 && exit 1)
+            sudo systemctl reload nginx
