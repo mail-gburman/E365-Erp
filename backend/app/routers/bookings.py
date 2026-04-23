@@ -210,6 +210,8 @@ RETURN_ACCOUNTED_CONDITIONS = {"good", "damaged", "missing", "incomplete"}
 
 def _ensure_document_allowed(booking: models.EventBooking):
     effective_status = (booking.status or "").lower()
+    if booking.job_card_id:
+        return
     if effective_status not in DOC_ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Documents are available only after booking confirmation.")
 
