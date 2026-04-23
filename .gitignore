@@ -44,3 +44,6 @@ tally_connector/.env
 *.pem
 .vercel
 .env*.local
+
+# Local Codex worktrees / app state
+.claude/worktrees/
