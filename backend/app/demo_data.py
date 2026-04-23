@@ -565,10 +565,11 @@ def ensure_demo_data(db: Session):
             _ensure_custody(db, parent_booking.id, None, person.id, "assign", "Office", "JW Marriott Ballroom, Kolkata", "Kolkata Warehouse", "Demo planned crew assignment")
     _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90001"}, {"booking_id": parent_booking.id, "pass_type": "gate_out", "approved_by": "System Auto", "status": "issued", "remarks": "Demo planned booking gate pass"})
 
+    _SUPP_JC_ID = "JC-90001-S1"
     supplementary_booking, _ = _ensure(
         db,
         models.EventBooking,
-        {"job_card_id": "JC-90001-S1"},
+        {"job_card_id": _SUPP_JC_ID},
         {
             "booking_code": "BK-90001-S1",
             "project_id": projects["Demo Planned Brand Launch"].id,
@@ -786,7 +787,7 @@ def ensure_demo_data(db: Session):
 
     for paper_number, values in [
         ("PAP-90001", {"paper_type": "Shoot Dispatch", "reference_name": projects["Demo Planned Brand Launch"].title, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Operations Lead", "issue_status": "ready", "related_booking_id": parent_booking.id, "related_service_job_id": None, "remarks": "Parent booking dispatch papers", "signature_name": "Operations Lead"}),
-        ("PAP-90002", {"paper_type": "Supplementary Challan", "reference_name": supplementary_booking.job_card_id or supplementary_booking.booking_code or "BK-90001-S1", "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Store Controller", "issue_status": "issued", "related_booking_id": supplementary_booking.id, "related_service_job_id": None, "remarks": "Supplementary power and wireless add-on", "signature_name": "Store Controller"}),
+        ("PAP-90002", {"paper_type": "Supplementary Challan", "reference_name": _SUPP_JC_ID, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Store Controller", "issue_status": "issued", "related_booking_id": supplementary_booking.id, "related_service_job_id": None, "remarks": "Supplementary power and wireless add-on", "signature_name": "Store Controller"}),
         ("PAP-90003", {"paper_type": "Service Declaration", "reference_name": "SRV-90002", "destination": vendor_service.city or "Kolkata", "issued_by": "Store Controller", "issue_status": "draft", "related_booking_id": None, "related_service_job_id": _query_one(db, models.ServiceJob, job_number="SRV-90002").id, "remarks": "Sent with converter unit", "signature_name": "Store Controller"}),
     ]:
         _ensure(db, models.OutboundPaper, {"paper_number": paper_number}, {**values, "is_demo": True})
