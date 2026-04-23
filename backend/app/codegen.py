@@ -51,6 +51,9 @@ def next_equipment_master_code(db):
 def next_gate_pass_number(db):
     return f"GATE-{_next_number(db, models.GatePass, 'gate_pass_number', 'GATE-', 5):05d}"
 
+def next_booking_code(db):
+    return f"BK-{_next_number(db, models.EventBooking, 'booking_code', 'BK-', 5):05d}"
+
 def next_job_card_id(db):
     return f"JC-{_next_number(db, models.EventBooking, 'job_card_id', 'JC-', 5):05d}"
 

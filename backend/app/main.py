@@ -9,6 +9,7 @@ from .env import load_env
 load_env()
 
 from .database import Base, engine, SessionLocal
+from . import models
 from .seed import seed_db
 from .routers import auth_router, masters, projects, bookings, service_jobs, papers, dashboard, admin_router, system_router, audit_router, accounts, tally
 from .routers import quotes as quotes_router
@@ -91,11 +92,76 @@ def _migrate_project_events_nullable():
 
 _migrate_project_events_nullable()
 
+def _migrate_event_bookings_identity_columns():
+    if engine.dialect.name != "sqlite":
+        return
+    insp = inspect(engine)
+    if "event_bookings" not in insp.get_table_names():
+        return
+    cols = {c["name"]: c for c in insp.get_columns("event_bookings")}
+    needs_nullable_job_card = not cols.get("job_card_id", {}).get("nullable", True)
+    needs_booking_code_index = "booking_code" in cols and not any(idx.get("name") == "ix_event_bookings_booking_code" for idx in insp.get_indexes("event_bookings"))
+    if not needs_nullable_job_card and not needs_booking_code_index:
+        return
+    with engine.connect() as conn:
+        conn.execute(text("PRAGMA foreign_keys=OFF"))
+        if needs_nullable_job_card:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS event_bookings_new (
+                    id INTEGER PRIMARY KEY,
+                    created_at DATETIME,
+                    booking_code VARCHAR,
+                    job_card_id VARCHAR,
+                    project_id INTEGER NOT NULL,
+                    parent_booking_id INTEGER,
+                    destination VARCHAR NOT NULL,
+                    status VARCHAR,
+                    cancellation_reason TEXT,
+                    remarks TEXT,
+                    is_conflict BOOLEAN,
+                    transport_mode VARCHAR,
+                    awb_number VARCHAR,
+                    contact_person_name VARCHAR,
+                    contact_person_mobile VARCHAR,
+                    contact_person_aadhar VARCHAR,
+                    booking_contacts_json TEXT,
+                    call_time DATETIME,
+                    packup_time DATETIME,
+                    is_demo BOOLEAN,
+                    billing_amount FLOAT DEFAULT 0.0,
+                    FOREIGN KEY(project_id) REFERENCES project_events (id),
+                    FOREIGN KEY(parent_booking_id) REFERENCES event_bookings (id)
+                )
+            """))
+            conn.execute(text("""
+                INSERT INTO event_bookings_new (
+                    id, created_at, booking_code, job_card_id, project_id, parent_booking_id,
+                    destination, status, cancellation_reason, remarks, is_conflict,
+                    transport_mode, awb_number, contact_person_name, contact_person_mobile,
+                    contact_person_aadhar, booking_contacts_json, call_time, packup_time,
+                    is_demo, billing_amount
+                )
+                SELECT
+                    id, created_at, booking_code, job_card_id, project_id, parent_booking_id,
+                    destination, status, cancellation_reason, remarks, is_conflict,
+                    transport_mode, awb_number, contact_person_name, contact_person_mobile,
+                    contact_person_aadhar, booking_contacts_json, call_time, packup_time,
+                    is_demo, billing_amount
+                FROM event_bookings
+            """))
+            conn.execute(text("DROP TABLE event_bookings"))
+            conn.execute(text("ALTER TABLE event_bookings_new RENAME TO event_bookings"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_event_bookings_job_card_id ON event_bookings (job_card_id)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_event_bookings_booking_code ON event_bookings (booking_code)"))
+        conn.execute(text("PRAGMA foreign_keys=ON"))
+        conn.commit()
+
 # Migrate: add missing columns to existing tables that create_all won't touch
 _MIGRATIONS = [
     ("chain_of_custody", "created_at", "DATETIME"),
     ("statutory_documents", "created_at", "DATETIME"),
     ("event_bookings", "billing_amount", "FLOAT DEFAULT 0.0"),
+    ("event_bookings", "booking_code", "VARCHAR"),
     # New fields
     ("inventory_items", "serial_number", "VARCHAR"),
     ("inventory_items", "is_demo", "BOOLEAN DEFAULT 0"),
@@ -174,11 +240,68 @@ with engine.connect() as conn:
                 conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
                 conn.commit()
 
+_migrate_event_bookings_identity_columns()
+
 db = SessionLocal()
 try:
     seed_db(db)
 finally:
     db.close()
+
+
+def _normalize_booking_identity_columns():
+    db = SessionLocal()
+    try:
+        from .codegen import next_booking_code, next_job_card_id, next_supplementary_job_card_id
+
+        bookings = db.query(models.EventBooking).order_by(models.EventBooking.id.asc()).all()
+        changed = False
+        root_job_cards: dict[int, str] = {}
+
+        for booking in bookings:
+            if not getattr(booking, "booking_code", None):
+                booking.booking_code = next_booking_code(db)
+                db.flush()
+                changed = True
+
+        for booking in bookings:
+            if booking.parent_booking and (booking.status or "").lower() != (booking.parent_booking.status or "").lower():
+                booking.status = booking.parent_booking.status
+                changed = True
+
+        for booking in bookings:
+            effective_status = (booking.status or "").lower()
+            if effective_status == "planned" and booking.job_card_id:
+                booking.job_card_id = None
+                changed = True
+
+        for booking in bookings:
+            effective_status = (booking.status or "").lower()
+            if effective_status not in {"confirmed", "dispatched", "returned", "closed", "completed"}:
+                continue
+            if booking.parent_booking_id:
+                root = booking
+                while root.parent_booking_id and root.parent_booking:
+                    root = root.parent_booking
+                if not root.job_card_id:
+                    root.job_card_id = root_job_cards.get(root.id) or next_job_card_id(db)
+                    root_job_cards[root.id] = root.job_card_id
+                    changed = True
+                if not booking.job_card_id:
+                    booking.job_card_id = next_supplementary_job_card_id(db, root.job_card_id)
+                    changed = True
+            elif not booking.job_card_id:
+                booking.job_card_id = next_job_card_id(db)
+                root_job_cards[booking.id] = booking.job_card_id
+                changed = True
+
+        if changed:
+            db.commit()
+    finally:
+        db.close()
+
+
+_normalize_booking_identity_columns()
 
 app.include_router(auth_router.router)
 app.include_router(admin_router.router)

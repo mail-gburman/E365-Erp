@@ -197,7 +197,8 @@ class EventBooking(Base):
     __tablename__ = "event_bookings"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
-    job_card_id = Column(String, unique=True, index=True, nullable=False)  # NEW: Unique job card ID (JC-XXXXX)
+    booking_code = Column(String, unique=True, index=True, nullable=True)
+    job_card_id = Column(String, unique=True, index=True, nullable=True)  # Issued only after confirmation
     project_id = Column(Integer, ForeignKey("project_events.id"), nullable=False)
     parent_booking_id = Column(Integer, ForeignKey("event_bookings.id"), nullable=True)  # NEW: for supplementary bookings
     destination = Column(String, nullable=False)

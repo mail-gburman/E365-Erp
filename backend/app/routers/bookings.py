@@ -13,7 +13,7 @@ from ..auth import require_roles, get_current_user
 from ..permissions import require_document_permission
 from .. import models, schemas
 from ..utils import aggregate_equipment_rows, overlaps, make_branded_pdf, make_job_card_pdf, make_road_challan_pdf, make_calendar_day_summary_pdf, make_manpower_details_pdf
-from ..codegen import next_gate_pass_number, next_job_card_id, next_supplementary_job_card_id, next_service_job_number
+from ..codegen import next_booking_code, next_gate_pass_number, next_job_card_id, next_supplementary_job_card_id, next_service_job_number
 from ..audit import audit
 
 router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(require_roles("admin", "operations", "store"))])
@@ -165,6 +165,32 @@ def _root_job_card_id(booking: models.EventBooking):
     return current.job_card_id if current else booking.job_card_id
 
 
+def _display_booking_identity(booking: models.EventBooking):
+    return booking.job_card_id or booking.booking_code or f"BOOKING-{booking.id}"
+
+
+def _ensure_booking_identity(db: Session, booking: models.EventBooking):
+    if not booking.booking_code:
+        booking.booking_code = next_booking_code(db)
+        db.flush()
+    if booking.parent_booking_id:
+        root = booking
+        while root.parent_booking_id and root.parent_booking:
+            root = root.parent_booking
+        if not root.booking_code:
+            root.booking_code = next_booking_code(db)
+            db.flush()
+        if not root.job_card_id:
+            root.job_card_id = next_job_card_id(db)
+            db.flush()
+        if not booking.job_card_id:
+            booking.job_card_id = next_supplementary_job_card_id(db, root.job_card_id)
+            db.flush()
+    elif not booking.job_card_id:
+        booking.job_card_id = next_job_card_id(db)
+        db.flush()
+
+
 def _log_custody(db: Session, booking_id, inventory_item_id, crew_member_id, event_type, from_person=None, to_person=None, location=None, notes=None):
     db.add(models.ChainOfCustody(
         booking_id=booking_id,
@@ -183,7 +209,7 @@ RETURN_ACCOUNTED_CONDITIONS = {"good", "damaged", "missing", "incomplete"}
 
 
 def _ensure_document_allowed(booking: models.EventBooking):
-    effective_status = ((booking.parent_booking.status if booking.parent_booking else booking.status) or "").lower()
+    effective_status = (booking.status or "").lower()
     if effective_status not in DOC_ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Documents are available only after booking confirmation.")
 
@@ -193,13 +219,14 @@ def _confirm_booking_resources(db: Session, booking: models.EventBooking, exclud
     project = booking.project
     if not project or not project.block_start or not project.block_end:
         raise HTTPException(status_code=400, detail="Set project dates before confirming this booking.")
+    _ensure_booking_identity(db, booking)
 
     for link in booking.equipment:
         item = link.inventory_item
         if not item:
             continue
         if item.status in ["servicing", "inactive", "cancelled"] or item.service_status == "in_service":
-            raise HTTPException(status_code=400, detail=f"{item.asset_code} cannot be confirmed because it is under service or inactive.")
+                raise HTTPException(status_code=400, detail=f"{item.asset_code} cannot be confirmed because it is under service or inactive.")
         existing = db.query(models.BookingEquipment).join(models.EventBooking).join(models.ProjectEvent).filter(
             models.BookingEquipment.inventory_item_id == item.id,
             ~models.EventBooking.id.in_(exclude_booking_ids),
@@ -228,11 +255,11 @@ def _confirm_booking_resources(db: Session, booking: models.EventBooking, exclud
     for link in booking.equipment:
         if link.inventory_item:
             link.inventory_item.status = "reserved"
-            _log_custody(db, booking.id, link.inventory_item_id, None, "assign", from_person="Store", to_person=booking.destination, location=project.venue, notes=f"Confirmed booking for {project.title}")
+            _log_custody(db, booking.id, link.inventory_item_id, None, "assign", from_person="Store", to_person=booking.destination, location=project.venue, notes=f"Confirmed booking for {_display_booking_identity(booking)}")
     for link in booking.crew:
         if link.crew_member:
             link.crew_member.status = "blocked"
-            _log_custody(db, booking.id, None, link.crew_member_id, "assign", from_person="Office", to_person=booking.destination, location=project.venue, notes=f"Assigned for confirmed booking {project.title}")
+            _log_custody(db, booking.id, None, link.crew_member_id, "assign", from_person="Office", to_person=booking.destination, location=project.venue, notes=f"Assigned for confirmed booking {_display_booking_identity(booking)}")
 
     exists = db.query(models.GatePass).filter(models.GatePass.booking_id == booking.id).first()
     if not exists:
@@ -427,6 +454,7 @@ def list_booking_details(db: Session = Depends(get_db)):
         partial_returns = db.query(models.PartialReturn).filter(models.PartialReturn.booking_id == b.id).all()
         out.append({
             "id": b.id,
+            "booking_code": b.booking_code,
             "job_card_id": b.job_card_id,
             "project_id": b.project_id,
             "parent_booking_id": b.parent_booking_id,
@@ -516,6 +544,7 @@ def _calendar_summary_rows_for_date(db: Session, target_day: date):
                     "event_type": event_type,
                     "event_label": label_override or event_type,
                     "project_title": project.title,
+                    "booking_code": booking.booking_code if booking else "-",
                     "job_card_id": booking.job_card_id if booking else "-",
                     "project_status": project.status or "-",
                     "booking_status": f"Supplementary to {parent_ref}" if is_supplementary else (booking.status if booking else project.status or "-"),
@@ -582,7 +611,11 @@ def _calendar_summary_rows_for_date(db: Session, target_day: date):
                         add_row(booking.status, booking, booking.status.title())
 
     type_order = {"travel": 0, "setup": 1, "technical": 2, "shoot": 3, "end": 4, "return": 5, "off": 6, "supplementary": 7, "planned": 8, "confirmed": 9, "blocked": 10, "dispatched": 11}
-    rows.sort(key=lambda row: (type_order.get(row["event_type"], 99), row["project_title"], row["job_card_id"]))
+    rows.sort(key=lambda row: (
+        type_order.get(row["event_type"], 99),
+        row["project_title"],
+        row.get("job_card_id") or row.get("booking_code") or "",
+    ))
     return rows
 
 
@@ -906,18 +939,13 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
                 if e.booking and e.booking.project and overlaps(project.block_start, project.block_end, e.booking.project.block_start, e.booking.project.block_end):
                     raise HTTPException(status_code=400, detail=f"Crew conflict for {person.full_name} ({person.employee_code}).")
 
-    # Generate job card ID
-    if payload.parent_booking_id:
-        jc_id = next_supplementary_job_card_id(db, _root_job_card_id(parent))
-    else:
-        jc_id = next_job_card_id(db)
-
     contacts = _normalize_contacts(payload.contacts, payload.contact_person_name, payload.contact_person_mobile, payload.contact_person_aadhar)
     primary_contact = contacts[0] if contacts else {"name": payload.contact_person_name, "mobile": payload.contact_person_mobile, "aadhar": payload.contact_person_aadhar}
 
     try:
         booking = models.EventBooking(
-            job_card_id=jc_id,
+            booking_code=next_booking_code(db),
+            job_card_id=None,
             project_id=payload.project_id,
             parent_booking_id=payload.parent_booking_id,
             destination=payload.destination,
@@ -934,20 +962,22 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
         )
         db.add(booking)
         db.flush()
+        if booking_status in {"confirmed", "dispatched"}:
+            _ensure_booking_identity(db, booking)
 
         for inv_id in merged_ids:
             db.add(models.BookingEquipment(booking_id=booking.id, inventory_item_id=inv_id))
             item = db.query(models.InventoryItem).filter(models.InventoryItem.id == inv_id).first()
             if locks_resources:
                 item.status = "reserved"
-                _log_custody(db, booking.id, inv_id, None, "assign", from_person="Store", to_person=booking.destination, location=project.venue, notes=f"Confirmed booking for {project.title}")
+                _log_custody(db, booking.id, inv_id, None, "assign", from_person="Store", to_person=booking.destination, location=project.venue, notes=f"Confirmed booking for {_display_booking_identity(booking)}")
 
         for crew_id in crew_ids:
             db.add(models.BookingCrew(booking_id=booking.id, crew_member_id=crew_id))
             person = db.query(models.CrewMember).filter(models.CrewMember.id == crew_id).first()
             if locks_resources:
                 person.status = "blocked"
-                _log_custody(db, booking.id, None, crew_id, "assign", from_person="Office", to_person=booking.destination, location=project.venue, notes=f"Assigned for confirmed booking {project.title}")
+                _log_custody(db, booking.id, None, crew_id, "assign", from_person="Office", to_person=booking.destination, location=project.venue, notes=f"Assigned for confirmed booking {_display_booking_identity(booking)}")
 
         if locks_resources:
             db.add(models.GatePass(
@@ -959,7 +989,7 @@ def create_booking(payload: schemas.BookingCreate, db: Session = Depends(get_db)
                 remarks="Auto-generated at confirmed booking creation"
             ))
 
-        audit(db, current_user.username, "create", "booking", entity_id=booking.id, details={"job_card_id": jc_id, "destination": booking.destination, "reference_job_card_id": _root_job_card_id(booking), "contacts": contacts})
+        audit(db, current_user.username, "create", "booking", entity_id=booking.id, details={"booking_code": booking.booking_code, "job_card_id": booking.job_card_id, "destination": booking.destination, "reference_job_card_id": _root_job_card_id(booking), "contacts": contacts})
         db.commit()
         db.refresh(booking)
         return booking
@@ -1014,7 +1044,7 @@ def confirm_booking(booking_id: int, db: Session = Depends(get_db), current_user
     for child in db.query(models.EventBooking).filter(models.EventBooking.parent_booking_id == booking.id).all():
         if child.status in ["planned", "blocked"]:
             _confirm_booking_resources(db, child, family_ids)
-    audit(db, current_user.username, "confirm", "booking", entity_id=booking.id, details={"job_card_id": booking.job_card_id})
+    audit(db, current_user.username, "confirm", "booking", entity_id=booking.id, details={"booking_code": booking.booking_code, "job_card_id": booking.job_card_id})
     db.commit()
     db.refresh(booking)
     return booking
@@ -1368,6 +1398,9 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
     parent = db.query(models.EventBooking).filter(models.EventBooking.id == booking_id).first()
     if not parent:
         raise HTTPException(status_code=404, detail="Parent booking not found.")
+    if (parent.status or "").lower() not in {"confirmed", "dispatched"}:
+        raise HTTPException(status_code=400, detail="Supplementary booking can be created only after parent booking confirmation.")
+    _ensure_booking_identity(db, parent)
     date_tags = payload.get("date_tags") or []
     old_dates = []
     if parent.project:
@@ -1502,10 +1535,10 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
                     existing_dates.add(("off_day", d))
 
     # Create supplementary booking record
-    supp_card_id = next_supplementary_job_card_id(db, parent.job_card_id)
     inherited_status = parent.status or "planned"
     supp = models.EventBooking(
-        job_card_id=supp_card_id,
+        booking_code=next_booking_code(db),
+        job_card_id=None,
         project_id=parent.project_id,
         parent_booking_id=parent.id,
         destination=parent.destination,
@@ -1518,27 +1551,29 @@ def create_supplementary_booking(booking_id: int, payload: dict, db: Session = D
     )
     db.add(supp)
     db.flush()
+    if inherited_status in {"confirmed", "dispatched"}:
+        _ensure_booking_identity(db, supp)
     for inv_id in equipment_ids:
         db.add(models.BookingEquipment(booking_id=supp.id, inventory_item_id=inv_id))
         item = db.query(models.InventoryItem).filter(models.InventoryItem.id == inv_id).first()
         if item and inherited_status == "confirmed":
             item.status = "reserved"
-            _log_custody(db, supp.id, inv_id, None, "assign", from_person="Store", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary confirmed booking for {project.title if project else parent.job_card_id}")
+            _log_custody(db, supp.id, inv_id, None, "assign", from_person="Store", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary confirmed booking for {_display_booking_identity(supp)}")
         elif item and inherited_status == "dispatched":
             item.status = "on_shoot"
-            _log_custody(db, supp.id, inv_id, None, "gate_out", from_person="Store", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary dispatched booking for {project.title if project else parent.job_card_id}")
+            _log_custody(db, supp.id, inv_id, None, "gate_out", from_person="Store", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary dispatched booking for {_display_booking_identity(supp)}")
     for c_id in crew_ids:
         db.add(models.BookingCrew(booking_id=supp.id, crew_member_id=c_id))
         person = db.query(models.CrewMember).filter(models.CrewMember.id == c_id).first()
         if person and inherited_status == "confirmed":
             person.status = "blocked"
-            _log_custody(db, supp.id, None, c_id, "assign", from_person="Office", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary confirmed booking for {project.title if project else parent.job_card_id}")
+            _log_custody(db, supp.id, None, c_id, "assign", from_person="Office", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary confirmed booking for {_display_booking_identity(supp)}")
         elif person and inherited_status == "dispatched":
             person.status = "on_shoot"
-            _log_custody(db, supp.id, None, c_id, "gate_out", from_person="Office", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary dispatched booking for {project.title if project else parent.job_card_id}")
+            _log_custody(db, supp.id, None, c_id, "gate_out", from_person="Office", to_person=supp.destination, location=project.venue if project else None, notes=f"Supplementary dispatched booking for {_display_booking_identity(supp)}")
     audit(db, current_user.username, "create", "booking", entity_id=supp.id, details={
-        "supplementary_of": parent.job_card_id, "added_dates": added, "removed_dates": removed, "conflicts": conflicts,
+        "booking_code": supp.booking_code, "supplementary_of": parent.job_card_id, "added_dates": added, "removed_dates": removed, "conflicts": conflicts,
     })
     db.commit()
     db.refresh(supp)
-    return {"ok": True, "supplementary_booking_id": supp.id, "job_card_id": supp.job_card_id, "conflicts": conflicts}
+    return {"ok": True, "supplementary_booking_id": supp.id, "booking_code": supp.booking_code, "job_card_id": supp.job_card_id, "conflicts": conflicts}

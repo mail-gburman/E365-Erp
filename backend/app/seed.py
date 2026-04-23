@@ -265,7 +265,7 @@ def seed_db(db: Session):
     i_mon2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/MON/LMD-02").first()
 
     # Booking 1 - planned
-    b1 = models.EventBooking(project_id=projects[0].id, job_card_id="JC-00001", destination="Eden Gardens Broadcast Compound", status="planned", transport_mode="company_vehicle", contact_person_name="Arjun Sen", contact_person_mobile="9000000501", remarks="Main camera + audio setup for Match Day 1")
+    b1 = models.EventBooking(project_id=projects[0].id, booking_code="BK-00001", job_card_id=None, destination="Eden Gardens Broadcast Compound", status="planned", transport_mode="company_vehicle", contact_person_name="Arjun Sen", contact_person_mobile="9000000501", remarks="Main camera + audio setup for Match Day 1")
     db.add(b1)
     db.commit()
     db.add_all([
@@ -286,7 +286,7 @@ def seed_db(db: Session):
         crew.status = "blocked"
 
     # Booking 2 - planned
-    b2 = models.EventBooking(project_id=projects[3].id, job_card_id="JC-00002", destination="Salt Lake Stadium, Kolkata", status="planned", transport_mode="hired", contact_person_name="Ritika Bose", contact_person_mobile="9000000502", remarks="BPL Opening – vision mixer + monitors")
+    b2 = models.EventBooking(project_id=projects[3].id, booking_code="BK-00002", job_card_id=None, destination="Salt Lake Stadium, Kolkata", status="planned", transport_mode="hired", contact_person_name="Ritika Bose", contact_person_mobile="9000000502", remarks="BPL Opening – vision mixer + monitors")
     db.add(b2)
     db.commit()
     db.add_all([

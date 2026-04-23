@@ -338,7 +338,8 @@ class BookingCreate(BaseModel):
 
 class BookingRead(BaseModel):
     id: int
-    job_card_id: str
+    booking_code: Optional[str] = None
+    job_card_id: Optional[str] = None
     project_id: int
     parent_booking_id: Optional[int] = None
     destination: str
@@ -680,4 +681,3 @@ class QuotationRead(BaseModel):
     project_title: Optional[str] = None
     class Config:
         from_attributes = True
-

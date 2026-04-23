@@ -139,6 +139,22 @@ def update_project(project_id: int, payload: schemas.ProjectUpdate, db: Session 
         for d in normalized_dates:
             db.add(models.ProjectDate(project_id=project_id, date_type=d["date_type"], date_value=d["date_value"]))
     audit(db, current_user.username, "update", "project", entity_id=project_id, details=data)
+    if data.get("status") == "confirmed":
+        from .bookings import _confirm_booking_resources
+
+        top_level_bookings = db.query(models.EventBooking).filter(
+            models.EventBooking.project_id == project_id,
+            models.EventBooking.parent_booking_id == None,
+        ).all()
+        for booking in top_level_bookings:
+            if (booking.status or "").lower() in {"planned", "blocked"}:
+                family_ids = {booking.id, *[
+                    row.id for row in db.query(models.EventBooking.id).filter(models.EventBooking.parent_booking_id == booking.id).all()
+                ]}
+                _confirm_booking_resources(db, booking, family_ids)
+                for child in db.query(models.EventBooking).filter(models.EventBooking.parent_booking_id == booking.id).all():
+                    if (child.status or "").lower() in {"planned", "blocked"}:
+                        _confirm_booking_resources(db, child, family_ids)
     db.commit()
     db.refresh(item)
     return item

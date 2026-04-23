@@ -23,6 +23,18 @@ function documentsReady(status) {
   return DOC_READY_BOOKING_STATUSES.includes(displayBookingStatus(status));
 }
 
+function displayBookingId(booking) {
+  return booking?.booking_code || `BK-${String(booking?.id || "").padStart(5, "0")}`;
+}
+
+function displayJobCardOrBooking(booking) {
+  return booking?.job_card_id || displayBookingId(booking);
+}
+
+function displayReferenceId(booking, fallback = null) {
+  return booking?.reference_job_card_id || booking?.job_card_id || booking?.booking_code || fallback;
+}
+
 function groupEquipment(items = []) {
   const baseName = (value = "") => value.replace(/\s+#\d+\s*$/, "").trim();
   return Object.values(items.reduce((acc, item) => {
@@ -406,7 +418,7 @@ function DamageLogModal({ open, onClose, booking, onSave }) {
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard" onClick={e => e.stopPropagation()} style={{maxWidth:560}}>
-        <div className="modalHeader"><h2>Log Damage - {booking.job_card_id}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
+        <div className="modalHeader"><h2>Log Damage - {displayJobCardOrBooking(booking)}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
         <div className="formGrid" style={{marginTop:12}}>
           <label className="fieldLabel">Damaged Item</label>
           <select value={itemId} onChange={e => setItemId(e.target.value)} required>
@@ -514,7 +526,7 @@ function PartialReturnModal({ open, onClose, booking, onSave, onServiceRequired 
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard" onClick={e => e.stopPropagation()} style={{maxWidth:760}}>
-        <div className="modalHeader"><h2>Partial Return / Item Accounting - {booking.job_card_id}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
+        <div className="modalHeader"><h2>Partial Return / Item Accounting - {displayJobCardOrBooking(booking)}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
         <p className="helperText">Select returned/accounted items. Booking cannot be completed until every booked item is either returned, damaged, missing, or incomplete.</p>
         <div className="formGrid" style={{marginTop:12}}>
           <label className="fieldLabel">Returned / Accounted By</label>
@@ -584,7 +596,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
       declared_value: "",
       package_notes: "",
       problem_reported: issueText,
-      remarks: `Auto-routed from partial return of ${current.job_card_id || "booking"}.`,
+      remarks: `Auto-routed from partial return of ${current.job_card_id || current.booking_code || "booking"}.`,
       service_bill_amount: 0,
     });
     setPhotoFiles([]);
@@ -787,7 +799,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard" onClick={e => e.stopPropagation()} style={{maxWidth:560}}>
-        <div className="modalHeader"><h2>Edit Booking - {booking.job_card_id}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
+        <div className="modalHeader"><h2>Edit Booking - {displayJobCardOrBooking(booking)}</h2><button className="ghostBtn modalCloseBtn" onClick={onClose}>Close</button></div>
         <div className="formGrid" style={{marginTop:12}}>
           <label className="fieldLabel">Destination</label>
           <LocationAutocomplete value={form.destination || ""} onChange={v => setForm({...form, destination: v})} placeholder="Search Indian location..." />
@@ -930,13 +942,13 @@ function CreateSupplementaryModal({ open, onClose, parentBooking, onCreated, dow
 
   async function handleDownloadJobCard() {
     if (!result) return;
-    try { await downloadAuthorized(api.jobCardPdfUrl(result.booking_id || result.id), `jobcard_${result.job_card_id}.pdf`); }
+    try { await downloadAuthorized(api.jobCardPdfUrl(result.booking_id || result.id), `jobcard_${result.job_card_id || result.booking_code || result.id}.pdf`); }
     catch (e) { alert(e.message || String(e)); }
   }
 
   async function handleDownloadChallan() {
     if (!result) return;
-    try { await downloadAuthorized(api.roadChallanPdfUrl(result.booking_id || result.id), `challan_${result.job_card_id}.pdf`); }
+    try { await downloadAuthorized(api.roadChallanPdfUrl(result.booking_id || result.id), `challan_${result.job_card_id || result.booking_code || result.id}.pdf`); }
     catch (e) { alert(e.message || String(e)); }
   }
 
@@ -949,7 +961,7 @@ function CreateSupplementaryModal({ open, onClose, parentBooking, onCreated, dow
         </div>
 
         <div style={{ background: "var(--bgAlt)", borderRadius: 6, padding: "10px 14px", marginBottom: 14, fontSize: 13 }}>
-          <div style={{ fontWeight: 600 }}>{parentBooking.job_card_id} — {parentBooking.project_title}</div>
+          <div style={{ fontWeight: 600 }}>{displayJobCardOrBooking(parentBooking)} — {parentBooking.project_title}</div>
           <div style={{ color: "var(--muted)", marginTop: 2 }}>{parentBooking.destination}</div>
         </div>
 
@@ -983,7 +995,7 @@ function CreateSupplementaryModal({ open, onClose, parentBooking, onCreated, dow
           <>
             <div style={{ textAlign: "center", padding: "16px 0" }}>
               <div style={{ fontSize: 18, fontWeight: 700, color: "#16a34a", marginBottom: 6 }}>✓ Supplementary Created</div>
-              <div style={{ fontSize: 15, fontWeight: 600 }}>{result.job_card_id}</div>
+              <div style={{ fontSize: 15, fontWeight: 600 }}>{result.job_card_id || result.booking_code}</div>
               {result.conflicts?.length > 0 && (
                 <div style={{ color: "#d97706", fontSize: 12, marginTop: 6 }}>
                   {result.conflicts.length} conflict(s) detected — review before dispatching
@@ -1026,9 +1038,9 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
         {/* Header */}
         <div className="modalHeader">
           <div>
-            <h2 style={{margin:0}}>{booking.job_card_id}</h2>
+            <h2 style={{margin:0}}>{displayJobCardOrBooking(booking)}</h2>
             <span className={`statusBadge status-${booking.status}`} style={{marginTop:4,display:"inline-block"}}>{booking.status}</span>
-            {booking.parent_booking_id && <span className="badge badgeOptional" style={{marginLeft:6,fontSize:11}}>Supplementary — Ref: {booking.reference_job_card_id}</span>}
+            {booking.parent_booking_id && <span className="badge badgeOptional" style={{marginLeft:6,fontSize:11}}>Supplementary — Ref: {displayReferenceId(booking, "—")}</span>}
           </div>
           <button className="ghostBtn modalCloseBtn" onClick={onClose}>✕</button>
         </div>
@@ -1140,13 +1152,13 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
             <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:8}}>
               {supplementaryBookings.map(child => (
                 <div key={child.id} style={{background:"var(--surface2)",borderRadius:6,padding:"8px 12px",fontSize:12,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-                  <strong>{child.job_card_id}</strong>
+                  <strong>{displayJobCardOrBooking(child)}</strong>
                   <span className={`statusBadge status-${booking.status}`} style={{fontSize:11}}>{booking.status}</span>
-                  {onDownloadChildJobCard && (
-                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildJobCard(child.id, child.job_card_id)}>⬇ Job Card</button>
+                  {documentsReady(child.status) && onDownloadChildJobCard && (
+                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildJobCard(child.id, displayJobCardOrBooking(child))}>⬇ Job Card</button>
                   )}
-                  {onDownloadChildChallan && (
-                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildChallan(child.id, child.job_card_id)}>⬇ Challan</button>
+                  {documentsReady(child.status) && onDownloadChildChallan && (
+                    <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildChallan(child.id, displayJobCardOrBooking(child))}>⬇ Challan</button>
                   )}
                 </div>
               ))}
@@ -1363,6 +1375,7 @@ export default function BookingsPage() {
       const crew = projectBookings.flatMap((booking) => booking.crew || []);
       acc[project.id] = {
         bookingCount: projectBookings.length,
+        primaryBooking: projectBookings.find((booking) => !booking.parent_booking_id) || projectBookings[0] || null,
         equipment,
         accessories,
         crew,
@@ -1596,7 +1609,7 @@ export default function BookingsPage() {
         const createdProject = await api.createProject(buildProjectPayload());
         resolvedProjectId = createdProject.id;
       }
-      await api.createBooking({
+      const result = await api.createBooking({
         project_id: resolvedProjectId,
         destination,
         status: bookingStatus,
@@ -1614,7 +1627,13 @@ export default function BookingsPage() {
         call_time: composeDateTime(travelDay, callTime),
         packup_time: composeDateTime(returnDay, packupTime),
       });
-      setMessage(projectMode === "new" ? "Project and booking created together. Job card & challan are ready." : "Booking created. Job card & challan available for download.");
+      const identity = displayBookingId(result);
+      const jobCardReady = Boolean(result?.job_card_id);
+      setMessage(
+        projectMode === "new"
+          ? `Project and booking ${identity} created${jobCardReady ? `. Job card ${result.job_card_id} issued.` : ". Job card will be issued after confirmation."}`
+          : `Booking ${identity} created${jobCardReady ? `. Job card ${result.job_card_id} issued.` : ". Job card will be issued after confirmation."}`
+      );
       setProjectMode("existing");
       setExistingBookingMode("normal");
       setProjectForm(blankProject);
@@ -1831,7 +1850,7 @@ export default function BookingsPage() {
   function requestEditBooking(saveFn, booking) {
     setConfirmAction({
       title: "Save Booking Changes",
-      message: `Reconfirm the edit for ${booking.job_card_id}. The booking details and contact list will be updated.`,
+      message: `Reconfirm the edit for ${displayJobCardOrBooking(booking)}. The booking details and contact list will be updated.`,
       confirmLabel: "Save Changes",
       tone: "primary",
       onConfirm: async () => {
@@ -1858,7 +1877,7 @@ export default function BookingsPage() {
     setExistingBookingMode("supplementary");
     setBookingProjectId(String(b.project_id));
     setDestination(b.destination);
-    setRemarks(`Supplementary for ${b.reference_job_card_id || b.job_card_id}`);
+    setRemarks(`Supplementary for ${b.reference_job_card_id || b.job_card_id || b.booking_code}`);
     setParentBookingId(String(b.id));
     setTransportMode(b.transport_mode || "");
     setAwbNumber(b.awb_number || "");
@@ -1871,7 +1890,7 @@ export default function BookingsPage() {
     setEquipmentSelected(oldMainEquipment);
     setAccessorySelected(oldAccessories);
     setCrewSelected(oldCrew);
-    setMessage(`Pre-filled from ${b.job_card_id}: ${oldMainEquipment.length} equipment, ${oldAccessories.length} accessories, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
+    setMessage(`Pre-filled from ${displayJobCardOrBooking(b)}: ${oldMainEquipment.length} equipment, ${oldAccessories.length} accessories, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1960,7 +1979,7 @@ export default function BookingsPage() {
     setEquipmentSelected(oldEquipment);
     setAccessorySelected(oldAccessories);
     setCrewSelected(oldCrew);
-    setMessage(`Template ${booking.job_card_id} loaded. Dates, resources, contacts, and logistics are pre-filled for a new booking.`);
+      setMessage(`Template ${displayJobCardOrBooking(booking)} loaded. Dates, resources, contacts, and logistics are pre-filled for a new booking.`);
   }
 
   function applyPrefill() {
@@ -1986,7 +2005,7 @@ export default function BookingsPage() {
     setSelectedDates((latest.dates || []).filter((row) => row.date && row.type));
     setTemplateBookingId(String(latest.id));
     const supCount = allRelated.length - 1;
-    setMessage(`Pre-filled from ${latest.job_card_id}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower.`);
+      setMessage(`Pre-filled from ${displayJobCardOrBooking(latest)}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower.`);
     setPrefillPreview(null);
   }
 
@@ -2068,7 +2087,7 @@ export default function BookingsPage() {
         crew_ids: modifyCrew.map(c => c.id),
       });
       setModifyResult(result);
-      setMessage(`Supplementary ${result.job_card_id} created.${result.conflicts?.length ? ` ${result.conflicts.length} conflict(s).` : ""}`);
+      setMessage(`Supplementary ${result.job_card_id || result.booking_code} created.${result.conflicts?.length ? ` ${result.conflicts.length} conflict(s).` : ""}`);
       load();
     } catch (e) {
       setModifyResult(null);
@@ -2097,7 +2116,7 @@ export default function BookingsPage() {
     if (bookingSearch) {
       const q = bookingSearch.toLowerCase();
       data = data.filter(b =>
-        (b.job_card_id || "").toLowerCase().includes(q) ||
+        (displayJobCardOrBooking(b) || "").toLowerCase().includes(q) ||
         (b.project_title || "").toLowerCase().includes(q) ||
         (b.destination || "").toLowerCase().includes(q) ||
         (b.transport_mode || "").toLowerCase().includes(q) ||
@@ -2203,12 +2222,12 @@ export default function BookingsPage() {
 	                }
 	              }
             }}>
-              <option value="">Select original job card</option>
-              {supplementaryChoices.map(b => <option key={b.id} value={b.id}>{b.job_card_id} - {b.project_title}</option>)}
+              <option value="">Select original booking</option>
+              {supplementaryChoices.map(b => <option key={b.id} value={b.id}>{displayJobCardOrBooking(b)} - {b.project_title}</option>)}
             </select>
             <div className="helperText full">
               {supplementaryChoices.length
-                ? "Supplementary job cards follow the parent ID, like JC-00001-S1, and the road challan uses the same aligned additional ID."
+                ? "Supplementary bookings follow the confirmed parent job card, like JC-00001-S1, only after parent confirmation."
                 : "Create the first booking/job card first. Supplementary booking becomes available after that."}
             </div>
             </> : null}
@@ -2247,7 +2266,7 @@ export default function BookingsPage() {
 	            }}>
 	              <option value="">No template / project dates only</option>
 	              {templateChoices.map((booking) => (
-	                <option key={booking.id} value={booking.id}>{booking.job_card_id} - {booking.destination || booking.project_title}</option>
+	                <option key={booking.id} value={booking.id}>{displayJobCardOrBooking(booking)} - {booking.destination || booking.project_title}</option>
 	              ))}
 	            </select>
 	            </> : null}
@@ -2338,7 +2357,7 @@ export default function BookingsPage() {
           </div>
           {parentBookingId ? (
             <div className="accessoryHint">
-              <strong>Supplementary Flow:</strong> extra selected items will create a supplementary job card and challan with reference to {bookingDetails.find(b => String(b.id) === String(parentBookingId))?.reference_job_card_id || bookingDetails.find(b => String(b.id) === String(parentBookingId))?.job_card_id || parentBookingId}.
+              <strong>Supplementary Flow:</strong> extra selected items will create a supplementary booking linked to {displayReferenceId(bookingDetails.find(b => String(b.id) === String(parentBookingId)), parentBookingId)}.
             </div>
           ) : null}
 
@@ -2373,7 +2392,7 @@ export default function BookingsPage() {
             }}>
               <option value="">Select confirmed job card</option>
               {bookingDetails.filter(b => ["confirmed","dispatched"].includes(displayBookingStatus(b.status)) && !b.parent_booking_id).map(b => (
-                <option key={b.id} value={b.id}>{b.job_card_id} — {b.project_title}</option>
+                <option key={b.id} value={b.id}>{displayJobCardOrBooking(b)} — {b.project_title}</option>
               ))}
             </select>
 
@@ -2432,7 +2451,7 @@ export default function BookingsPage() {
 
               {modifyResult && (
                 <div className="full" style={{background:modifyResult.conflicts?.length?"#fff3cd":"#d4edda",border:"1px solid",borderColor:modifyResult.conflicts?.length?"#ffc107":"#28a745",borderRadius:6,padding:"10px 14px",fontSize:13}}>
-                  <strong>Supplementary created: {modifyResult.job_card_id}</strong>
+                  <strong>Supplementary created: {modifyResult.job_card_id || modifyResult.booking_code}</strong>
                   {modifyResult.conflicts?.length > 0 && (
                     <div style={{marginTop:6}}>
                       <strong style={{color:"#856404"}}>Conflicts ({modifyResult.conflicts.length}):</strong>
@@ -2464,13 +2483,23 @@ export default function BookingsPage() {
             <thead><tr><th><input type="checkbox" onChange={e => {
               const checked = e.target.checked;
               setPlannedSelected(checked ? filteredPlannedShoots.map(p => p.id) : []);
-            }} /></th><th>Project</th><th>Dates</th><th>Equipment</th><th>Accessories</th><th>Manpower</th><th>Actions</th></tr></thead>
+            }} /></th><th>Booking ID</th><th>Project</th><th>Dates</th><th>Equipment</th><th>Accessories</th><th>Manpower</th><th>Actions</th></tr></thead>
             <tbody>
               {plannedPg.pageData.map(p => (
                 <tr key={p.id}>
                   <td><input type="checkbox" checked={plannedSelected.includes(p.id)} onChange={e => {
                     setPlannedSelected(prev => e.target.checked ? [...prev, p.id] : prev.filter(id => id !== p.id));
                   }} /></td>
+                  <td style={{fontSize:12}}>
+                    {projectSummaries[p.id]?.primaryBooking ? (
+                      <>
+                        <strong>{displayBookingId(projectSummaries[p.id].primaryBooking)}</strong>
+                        {projectSummaries[p.id].primaryBooking?.job_card_id ? <div style={{color:"#999", marginTop:4}}>JC: {projectSummaries[p.id].primaryBooking.job_card_id}</div> : null}
+                      </>
+                    ) : (
+                      <span style={{color:"#999"}}>No booking yet</span>
+                    )}
+                  </td>
                   <td>
                     <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
                       onClick={() => {
@@ -2531,7 +2560,7 @@ export default function BookingsPage() {
         </div>
         <div className="tableWrap">
           <table className="allBookingsTable">
-            <thead><tr><th>Job Card ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>Equipment</th><th>Crew</th><th>Status</th><th>Damages</th><th>Downloadable Documents</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Booking ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>Equipment</th><th>Crew</th><th>Status</th><th>Damages</th><th>Downloadable Documents</th><th>Actions</th></tr></thead>
             <tbody>
               {bkPg.pageData.map(b => {
                 const pendingReturnCount = getPendingReturnCount(b);
@@ -2547,15 +2576,16 @@ export default function BookingsPage() {
                         type="button"
                         className="bookingGroupToggle"
                         onClick={() => toggleBookingGroup(b.id)}
-                        aria-label={`${isGroupExpanded ? "Collapse" : "Expand"} supplementary job cards for ${b.job_card_id}`}
+                        aria-label={`${isGroupExpanded ? "Collapse" : "Expand"} supplementary job cards for ${displayJobCardOrBooking(b)}`}
                       >
                         {isGroupExpanded ? "v" : ">"}
                       </button>
                     ) : null}
-                    <strong>{b.job_card_id}</strong>
+                    <strong>{displayBookingId(b)}</strong>
+                    {b.job_card_id ? <div style={{fontSize:11,color:"#999"}}>JC: {b.job_card_id}</div> : null}
                     {childBookings.length ? <button type="button" className="supplementaryCountBadge" onClick={() => toggleBookingGroup(b.id)}>{isGroupExpanded ? "Hide" : "Show"} {childBookings.length} supplementary job card{childBookings.length > 1 ? "s" : ""}</button> : null}
                     {b.parent_booking_id ? <span className="badge badgeOptional" style={{marginLeft:4,fontSize:10}}>Supplementary</span> : null}
-                    {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {b.reference_job_card_id}</div> : null}
+                    {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {displayReferenceId(b, "—")}</div> : null}
                     {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
                   </td>
                   <td>
@@ -2602,9 +2632,9 @@ export default function BookingsPage() {
                   <td className="pdfCell">
                     {documentsReady(b.status) ? (
                       <div className="documentDownloadCell">
-                        <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, b.job_card_id)}>Job Card</button>
-                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
-                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
+                        <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, displayJobCardOrBooking(b))}>Job Card</button>
+                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${displayJobCardOrBooking(b)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
+                        <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${displayJobCardOrBooking(b)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                       </div>
                     ) : (
                       <span className="helperText">{bookingStatusLabel === "planned" ? "Confirm first" : "Cancelled"}</span>
@@ -2630,9 +2660,10 @@ export default function BookingsPage() {
                   return (
                   <tr key={child.id} className="bookingGroupChild">
                     <td>
-                      <span className="supplementaryArrow">{"->"}</span><strong>{child.job_card_id}</strong>
+                      <span className="supplementaryArrow">{"->"}</span><strong>{displayBookingId(child)}</strong>
+                      {child.job_card_id ? <div style={{fontSize:11,color:"#999"}}>JC: {child.job_card_id}</div> : null}
                       <div><span className="badge badgeOptional" style={{fontSize:10}}>Supplementary</span></div>
-                      <div style={{fontSize:11,color:"#999"}}>Ref: {child.reference_job_card_id || b.job_card_id}</div>
+                      <div style={{fontSize:11,color:"#999"}}>Ref: {displayReferenceId(child, displayJobCardOrBooking(b))}</div>
                     </td>
                     <td>
                       <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
@@ -2664,9 +2695,9 @@ export default function BookingsPage() {
                     <td className="pdfCell">
                       {childDocsReady ? (
                         <div className="documentDownloadCell">
-                          <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(child.id, child.job_card_id)}>Job Card</button>
-                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(child.id), `challan_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
-                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(child.id), `manpower_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
+                          <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(child.id, displayJobCardOrBooking(child))}>Job Card</button>
+                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(child.id), `challan_${displayJobCardOrBooking(child)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
+                          <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(child.id), `manpower_${displayJobCardOrBooking(child)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                         </div>
                       ) : <span className="helperText">{childStatusLabel === "planned" ? "Confirm parent first" : "Cancelled"}</span>}
                     </td>
@@ -2714,9 +2745,9 @@ export default function BookingsPage() {
           onDamage={() => { setDamageBooking(viewDetailBooking); setDamageModal(true); }}
           onPartialReturn={() => { setPartialReturnBooking(viewDetailBooking); setPartialReturnModal(true); }}
           onCancel={() => { setCancelBookingId(viewDetailBooking.id); setCancelModal(true); }}
-          onDownloadJobCard={() => doJobCardDownload(viewDetailBooking.id, viewDetailBooking.job_card_id)}
-          onDownloadChallan={async () => { try { await downloadAuthorized(api.roadChallanPdfUrl(viewDetailBooking.id), `challan_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
-          onDownloadManpower={async () => { try { await downloadAuthorized(api.manpowerPdfUrl(viewDetailBooking.id), `manpower_${viewDetailBooking.job_card_id}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          onDownloadJobCard={() => doJobCardDownload(viewDetailBooking.id, displayJobCardOrBooking(viewDetailBooking))}
+          onDownloadChallan={async () => { try { await downloadAuthorized(api.roadChallanPdfUrl(viewDetailBooking.id), `challan_${displayJobCardOrBooking(viewDetailBooking)}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          onDownloadManpower={async () => { try { await downloadAuthorized(api.manpowerPdfUrl(viewDetailBooking.id), `manpower_${displayJobCardOrBooking(viewDetailBooking)}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
           supplementaryBookings={bookingDetails.filter(b => b.parent_booking_id === viewDetailBooking.id)}
           onDownloadChildJobCard={async (childId, childJobCardId) => { try { await downloadAuthorized(api.jobCardPdfUrl(childId), `jobcard_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
           onDownloadChildChallan={async (childId, childJobCardId) => { try { await downloadAuthorized(api.roadChallanPdfUrl(childId), `challan_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
@@ -2781,7 +2812,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? bookingDetails.find(b => String(b.id) === String(parentBookingId))?.reference_job_card_id || bookingDetails.find(b => String(b.id) === String(parentBookingId))?.job_card_id : null} contacts={normalizedContacts()} />
+      <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? displayReferenceId(bookingDetails.find(b => String(b.id) === String(parentBookingId))) : null} contacts={normalizedContacts()} />
       <QuickProjectModal open={quickProjectOpen} onClose={() => setQuickProjectOpen(false)} onSave={handleQuickProjectCreate} saving={quickProjectSaving} clientSuggestions={clientNameSuggestions} />
 
       {/* ── Prefill preview / confirmation modal ── */}
@@ -2793,7 +2824,7 @@ export default function BookingsPage() {
               <button className="ghostBtn modalCloseBtn" onClick={() => setPrefillPreview(null)}>Close</button>
             </div>
 	            <p className="helperText" style={{ marginBottom: 12 }}>
-	              Found <strong>{prefillPreview.allRelated.length}</strong> job card{prefillPreview.allRelated.length > 1 ? "s" : ""} ({prefillPreview.allRelated.map(b => b.job_card_id).join(", ")}) for this project.
+	              Found <strong>{prefillPreview.allRelated.length}</strong> booking{prefillPreview.allRelated.length > 1 ? "s" : ""} ({prefillPreview.allRelated.map(b => displayJobCardOrBooking(b)).join(", ")}) for this project.
 	              The following will be copied, including project dates and timings where available.
 	            </p>
 
