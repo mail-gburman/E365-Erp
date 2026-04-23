@@ -27,6 +27,30 @@ function countWarrantyExpiringSoon(items = []) {
   return items.filter((item) => item.warranty_expiry && new Date(item.warranty_expiry) <= week).length;
 }
 
+function CollapsibleCell({ value }) {
+  const text = Array.isArray(value) ? value.join(", ") : String(value ?? "-");
+  const looksLong = text.length > 48 || text.includes(",") || text.includes("\n");
+  const [open, setOpen] = useState(false);
+  if (!looksLong) return <span>{text}</span>;
+  const compact = text.split(",").slice(0, 2).join(", ").trim();
+  const hiddenCount = Math.max(text.split(",").length - 2, 0);
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ whiteSpace: open ? "normal" : "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {open ? text : `${compact}${hiddenCount > 0 ? `, +${hiddenCount} more` : ""}`}
+      </div>
+      <button
+        type="button"
+        className="ghostBtn compactBtn"
+        style={{ marginTop: 6, padding: "2px 8px", fontSize: 11 }}
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {open ? "Collapse" : "Expand"}
+      </button>
+    </div>
+  );
+}
+
 function DrilldownModal({ title, items, columns, actions = [], onClose }) {
   const [search, setSearch] = useState("");
   const rows = items || [];
@@ -50,7 +74,7 @@ function DrilldownModal({ title, items, columns, actions = [], onClose }) {
             <tbody>
               {pg.pageData.length === 0 && <tr><td colSpan={columns.length} style={{ textAlign: "center", color: "var(--muted)" }}>No items</td></tr>}
               {pg.pageData.map((row, i) => (
-                <tr key={i}>{columns.map((c, ci) => <td key={ci}>{row[ci] ?? "-"}</td>)}</tr>
+                <tr key={i}>{columns.map((c, ci) => <td key={ci}><CollapsibleCell value={row[ci]} /></td>)}</tr>
               ))}
             </tbody>
           </table>
