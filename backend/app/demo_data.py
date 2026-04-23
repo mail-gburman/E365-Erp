@@ -935,7 +935,11 @@ def remove_demo_data(db: Session):
     if not any([demo_booking_ids, demo_project_ids, demo_service_ids, demo_client_ids, demo_inventory_ids, demo_crew_ids]):
         return {"ok": True, "removed": False, "message": "No demo dataset found."}
 
+    # Break circular FK: service_jobs.source_damage_id ↔ damage_logs.auto_service_job_id
     if demo_service_ids:
+        db.query(models.ServiceJob).filter(models.ServiceJob.id.in_(demo_service_ids)).update(
+            {"source_damage_id": None}, synchronize_session=False
+        )
         db.query(models.DamageLog).filter(models.DamageLog.auto_service_job_id.in_(demo_service_ids)).delete(synchronize_session=False)
     if demo_booking_ids:
         db.query(models.DamageLog).filter(models.DamageLog.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
