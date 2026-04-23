@@ -9,7 +9,7 @@ from ..permissions import require_permission
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"], dependencies=[Depends(require_permission("bookings","view"))])
 
-ACTIVE_BOOKING_STATUSES = ["blocked", "dispatched"]
+ACTIVE_BOOKING_STATUSES = ["confirmed", "dispatched"]
 
 @router.get("")
 def dashboard(

@@ -121,7 +121,7 @@ export default function DashboardPage() {
     const serviceJobs = valueAt(5, []);
 
     const activeProjects = projects.filter((project) => ["planned", "confirmed"].includes(project.status)).length;
-    const activeBookings = bookings.filter((booking) => ["blocked", "dispatched"].includes(booking.status));
+    const activeBookings = bookings.filter((booking) => ["confirmed", "dispatched"].includes(booking.status));
     const deployedCrewIds = new Set(activeBookings.flatMap((booking) => (booking.crew || []).map((member) => member.id)));
     const activeEquipmentIds = new Set(activeBookings.flatMap((booking) => (booking.equipment || []).map((item) => item.id)));
     const fallback = {
@@ -352,7 +352,7 @@ export default function DashboardPage() {
   const drillReturnsDueToday = async () => {
     try {
       const bookings = await api.bookingDetails();
-      const due = bookings.filter((booking) => booking.status === "dispatched" || booking.status === "blocked");
+      const due = bookings.filter((booking) => booking.status === "dispatched");
       openDrilldown(
         `Returns Due Today — ${data?.returns_due_today ?? 0}`,
         ["Job Card", "Project", "Destination", "Status"],

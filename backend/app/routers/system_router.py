@@ -168,7 +168,11 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
             source="uploaded",
         ))
 
+    doc_ready_statuses = {"confirmed", "dispatched", "returned", "closed", "completed"}
     for booking in db.query(models.EventBooking).order_by(models.EventBooking.id.desc()).all():
+        effective_status = (booking.parent_booking.status if booking.parent_booking else booking.status) or ""
+        if effective_status.lower() not in doc_ready_statuses:
+            continue
         entity = f"{booking.job_card_id} · {_project_title(booking)}"
         if has_document_permission(current_user, "job_card", "view"):
             rows.append(_doc_row("job_card", f"Job Card {booking.job_card_id}", entity, f"/bookings/{booking.id}/job-card-pdf", booking.created_at))

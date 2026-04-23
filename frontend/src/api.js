@@ -128,6 +128,7 @@ export const api = {
   custody: () => get("/bookings/custody"),
   createBooking: (p) => post("/bookings/", p),
   createSupplementaryBooking: (id, p) => post(`/bookings/${id}/supplementary`, p),
+  confirmBooking: (id) => post(`/bookings/${id}/confirm`, {}),
   dispatchBooking: (id) => post(`/bookings/${id}/dispatch`, {}),
   returnBooking: (id) => post(`/bookings/${id}/return`, {}),
   completeBooking: (id, p = {}) => post(`/bookings/${id}/complete`, p),
