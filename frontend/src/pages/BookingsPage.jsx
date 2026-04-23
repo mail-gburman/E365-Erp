@@ -19,8 +19,12 @@ function displayBookingStatus(status) {
   return status === "blocked" ? "planned" : status;
 }
 
-function documentsReady(status) {
-  return DOC_READY_BOOKING_STATUSES.includes(displayBookingStatus(status));
+function documentsReady(input) {
+  if (input && typeof input === "object") {
+    if (input.job_card_id) return true;
+    return DOC_READY_BOOKING_STATUSES.includes(displayBookingStatus(input.status));
+  }
+  return DOC_READY_BOOKING_STATUSES.includes(displayBookingStatus(input));
 }
 
 function displayBookingId(booking) {
@@ -1154,10 +1158,10 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
                 <div key={child.id} style={{background:"var(--surface2)",borderRadius:6,padding:"8px 12px",fontSize:12,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   <strong>{displayJobCardOrBooking(child)}</strong>
                   <span className={`statusBadge status-${booking.status}`} style={{fontSize:11}}>{booking.status}</span>
-                  {documentsReady(child.status) && onDownloadChildJobCard && (
+                  {documentsReady(child) && onDownloadChildJobCard && (
                     <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildJobCard(child.id, displayJobCardOrBooking(child))}>⬇ Job Card</button>
                   )}
-                  {documentsReady(child.status) && onDownloadChildChallan && (
+                  {documentsReady(child) && onDownloadChildChallan && (
                     <button type="button" className="ghostBtn compactBtn" style={{fontSize:11}} onClick={() => onDownloadChildChallan(child.id, displayJobCardOrBooking(child))}>⬇ Challan</button>
                   )}
                 </div>
@@ -1199,7 +1203,12 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
             <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>
           </>}
 
-          {isCancelled && <p className="helperText" style={{margin:0}}>This booking is cancelled — no actions available.</p>}
+          {isCancelled && documentsReady(booking) && <>
+            <button className="ghostBtn compactBtn" onClick={onDownloadJobCard}>⬇ Job Card</button>
+            <button className="ghostBtn compactBtn" onClick={onDownloadChallan}>⬇ Challan</button>
+            <button className="ghostBtn compactBtn" onClick={onDownloadManpower}>⬇ Manpower</button>
+          </>}
+          {isCancelled && <p className="helperText" style={{margin:0}}>This booking is cancelled{documentsReady(booking) ? " — issued documents remain available." : " — no actions available."}</p>}
 
           <button className="ghostBtn" onClick={onClose}>Close</button>
         </div>
@@ -2630,14 +2639,14 @@ export default function BookingsPage() {
                     ) : <span style={{color:"#4ade80",fontSize:12}}>None</span>}
                   </td>
                   <td className="pdfCell">
-                    {documentsReady(b.status) ? (
+                    {documentsReady(b) ? (
                       <div className="documentDownloadCell">
                         <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, displayJobCardOrBooking(b))}>Job Card</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${displayJobCardOrBooking(b)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${displayJobCardOrBooking(b)}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                       </div>
                     ) : (
-                      <span className="helperText">{bookingStatusLabel === "planned" ? "Confirm first" : "Cancelled"}</span>
+                      <span className="helperText">{bookingStatusLabel === "planned" ? "Confirm first" : "Unavailable"}</span>
                     )}
                   </td>
                   <td className="actionCell">
@@ -2655,8 +2664,8 @@ export default function BookingsPage() {
                   </td>
                 </tr>
                 {isGroupExpanded && childBookings.map(child => {
-                  const childStatusLabel = displayBookingStatus(documentsReady(b.status) && displayBookingStatus(child.status) === "planned" ? b.status : child.status);
-                  const childDocsReady = documentsReady(child.status) || documentsReady(b.status);
+                  const childStatusLabel = displayBookingStatus(documentsReady(b) && displayBookingStatus(child.status) === "planned" ? b.status : child.status);
+                  const childDocsReady = documentsReady(child) || documentsReady(b);
                   return (
                   <tr key={child.id} className="bookingGroupChild">
                     <td>
