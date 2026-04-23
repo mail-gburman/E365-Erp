@@ -5,7 +5,6 @@ from . import models
 from .auth import hash_password
 from .permissions import ROLE_DEFAULTS
 from .utils import calc_block_window
-from .demo_data import ensure_demo_data
 
 def seed_db(db: Session):
     if db.query(models.User).first():
@@ -322,4 +321,3 @@ def seed_db(db: Session):
     db.add(models.OutboundPaper(paper_number="PAP-00002", paper_type="Equipment Gate Pass", reference_name="BPL Opening Ceremony", destination="Salt Lake Stadium", issued_by="Operations", issue_status="draft", related_booking_id=b2.id, signature_name="Arindam Roy"))
 
     db.commit()
-    ensure_demo_data(db)
