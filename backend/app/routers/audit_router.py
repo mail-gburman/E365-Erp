@@ -499,7 +499,15 @@ def audit_zip(range_key: str = Query("7d"), category: str = Query("all"), start_
 
 @router.post("/reset-all", dependencies=[Depends(require_roles("admin"))])
 def reset_all(current_user = Depends(get_current_user)):
-    Base.metadata.drop_all(bind=engine)
+    from sqlalchemy import text, inspect
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as conn:
+            tables = inspect(engine).get_table_names()
+            for t in tables:
+                conn.execute(text(f'DROP TABLE IF EXISTS "{t}" CASCADE'))
+            conn.commit()
+    else:
+        Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     seed_session = SessionLocal()
     try:
