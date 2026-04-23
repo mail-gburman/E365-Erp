@@ -39,14 +39,14 @@ def _ensure(db: Session, model, lookup: dict, values: dict | None = None):
 
 
 def _refresh_inventory_statuses(db: Session):
-    active_booking_statuses = {"blocked", "dispatched"}
+    active_booking_statuses = {"confirmed", "dispatched"}
     for item in db.query(models.InventoryItem).all():
         active_booking_rows = db.query(models.BookingEquipment).join(models.EventBooking).filter(
             models.BookingEquipment.inventory_item_id == item.id,
             models.EventBooking.status.in_(active_booking_statuses),
         ).all()
         has_dispatched = any(row.booking and row.booking.status == "dispatched" for row in active_booking_rows)
-        has_blocked = any(row.booking and row.booking.status == "blocked" for row in active_booking_rows)
+        has_blocked = any(row.booking and row.booking.status == "confirmed" for row in active_booking_rows)
         active_service = db.query(models.ServiceJob).filter(
             models.ServiceJob.inventory_item_id == item.id,
             models.ServiceJob.status == "in_service",
@@ -66,7 +66,7 @@ def _refresh_inventory_statuses(db: Session):
 
 
 def _refresh_crew_statuses(db: Session):
-    active_booking_statuses = {"blocked", "dispatched"}
+    active_booking_statuses = {"confirmed", "dispatched"}
     for person in db.query(models.CrewMember).all():
         active_booking = db.query(models.BookingCrew).join(models.EventBooking).filter(
             models.BookingCrew.crew_member_id == person.id,
@@ -534,7 +534,7 @@ def ensure_demo_data(db: Session):
         {
             "project_id": projects["Demo Planned Brand Launch"].id,
             "destination": "JW Marriott Ballroom, Kolkata",
-            "status": "blocked",
+            "status": "planned",
             "remarks": "Primary planned booking for launch show.",
             "transport_mode": "company_vehicle",
             "awb_number": "KPS-DEMO-LAUNCH-01",
@@ -562,7 +562,7 @@ def ensure_demo_data(db: Session):
             _ensure_booking_crew(db, parent_booking.id, person.id)
             person.status = "blocked"
             _ensure_custody(db, parent_booking.id, None, person.id, "assign", "Office", "JW Marriott Ballroom, Kolkata", "Kolkata Warehouse", "Demo planned crew assignment")
-    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90001"}, {"booking_id": parent_booking.id, "pass_type": "gate_out", "approved_by": "System Auto", "status": "issued", "remarks": "Demo blocked booking gate pass"})
+    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90001"}, {"booking_id": parent_booking.id, "pass_type": "gate_out", "approved_by": "System Auto", "status": "issued", "remarks": "Demo planned booking gate pass"})
 
     supplementary_booking, _ = _ensure(
         db,
@@ -572,7 +572,7 @@ def ensure_demo_data(db: Session):
             "project_id": projects["Demo Planned Brand Launch"].id,
             "parent_booking_id": parent_booking.id,
             "destination": "JW Marriott Ballroom, Kolkata",
-            "status": "blocked",
+            "status": "planned",
             "remarks": "Supplementary add-on for extra power and wireless video.",
             "transport_mode": "company_vehicle",
             "awb_number": "KPS-DEMO-LAUNCH-S1",

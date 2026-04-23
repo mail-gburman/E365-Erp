@@ -92,7 +92,7 @@ def create_service_job(payload: schemas.ServiceJobCreate, db: Session = Depends(
         raise HTTPException(status_code=400, detail=f"{inv.asset_code} is already under service.")
     active_booking = db.query(models.BookingEquipment).join(models.EventBooking).filter(
         models.BookingEquipment.inventory_item_id == payload.inventory_item_id,
-        models.EventBooking.status.in_(["blocked", "dispatched"])
+        models.EventBooking.status.in_(["confirmed", "dispatched"])
     ).first()
     if active_booking:
         allow_return_service = False

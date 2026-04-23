@@ -12,6 +12,16 @@ import { api, downloadAuthorized } from "../api";
 const blankProject = { title:"", show_type:"Reality Show", client_id:"", venue:"", origin_warehouse_id:"", shoot_start:"", shoot_end:"", status:"planned", notes:"", dates:[] };
 const blankContact = { name:"", mobile:"", aadhar:"" };
 const blankClientContact = { contact_name:"", designation:"", email:"", phone_country_code:"+91", phone_number:"", is_primary:false };
+const DOC_READY_BOOKING_STATUSES = ["confirmed", "dispatched", "returned", "closed", "completed"];
+const CONFIRMED_BOOKING_STATUSES = DOC_READY_BOOKING_STATUSES;
+
+function displayBookingStatus(status) {
+  return status === "blocked" ? "planned" : status;
+}
+
+function documentsReady(status) {
+  return DOC_READY_BOOKING_STATUSES.includes(displayBookingStatus(status));
+}
 
 function groupEquipment(items = []) {
   const baseName = (value = "") => value.replace(/\s+#\d+\s*$/, "").trim();
@@ -1004,7 +1014,7 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
 
   const fmt = (v) => v ? new Date(v).toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
   const isPending = ["planned"].includes(booking.status);
-  const isConfirmed = ["confirmed","blocked"].includes(booking.status);
+  const isConfirmed = booking.status === "confirmed";
   const isDispatched = booking.status === "dispatched";
   const isReturned = booking.status === "returned";
   const isCancelled = booking.status === "cancelled";
@@ -1252,7 +1262,7 @@ export default function BookingsPage() {
   const [parentBookingId, setParentBookingId] = useState("");
 
   // Booking tab navigation
-  const [bookingTab, setBookingTab] = useState("new"); // "new" | "modify" | "planned" | "all"
+  const [bookingTab, setBookingTab] = useState("new"); // "new" | "planned" | "confirmed" | "modify" | "all"
 
   // Modify Booking tab state
   const [modifyShootBooking, setModifyShootBooking] = useState(null);
@@ -1432,7 +1442,7 @@ export default function BookingsPage() {
     if (!availabilityWindow?.block_start || !availabilityWindow?.block_end) {
       return overall;
     }
-    const activeBookings = bookingDetails.filter((booking) => ["confirmed", "blocked", "dispatched"].includes(booking.status));
+    const activeBookings = bookingDetails.filter((booking) => ["confirmed", "dispatched"].includes(displayBookingStatus(booking.status)));
     const overlapsWindow = (booking) => {
       const project = projects.find((item) => item.id === booking.project_id);
       return project?.block_start && project?.block_end && rangesOverlap(
@@ -1670,6 +1680,16 @@ export default function BookingsPage() {
   }
 
   async function doDispatch(id) { try { await api.dispatchBooking(id); setMessage("Booking dispatched."); load(); } catch(e){ setMessage(String(e.message||e)); } }
+
+  async function doConfirmBooking(id) {
+    try {
+      await api.confirmBooking(id);
+      setMessage("Booking confirmed.");
+      load();
+    } catch(e) {
+      setMessage(String(e.message || e));
+    }
+  }
 
   async function doCompleteBooking(id) {
     try {
@@ -2069,7 +2089,11 @@ export default function BookingsPage() {
 
   const filteredBookings = useMemo(() => {
     let data = bookingDetails.filter(b => !b.parent_booking_id);
-    if (bookingStatusFilter) data = data.filter(b => b.status === bookingStatusFilter);
+    if (bookingTab === "confirmed") {
+      data = data.filter(b => CONFIRMED_BOOKING_STATUSES.includes(displayBookingStatus(b.status)));
+    } else if (bookingStatusFilter) {
+      data = data.filter(b => displayBookingStatus(b.status) === bookingStatusFilter);
+    }
     if (bookingSearch) {
       const q = bookingSearch.toLowerCase();
       data = data.filter(b =>
@@ -2082,11 +2106,11 @@ export default function BookingsPage() {
       );
     }
     return data;
-  }, [bookingDetails, bookingSearch, bookingStatusFilter]);
+  }, [bookingDetails, bookingSearch, bookingStatusFilter, bookingTab]);
   const bkPg = usePagination(filteredBookings, 10);
 
-  // Planned tab: only projects that have NO confirmed/blocked/dispatched/returned booking yet
-  const ISSUED_STATUSES = ["confirmed","blocked","dispatched","returned"];
+  // Planned tab: only projects that have NO confirmed/dispatched/returned booking yet.
+  const ISSUED_STATUSES = ["confirmed","dispatched","returned"];
   const plannedShoots = useMemo(() => {
     return plannedShootsRaw.filter(p =>
       !bookingDetails.some(b => b.project_id === p.id && ISSUED_STATUSES.includes(b.status))
@@ -2102,7 +2126,7 @@ export default function BookingsPage() {
       {message ? <div className="messageBar">{message} <button className="dismissBtn" onClick={()=>setMessage("")}>Dismiss</button></div> : null}
 
       <div className="bookingTabBar">
-        {[["new","New Booking"],["modify","Modify Booking"],["planned","Planned Booking"],["all","All Bookings"]].map(([key,label])=>(
+        {[["new","New Booking"],["planned","Planned Bookings"],["confirmed","Confirmed Bookings"],["modify","Modify Booking"],["all","All Bookings"]].map(([key,label])=>(
           <button key={key} type="button" className={`bookingTabBtn${bookingTab===key?" active":""}`} onClick={()=>setBookingTab(key)}>{label}</button>
         ))}
       </div>
@@ -2348,7 +2372,7 @@ export default function BookingsPage() {
               if (b) openModifyShoot(b);
             }}>
               <option value="">Select confirmed job card</option>
-              {bookingDetails.filter(b => ["confirmed","blocked","dispatched"].includes(b.status) && !b.parent_booking_id).map(b => (
+              {bookingDetails.filter(b => ["confirmed","dispatched"].includes(displayBookingStatus(b.status)) && !b.parent_booking_id).map(b => (
                 <option key={b.id} value={b.id}>{b.job_card_id} — {b.project_title}</option>
               ))}
             </select>
@@ -2429,7 +2453,7 @@ export default function BookingsPage() {
       )}
 
       {/* ──── PLANNED SHOOTS MANAGEMENT ──── */}
-      {bookingTab === "planned" && <Card title="Planned Shoots Management">
+      {bookingTab === "planned" && <Card title="Planned Bookings">
         <p className="helperText">Select planned shoots to confirm or cancel in bulk. Ensure no equipment conflicts before confirming.</p>
         <div className="listToolbar">
           <SearchBar value={plannedSearch} onChange={value => { setPlannedSearch(value); plannedPg.setPage(1); }} suggestions={buildSuggestions(plannedShoots)} placeholder="Search planned shoots by project, date, equipment, crew..." />
@@ -2493,12 +2517,16 @@ export default function BookingsPage() {
       </Card>}
 
       {/* ──── BOOKINGS TABLE ──── */}
-      {bookingTab === "all" && <Card title="All Bookings">
+      {(bookingTab === "all" || bookingTab === "confirmed") && <Card title={bookingTab === "confirmed" ? "Confirmed Bookings" : "All Bookings"}>
         <div className="auditSubFilters" style={{marginBottom:10}}>
           <SearchBar value={bookingSearch} onChange={value=>{setBookingSearch(value);bkPg.setPage(1);}} suggestions={buildSuggestions(bookingDetails)} placeholder="Search bookings by job card, project, destination, equipment, crew..." />
-          <select value={bookingStatusFilter} onChange={e=>{setBookingStatusFilter(e.target.value);bkPg.setPage(1);}}>
-            <option value="">All statuses</option><option value="planned">Planned</option><option value="confirmed">Confirmed</option><option value="blocked">Blocked</option><option value="dispatched">Dispatched</option><option value="returned">Returned</option><option value="cancelled">Cancelled</option>
-          </select>
+          {bookingTab === "all" && (
+            <div className="bookingTabBar bookingStatusTabs">
+              {[["","All"],["planned","Planned"],["confirmed","Confirmed"]].map(([key,label]) => (
+                <button key={label} type="button" className={`bookingTabBtn${bookingStatusFilter===key?" active":""}`} onClick={()=>{setBookingStatusFilter(key);bkPg.setPage(1);}}>{label}</button>
+              ))}
+            </div>
+          )}
           <span style={{fontSize:11,color:"var(--muted)"}}>{filteredBookings.length} bookings</span>
         </div>
         <div className="tableWrap">
@@ -2509,6 +2537,7 @@ export default function BookingsPage() {
                 const pendingReturnCount = getPendingReturnCount(b);
                 const childBookings = bookingDetails.filter(child => child.parent_booking_id === b.id);
                 const isGroupExpanded = Boolean(expandedBookingGroups[b.id]);
+                const bookingStatusLabel = displayBookingStatus(b.status);
                 return (
                 <React.Fragment key={b.id}>
                 <tr className={childBookings.length ? "bookingGroupParent" : ""}>
@@ -2562,7 +2591,7 @@ export default function BookingsPage() {
                     {b.crew.length === 0 && "-"}
                   </td>
                   <td>
-                    <span className={`statusBadge status-${b.status}`}>{b.status}</span>
+                    <span className={`statusBadge status-${bookingStatusLabel}`}>{bookingStatusLabel}</span>
                     {b.cancellation_reason && <div style={{fontSize:11,color:"#fca5a5",marginTop:2}}>Reason: {b.cancellation_reason}</div>}
                   </td>
                   <td>
@@ -2571,30 +2600,34 @@ export default function BookingsPage() {
                     ) : <span style={{color:"#4ade80",fontSize:12}}>None</span>}
                   </td>
                   <td className="pdfCell">
-                    { ["planned", "confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(b.status) ? (
+                    {documentsReady(b.status) ? (
                       <div className="documentDownloadCell">
                         <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(b.id, b.job_card_id)}>Job Card</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(b.id), `challan_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
                         <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(b.id), `manpower_${b.job_card_id || b.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                       </div>
                     ) : (
-                      <span className="helperText">Cancelled</span>
+                      <span className="helperText">{bookingStatusLabel === "planned" ? "Confirm first" : "Cancelled"}</span>
                     )}
                   </td>
                   <td className="actionCell">
                     <div className="actionButtonGroup">
-                      {(b.status === "confirmed" || b.status === "blocked") && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(b.id)}>Dispatch</button>}
+                      {bookingStatusLabel === "planned" && <button className="primaryBtn compactBtn" onClick={()=>doConfirmBooking(b.id)}>Confirm</button>}
+                      {b.status === "confirmed" && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(b.id)}>Dispatch</button>}
                       {b.status === "dispatched" && <button className="ghostBtn compactBtn" onClick={()=>{setPartialReturnBooking(b); setPartialReturnModal(true);}}>Partial Return</button>}
                       {b.status === "dispatched" && <button className="primaryBtn compactBtn" onClick={()=>doCompleteBooking(b.id)}>Complete Booking</button>}
                       {["dispatched", "returned"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage / Missing</button>}
                       {! ["dispatched", "returned", "cancelled"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>}
-                      {["confirmed","blocked"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>setSupplementaryTarget(b)}>Supplementary</button>}
-                      {["confirmed","blocked"].includes(b.status) && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
+                      {b.status === "confirmed" && <button className="ghostBtn compactBtn" onClick={()=>setSupplementaryTarget(b)}>Supplementary</button>}
+                      {b.status === "confirmed" && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
                       {b.status !== "returned" && b.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(b.id);setCancelModal(true);}}>Cancel</button>}
                     </div>
                   </td>
                 </tr>
-                {isGroupExpanded && childBookings.map(child => (
+                {isGroupExpanded && childBookings.map(child => {
+                  const childStatusLabel = displayBookingStatus(documentsReady(b.status) && displayBookingStatus(child.status) === "planned" ? b.status : child.status);
+                  const childDocsReady = documentsReady(child.status) || documentsReady(b.status);
+                  return (
                   <tr key={child.id} className="bookingGroupChild">
                     <td>
                       <span className="supplementaryArrow">{"->"}</span><strong>{child.job_card_id}</strong>
@@ -2626,26 +2659,25 @@ export default function BookingsPage() {
                       {child.crew.map(x => <div key={x.id} style={{fontSize:12,marginBottom:2}}>{x.name}</div>)}
                       {child.crew.length === 0 && "-"}
                     </td>
-                    <td><span className={`statusBadge status-${child.status}`}>{child.status}</span></td>
+                    <td><span className={`statusBadge status-${childStatusLabel}`}>{childStatusLabel}</span></td>
                     <td>{(child.damages || []).length > 0 ? <span className="badge badgeMandatory">{child.damages.length}</span> : <span style={{color:"#4ade80",fontSize:12}}>None</span>}</td>
                     <td className="pdfCell">
-                      { ["planned", "confirmed", "blocked", "dispatched", "returned", "closed", "completed"].includes(child.status) ? (
+                      {childDocsReady ? (
                         <div className="documentDownloadCell">
                           <button type="button" className="downloadBtn compactBtn" onClick={()=>doJobCardDownload(child.id, child.job_card_id)}>Job Card</button>
                           <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.roadChallanPdfUrl(child.id), `challan_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Challan</button>
                           <button type="button" className="downloadBtn compactBtn" onClick={async()=>{ try { await downloadAuthorized(api.manpowerPdfUrl(child.id), `manpower_${child.job_card_id || child.id}.pdf`); } catch(e){ setMessage(String(e.message||e)); } }}>Manpower</button>
                         </div>
-                      ) : <span className="helperText">Cancelled</span>}
+                      ) : <span className="helperText">{childStatusLabel === "planned" ? "Confirm parent first" : "Cancelled"}</span>}
                     </td>
                     <td className="actionCell">
                       <div className="actionButtonGroup">
-                        {(child.status === "confirmed" || child.status === "blocked") && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(child.id)}>Dispatch</button>}
                         {! ["dispatched", "returned", "cancelled"].includes(child.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(child);setEditModal(true);}}>Edit</button>}
                         {child.status !== "returned" && child.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(child.id);setCancelModal(true);}}>Cancel</button>}
                       </div>
                     </td>
                   </tr>
-                ))}
+                );})}
                 </React.Fragment>
                 );
               })}
