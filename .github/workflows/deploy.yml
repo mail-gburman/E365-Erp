@@ -41,7 +41,9 @@ jobs:
               echo "EC2_APP_DIR secret is empty"
               exit 1
             fi
-            mkdir -p "$APP_DIR"
+            sudo mkdir -p "$APP_DIR"
+            sudo mkdir -p "$APP_DIR/frontend/dist"
+            sudo chown -R "$USER":"$USER" "$APP_DIR"
             cd "$APP_DIR"
             if [ ! -d .git ]; then
               echo "Git repo not found in $APP_DIR"
