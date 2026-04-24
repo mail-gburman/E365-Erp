@@ -2,6 +2,28 @@ from datetime import date, datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+class RolePresetCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    permissions_json: str
+
+class RolePresetUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    permissions_json: Optional[str] = None
+
+class RolePresetRead(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    permissions_json: str
+    is_builtin: bool
+    created_by: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str

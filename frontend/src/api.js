@@ -240,6 +240,17 @@ export const adminApi = {
     const res = await fetch(`${API_BASE}/admin/users/${id}`, { method: "DELETE", headers: headers(true) });
     return parse(res);
   },
+  // Role presets
+  presets: () => get("/admin/presets"),
+  createPreset: (p) => post("/admin/presets", p),
+  updatePreset: async (id, p) => {
+    const res = await fetch(`${API_BASE}/admin/presets/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) });
+    return parse(res);
+  },
+  deletePreset: async (id) => {
+    const res = await fetch(`${API_BASE}/admin/presets/${id}`, { method: "DELETE", headers: headers(true) });
+    return parse(res);
+  },
   // Session management
   sessions: () => get("/admin/sessions"),
   revokeSession: async (id) => {

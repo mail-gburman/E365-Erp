@@ -6,7 +6,36 @@ from .auth import hash_password
 from .permissions import ROLE_DEFAULTS
 from .utils import calc_block_window
 
+_BUILTIN_PRESET_NAMES = ["admin", "producer", "operations", "store", "accounts", "qc", "viewer"]
+
+_BUILTIN_DESCRIPTIONS = {
+    "admin":      "Full access to all modules and actions",
+    "producer":   "Project & booking oversight, approvals, exports — no master edits",
+    "operations": "End-to-end field ops: bookings, dispatch, returns, QC, papers",
+    "store":      "Warehouse, inventory management, dispatch/returns, QC",
+    "accounts":   "Billing, invoicing, procurement and financial approvals",
+    "qc":         "Quality control, service jobs, damage reporting, returns",
+    "viewer":     "Read-only access across all non-sensitive modules",
+}
+
+
+def seed_builtin_presets(db: Session):
+    """Ensure all built-in role presets exist in the DB. Safe to call repeatedly."""
+    for name in _BUILTIN_PRESET_NAMES:
+        existing = db.query(models.RolePreset).filter(models.RolePreset.name == name).first()
+        if not existing:
+            db.add(models.RolePreset(
+                name=name,
+                description=_BUILTIN_DESCRIPTIONS.get(name, ""),
+                permissions_json=json.dumps(ROLE_DEFAULTS.get(name, {})),
+                is_builtin=True,
+                created_by="system",
+            ))
+    db.commit()
+
+
 def seed_db(db: Session):
+    seed_builtin_presets(db)
     if db.query(models.User).first():
         return
 
