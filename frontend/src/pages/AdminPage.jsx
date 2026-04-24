@@ -109,8 +109,17 @@ function normalizePerms(input) {
   const out = emptyPerms();
   if (!input || typeof input !== "object") return out;
   MODULE_KEYS.forEach(k => {
-    if (input[k] && typeof input[k] === "object")
+    if (input[k] && typeof input[k] === "object") {
+      // Explicit entry — use directly (covers both module-level and field-level keys)
       ACTIONS.forEach(a => { out[k][a] = !!input[k][a]; });
+    } else if (k.includes(".")) {
+      // Field key not explicitly stored → inherit from its parent module key
+      // e.g. "masters.all_master_lists" inherits from "masters"
+      const parent = k.split(".")[0];
+      if (input[parent] && typeof input[parent] === "object") {
+        ACTIONS.forEach(a => { out[k][a] = !!input[parent][a]; });
+      }
+    }
   });
   return out;
 }
@@ -238,6 +247,7 @@ function PresetsTab() {
   const [msg, setMsg] = useState("");
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [editingBuiltin, setEditingBuiltin] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", perms: emptyPerms() });
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
@@ -251,22 +261,33 @@ function PresetsTab() {
     setForm({ name: "", description: "", perms: emptyPerms() });
     setCreating(true);
     setEditingId(null);
+    setEditingBuiltin(false);
+    setExpandedId(null);
   }
+
   function startEdit(preset) {
     setForm({ name: preset.name, description: preset.description || "", perms: parsePerms(preset.permissions_json) });
     setEditingId(preset.id);
+    setEditingBuiltin(preset.is_builtin);
     setCreating(false);
+    setExpandedId(null);
   }
+
   function applyBuiltin(roleName) {
     setForm(f => ({ ...f, perms: clone(BUILTIN_PRESETS[roleName] || emptyPerms()) }));
   }
-  function cancel() { setCreating(false); setEditingId(null); }
+
+  function cancel() { setCreating(false); setEditingId(null); setEditingBuiltin(false); }
 
   async function savePreset() {
     if (!form.name.trim()) { setMsg("Preset name is required."); return; }
     setSaving(true);
     try {
-      const payload = { name: form.name.trim(), description: form.description.trim(), permissions_json: JSON.stringify(form.perms) };
+      const payload = {
+        name: form.name.trim(),
+        description: form.description.trim(),
+        permissions_json: JSON.stringify(form.perms),
+      };
       if (editingId) await adminApi.updatePreset(editingId, payload);
       else await adminApi.createPreset(payload);
       setMsg(editingId ? "Preset updated." : "Preset created.");
@@ -275,8 +296,14 @@ function PresetsTab() {
     finally { setSaving(false); }
   }
 
+  async function resetBuiltin(preset) {
+    if (!confirm(`Reset "${preset.name}" back to its original default permissions? All your edits will be lost.`)) return;
+    try { await adminApi.resetPreset(preset.id); setMsg(`"${preset.name}" reset to defaults.`); load(); }
+    catch (e) { setMsg(String(e.message || e)); }
+  }
+
   async function deletePreset(preset) {
-    if (!confirm(`Delete preset "${preset.name}"?`)) return;
+    if (!confirm(`Delete preset "${preset.name}"? This cannot be undone.`)) return;
     try { await adminApi.deletePreset(preset.id); setMsg("Preset deleted."); load(); }
     catch (e) { setMsg(String(e.message || e)); }
   }
@@ -285,63 +312,105 @@ function PresetsTab() {
 
   return (
     <div>
-      {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button></div>}
+      {msg && (
+        <div className="messageBar" style={{ marginBottom: 12 }}>
+          {msg}
+          <button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button>
+        </div>
+      )}
 
-      {/* ── Preset list ── */}
+      {/* ── Top bar ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <span className="helperText">{presets.length} role preset(s)</span>
-        {!creating && !editingId && <button className="primaryBtn" type="button" onClick={startCreate}>+ Create Custom Preset</button>}
+        <span className="helperText">{presets.length} role preset(s) · Built-in presets can be edited (use Reset to restore defaults)</span>
+        {!creating && !editingId && (
+          <button className="primaryBtn" type="button" onClick={startCreate}>+ Create Custom Preset</button>
+        )}
       </div>
 
+      {/* ── Preset cards ── */}
       <div style={{ display: "grid", gap: 12, marginBottom: 24 }}>
         {presets.map(preset => {
           const p = parsePerms(preset.permissions_json);
           const active = countPerms(p);
           const isExpanded = expandedId === preset.id;
           const isEditing = editingId === preset.id;
+
           return (
-            <div key={preset.id} style={{ border: "1px solid var(--border,#333)", borderRadius: 10, overflow: "hidden", background: "var(--surface2,#1e2228)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px" }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div key={preset.id} style={{ border: `1px solid ${isEditing ? "#e11d48" : "var(--border,#333)"}`, borderRadius: 10, overflow: "hidden", background: "var(--surface2,#1e2228)" }}>
+
+              {/* Card header row */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "14px 16px 10px" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <strong style={{ fontSize: 15 }}>{preset.name.charAt(0).toUpperCase() + preset.name.slice(1)}</strong>
-                    {preset.is_builtin && <span style={{ fontSize: 10, background: "#1e3a5f", color: "#60a5fa", borderRadius: 99, padding: "1px 7px", fontWeight: 600 }}>BUILT-IN</span>}
-                    <span style={{ fontSize: 11, color: "var(--muted,#888)" }}>{active}/{total} permissions</span>
+                    {preset.is_builtin && (
+                      <span style={{ fontSize: 10, background: "#1e3a5f", color: "#60a5fa", borderRadius: 99, padding: "2px 8px", fontWeight: 700, letterSpacing: "0.03em" }}>
+                        BUILT-IN
+                      </span>
+                    )}
+                    <span style={{ fontSize: 12, color: "var(--muted,#777)" }}>{active}/{total} permissions</span>
                   </div>
-                  {preset.description && <div style={{ fontSize: 12, color: "var(--muted,#888)", marginTop: 2 }}>{preset.description}</div>}
+                  {preset.description && (
+                    <div style={{ fontSize: 12, color: "var(--muted,#888)", marginTop: 3 }}>{preset.description}</div>
+                  )}
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <button className="ghostBtn compactBtn" type="button" onClick={() => setExpandedId(isExpanded ? null : preset.id)}>
                     {isExpanded ? "Hide Matrix" : "View Matrix"}
                   </button>
+                  {!isEditing && (
+                    <button className="ghostBtn compactBtn" type="button" onClick={() => startEdit(preset)}>
+                      Edit
+                    </button>
+                  )}
+                  {preset.is_builtin && !isEditing && (
+                    <button className="ghostBtn compactBtn" type="button" onClick={() => resetBuiltin(preset)}>
+                      Reset
+                    </button>
+                  )}
                   {!preset.is_builtin && !isEditing && (
-                    <>
-                      <button className="ghostBtn compactBtn" type="button" onClick={() => startEdit(preset)}>Edit</button>
-                      <button className="dangerBtn compactBtn" type="button" onClick={() => deletePreset(preset)}>Delete</button>
-                    </>
+                    <button className="dangerBtn compactBtn" type="button" onClick={() => deletePreset(preset)}>
+                      Delete
+                    </button>
                   )}
                 </div>
               </div>
-              {/* Permission summary bars */}
-              <div style={{ padding: "0 16px 12px", display: "flex", flexWrap: "wrap", gap: 8 }}>
-                {PERMISSION_GROUPS.map(group => {
-                  const gKeys = group.modules.flatMap(m => [m.key, ...m.fields.map(f => fieldKey(m.key, f))]);
-                  const gActive = gKeys.reduce((s,k) => s + ACTIONS.filter(a => p[k]?.[a]).length, 0);
-                  const gTotal = gKeys.length * ACTIONS.length;
-                  const pct = gTotal ? Math.round(gActive / gTotal * 100) : 0;
-                  return (
-                    <div key={group.title} style={{ minWidth: 130, flex: "1 1 130px" }}>
-                      <div style={{ fontSize: 11, color: "var(--muted,#888)", marginBottom: 3 }}>{group.title}</div>
-                      <div style={{ height: 4, background: "var(--surface,#13161b)", borderRadius: 99, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: pct === 100 ? "#22c55e" : pct > 0 ? "#3b82f6" : "#374151", borderRadius: 99 }} />
+
+              {/* Permission group bars — fixed grid, no overlap */}
+              <div style={{ padding: "0 16px 14px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "8px 12px" }}>
+                  {PERMISSION_GROUPS.map(group => {
+                    const gKeys = group.modules.flatMap(m => [m.key, ...m.fields.map(f => fieldKey(m.key, f))]);
+                    const gActive = gKeys.reduce((s, k) => s + ACTIONS.filter(a => p[k]?.[a]).length, 0);
+                    const gTotal = gKeys.length * ACTIONS.length;
+                    const pct = gTotal ? Math.round(gActive / gTotal * 100) : 0;
+                    const barColor = pct === 100 ? "#22c55e" : pct > 0 ? "#3b82f6" : "#2d3748";
+                    return (
+                      <div key={group.title}>
+                        {/* Label */}
+                        <div style={{ fontSize: 10, color: "var(--muted,#777)", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {group.title}
+                        </div>
+                        {/* Bar track */}
+                        <div style={{ height: 5, background: "#1a1d23", borderRadius: 99, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${pct}%`, background: barColor, borderRadius: 99, transition: "width 0.3s" }} />
+                        </div>
+                        {/* Pct label */}
+                        <div style={{ fontSize: 10, color: pct === 100 ? "#22c55e" : pct > 0 ? "#60a5fa" : "var(--muted,#555)", marginTop: 3, fontWeight: pct > 0 ? 600 : 400 }}>
+                          {pct}%
+                        </div>
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--muted,#888)", marginTop: 2 }}>{pct}%</div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
+
+              {/* Expanded matrix (read-only view) */}
               {isExpanded && (
-                <div style={{ borderTop: "1px solid var(--border,#333)", padding: "12px 16px" }}>
+                <div style={{ borderTop: "1px solid var(--border,#2a2d35)", padding: "14px 16px" }}>
+                  <div style={{ fontSize: 12, color: "var(--muted,#888)", marginBottom: 10 }}>
+                    Read-only view. Click <strong>Edit</strong> above to modify this preset.
+                  </div>
                   <PermissionGrid perms={p} onChange={() => {}} />
                 </div>
               )}
@@ -352,15 +421,37 @@ function PresetsTab() {
 
       {/* ── Create / Edit form ── */}
       {(creating || editingId) && (
-        <Card title={editingId ? "Edit Custom Preset" : "Create Custom Preset"}>
+        <Card title={
+          editingBuiltin
+            ? `Edit Built-in Preset: ${form.name.charAt(0).toUpperCase() + form.name.slice(1)}`
+            : editingId
+              ? "Edit Custom Preset"
+              : "Create Custom Preset"
+        }>
+          {editingBuiltin && (
+            <div style={{ background: "#1e3a5f22", border: "1px solid #2563eb44", borderRadius: 8, padding: "8px 14px", marginBottom: 14, fontSize: 12, color: "#93c5fd" }}>
+              ℹ️ You are editing a built-in preset. The name cannot be changed. Use <strong>Reset</strong> on the card to restore the original defaults.
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
             <div style={{ flex: 1 }}>
-              <label className="fieldLabel">Preset Name *</label>
-              <input placeholder="e.g. Floor Manager, Cameraman, Finance Lead…" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+              <label className="fieldLabel">Preset Name {!editingBuiltin && "*"}</label>
+              <input
+                placeholder="e.g. Floor Manager, Cameraman, Finance Lead…"
+                value={form.name}
+                disabled={editingBuiltin}
+                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                style={editingBuiltin ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+              />
             </div>
             <div style={{ flex: 2 }}>
               <label className="fieldLabel">Description</label>
-              <input placeholder="Short description of this role's responsibilities…" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              <input
+                placeholder="Short description of this role's responsibilities…"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              />
             </div>
           </div>
 
@@ -373,14 +464,20 @@ function PresetsTab() {
                 </button>
               ))}
               <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(false) }))}>Clear All</button>
+              <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(true) }))}>Allow All</button>
             </div>
           </div>
 
           <PermissionGrid perms={form.perms} onChange={perms => setForm(f => ({ ...f, perms }))} />
 
-          <div style={{ marginTop: 16, display: "flex", gap: 8 }}>
-            <button className="primaryBtn" type="button" onClick={savePreset} disabled={saving}>{saving ? "Saving…" : (editingId ? "Update Preset" : "Save Preset")}</button>
+          <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="primaryBtn" type="button" onClick={savePreset} disabled={saving}>
+              {saving ? "Saving…" : (editingId ? "Update Preset" : "Save Preset")}
+            </button>
             <button className="ghostBtn" type="button" onClick={cancel}>Cancel</button>
+            <span className="helperText" style={{ marginLeft: 8 }}>
+              {countPerms(form.perms)}/{total} permissions enabled
+            </span>
           </div>
         </Card>
       )}

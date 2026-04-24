@@ -92,9 +92,10 @@ def update_preset(preset_id: int, payload: schemas.RolePresetUpdate, db: Session
     preset = db.query(models.RolePreset).filter(models.RolePreset.id == preset_id).first()
     if not preset:
         raise HTTPException(status_code=404, detail="Preset not found.")
-    if preset.is_builtin:
-        raise HTTPException(status_code=400, detail="Built-in presets cannot be edited.")
     data = payload.model_dump(exclude_unset=True)
+    # Built-in presets: allow permissions_json updates but name is locked
+    if preset.is_builtin and "name" in data and data["name"] != preset.name:
+        raise HTTPException(status_code=400, detail="Built-in preset names cannot be changed.")
     if "name" in data:
         existing = db.query(models.RolePreset).filter(models.RolePreset.name == data["name"], models.RolePreset.id != preset_id).first()
         if existing:
@@ -102,7 +103,28 @@ def update_preset(preset_id: int, payload: schemas.RolePresetUpdate, db: Session
     for k, v in data.items():
         setattr(preset, k, v)
     preset.updated_at = datetime.utcnow()
-    audit(db, current_user.username, "update", "role_preset", entity_id=preset_id, details={"name": preset.name})
+    audit(db, current_user.username, "update", "role_preset", entity_id=preset_id, details={"name": preset.name, "builtin": preset.is_builtin})
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+@router.post("/presets/{preset_id}/reset")
+def reset_builtin_preset(preset_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Reset a built-in preset back to its original default permissions."""
+    from ..permissions import ROLE_DEFAULTS
+    import json
+    preset = db.query(models.RolePreset).filter(models.RolePreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found.")
+    if not preset.is_builtin:
+        raise HTTPException(status_code=400, detail="Only built-in presets can be reset.")
+    original = ROLE_DEFAULTS.get(preset.name)
+    if not original:
+        raise HTTPException(status_code=400, detail=f"No default found for built-in preset '{preset.name}'.")
+    preset.permissions_json = json.dumps(original)
+    preset.updated_at = datetime.utcnow()
+    audit(db, current_user.username, "reset", "role_preset", entity_id=preset_id, details={"name": preset.name})
     db.commit()
     db.refresh(preset)
     return preset
@@ -114,7 +136,7 @@ def delete_preset(preset_id: int, db: Session = Depends(get_db), current_user=De
     if not preset:
         raise HTTPException(status_code=404, detail="Preset not found.")
     if preset.is_builtin:
-        raise HTTPException(status_code=400, detail="Built-in presets cannot be deleted.")
+        raise HTTPException(status_code=400, detail="Built-in presets cannot be deleted. Edit them instead.")
     audit(db, current_user.username, "delete", "role_preset", entity_id=preset_id, details={"name": preset.name})
     db.delete(preset)
     db.commit()
