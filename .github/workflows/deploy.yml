@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      EC2_APP_DIR: ${{ secrets.EC2_APP_DIR }}
+      LIVE_APP_DIR: /opt/kps_erp/kps-erp-v8_9_10
       REPO_SLUG: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
 
@@ -35,12 +35,12 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: EC2_APP_DIR,REPO_SLUG,GH_TOKEN
+          envs: LIVE_APP_DIR,REPO_SLUG,GH_TOKEN
           script: |
             set -euo pipefail
-            APP_DIR="${EC2_APP_DIR}"
+            APP_DIR="${LIVE_APP_DIR}"
             if [ -z "$APP_DIR" ]; then
-              echo "EC2_APP_DIR secret is empty"
+              echo "LIVE_APP_DIR is empty"
               exit 1
             fi
             sudo mkdir -p "$APP_DIR"
@@ -74,6 +74,7 @@ jobs:
             python -m pip install --upgrade pip --quiet
             pip install -r requirements.txt --quiet
             cd ..
+            rm -rf "$APP_DIR/frontend/dist"/*
 
       - name: Copy built frontend to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -82,7 +83,7 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "frontend/dist/*"
-          target: "${{ env.EC2_APP_DIR }}/frontend/dist"
+          target: "${{ env.LIVE_APP_DIR }}/frontend/dist"
           strip_components: 2
 
       - name: Restart services
@@ -91,12 +92,12 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: EC2_APP_DIR
+          envs: LIVE_APP_DIR
           script: |
             set -euo pipefail
-            APP_DIR="${EC2_APP_DIR}"
+            APP_DIR="${LIVE_APP_DIR}"
             if [ -z "$APP_DIR" ]; then
-              echo "EC2_APP_DIR secret is empty"
+              echo "LIVE_APP_DIR is empty"
               exit 1
             fi
             cd "$APP_DIR"
