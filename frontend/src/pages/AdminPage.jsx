@@ -5,6 +5,8 @@ import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar"
 import { adminApi, systemApi } from "../api";
 import { getRole } from "../auth";
 
+// ── Permission matrix constants ────────────────────────────────────────────
+
 const ACTIONS = ["view", "add", "edit", "delete", "download", "export", "approve"];
 
 const PERMISSION_GROUPS = [
@@ -111,6 +113,7 @@ const ROLE_PRESETS = {
     clients: ["view", "add", "edit"],
     uploads: ["view", "add", "download", "export"],
     audit: ["view", "export"],
+    profile: ["view", "edit"],
   }),
   operations: buildPreset({
     dashboard: ["view"],
@@ -133,8 +136,10 @@ const ROLE_PRESETS = {
     qc: ["view", "add", "edit"],
     papers: ["view", "add", "edit", "export"],
     services: ["view", "add", "edit"],
+    accounts: ["view"],
     uploads: ["view", "add", "download"],
     audit: ["view"],
+    profile: ["view", "edit"],
   }),
   store: buildPreset({
     dashboard: ["view"],
@@ -153,6 +158,7 @@ const ROLE_PRESETS = {
     qc: ["view", "add", "edit"],
     papers: ["view", "export"],
     uploads: ["view", "add", "download"],
+    profile: ["view", "edit"],
   }),
   accounts: buildPreset({
     dashboard: ["view", "export"],
@@ -163,10 +169,11 @@ const ROLE_PRESETS = {
     clients: ["view", "add", "edit"],
     vendors: ["view", "add", "edit"],
     procurement: ["view", "add", "edit", "approve", "export"],
-    accounts: ["view", "add", "export"],
+    accounts: ["view", "add", "edit", "export", "approve"],
     papers: ["view", "export"],
     uploads: ["view", "download", "export"],
     audit: ["view", "export"],
+    profile: ["view", "edit"],
   }),
   qc: buildPreset({
     dashboard: ["view"],
@@ -182,6 +189,7 @@ const ROLE_PRESETS = {
     papers: ["view", "add", "edit", "export"],
     services: ["view", "add", "edit"],
     uploads: ["view", "add", "download"],
+    profile: ["view", "edit"],
   }),
   viewer: buildPreset({
     dashboard: ["view"],
@@ -199,6 +207,7 @@ const ROLE_PRESETS = {
     manpower: ["view"],
     papers: ["view"],
     uploads: ["view"],
+    profile: ["view", "edit"],
   }),
 };
 
@@ -234,6 +243,8 @@ function parsePerms(json) {
 function countPerms(perms) {
   return MODULE_KEYS.reduce((sum, key) => sum + ACTIONS.filter(action => perms[key]?.[action]).length, 0);
 }
+
+// ── Permission UI components ───────────────────────────────────────────────
 
 function RolePresetBar({ currentRole, onApply }) {
   return (
@@ -410,8 +421,13 @@ function PermissionGrid({ perms, onChange }) {
   );
 }
 
+// ── Edit User Modal ────────────────────────────────────────────────────────
+
 function EditUserModal({ open, user, onClose, onSave }) {
-  const [form, setForm] = useState({ password: "", role: "operations", is_active: true, perms: emptyPerms() });
+  const [form, setForm] = useState({
+    password: "", role: "operations", is_active: true,
+    perms: emptyPerms(), max_sessions: 5,
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -421,6 +437,7 @@ function EditUserModal({ open, user, onClose, onSave }) {
         role: user.role || "operations",
         is_active: user.is_active,
         perms: parsePerms(user.permissions_json),
+        max_sessions: user.max_sessions ?? 5,
       });
     }
   }, [open, user]);
@@ -435,6 +452,7 @@ function EditUserModal({ open, user, onClose, onSave }) {
       role: form.role,
       is_active: form.is_active,
       permissions_json: JSON.stringify(form.perms),
+      max_sessions: Number(form.max_sessions),
     };
     if (form.password.trim()) payload.password = form.password;
     try {
@@ -467,6 +485,15 @@ function EditUserModal({ open, user, onClose, onSave }) {
               </select>
             </div>
             <div>
+              <label className="fieldLabel">Max Simultaneous Logins</label>
+              <select value={form.max_sessions} onChange={event => setForm({ ...form, max_sessions: Number(event.target.value) })}>
+                <option value={0}>Unlimited</option>
+                {[1, 2, 3, 4, 5, 8, 10].map(n => (
+                  <option key={n} value={n}>{n} session{n > 1 ? "s" : ""}</option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="qcCheckLabel" style={{ marginTop: 22 }}>
                 <input type="checkbox" checked={form.is_active} onChange={event => setForm({ ...form, is_active: event.target.checked })} />
                 <span>Active</span>
@@ -489,6 +516,191 @@ function EditUserModal({ open, user, onClose, onSave }) {
   );
 }
 
+// ── Sessions Panel ─────────────────────────────────────────────────────────
+
+function SessionsPanel({ users }) {
+  const [sessions, setSessions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const [sessionSearch, setSessionSearch] = useState("");
+
+  function loadSessions() {
+    setLoading(true);
+    adminApi.sessions()
+      .then(data => { setSessions(data); setLoading(false); })
+      .catch(err => { setMessage(String(err.message || err)); setLoading(false); });
+  }
+
+  useEffect(() => { loadSessions(); }, []);
+
+  async function revokeSession(id, label) {
+    if (!confirm(`Revoke session for ${label}?`)) return;
+    try {
+      await adminApi.revokeSession(id);
+      setMessage("Session revoked.");
+      loadSessions();
+    } catch (err) {
+      setMessage(String(err.message || err));
+    }
+  }
+
+  async function revokeAll(userId, username) {
+    if (!confirm(`Revoke ALL active sessions for "${username}"?`)) return;
+    try {
+      const result = await adminApi.revokeUserSessions(userId);
+      setMessage(`Revoked ${result.revoked} session(s) for ${username}.`);
+      loadSessions();
+    } catch (err) {
+      setMessage(String(err.message || err));
+    }
+  }
+
+  function formatTime(iso) {
+    if (!iso) return "–";
+    const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z"));
+    return d.toLocaleString();
+  }
+
+  function timeSince(iso) {
+    if (!iso) return "–";
+    const d = new Date(iso + (iso.endsWith("Z") ? "" : "Z"));
+    const sec = Math.floor((Date.now() - d) / 1000);
+    if (sec < 60) return `${sec}s ago`;
+    if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+    return `${Math.floor(sec / 86400)}d ago`;
+  }
+
+  function isExpiredOrRevoked(s) {
+    if (!s.is_active) return true;
+    if (s.expires_at) {
+      const exp = new Date(s.expires_at + (s.expires_at.endsWith("Z") ? "" : "Z"));
+      if (exp < new Date()) return true;
+    }
+    return false;
+  }
+
+  const filtered = sessions.filter(s => {
+    const q = sessionSearch.toLowerCase();
+    if (!q) return true;
+    return (
+      (s.username || "").toLowerCase().includes(q) ||
+      (s.ip_address || "").toLowerCase().includes(q) ||
+      (s.os || "").toLowerCase().includes(q) ||
+      (s.browser || "").toLowerCase().includes(q) ||
+      (s.device_type || "").toLowerCase().includes(q)
+    );
+  });
+
+  const activeSessions = filtered.filter(s => !isExpiredOrRevoked(s));
+  const inactiveSessions = filtered.filter(s => isExpiredOrRevoked(s));
+
+  // Group active sessions by user for summary
+  const byUser = {};
+  activeSessions.forEach(s => {
+    if (!byUser[s.user_id]) byUser[s.user_id] = { username: s.username, count: 0 };
+    byUser[s.user_id].count++;
+  });
+
+  function deviceIcon(type) {
+    if (!type) return "💻";
+    if (type === "Mobile") return "📱";
+    if (type === "Tablet") return "📟";
+    return "💻";
+  }
+
+  return (
+    <div>
+      {message ? (
+        <div className="messageBar" style={{ marginBottom: 12 }}>
+          {message}
+          <button type="button" style={{ float: "right", background: "none", border: "none", color: "#fff", cursor: "pointer" }} onClick={() => setMessage("")}>✕</button>
+        </div>
+      ) : null}
+
+      {/* Active session summary by user */}
+      {Object.values(byUser).length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+          {Object.entries(byUser).map(([userId, info]) => (
+            <div key={userId} style={{ background: "var(--surface2, #23272e)", borderRadius: 8, padding: "6px 14px", display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <span style={{ fontWeight: 600 }}>{info.username}</span>
+              <span style={{ background: "#2563eb", color: "#fff", borderRadius: 99, padding: "1px 8px", fontSize: 11 }}>{info.count} active</span>
+              <button className="dangerBtn compactBtn" type="button" style={{ fontSize: 11, padding: "2px 8px" }} onClick={() => revokeAll(Number(userId), info.username)}>Kick all</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="listToolbar">
+        <input
+          type="text"
+          placeholder="Search by user, IP, OS, browser…"
+          value={sessionSearch}
+          onChange={e => setSessionSearch(e.target.value)}
+          style={{ minWidth: 260, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border, #333)", background: "var(--surface2, #1e2228)", color: "inherit" }}
+        />
+        <span className="helperText">{activeSessions.length} active · {inactiveSessions.length} expired/revoked</span>
+        <button className="ghostBtn compactBtn" type="button" onClick={loadSessions}>Refresh</button>
+      </div>
+
+      {loading ? <div className="helperText" style={{ padding: 16 }}>Loading sessions…</div> : (
+        <div className="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>IP Address</th>
+                <th>Device</th>
+                <th>OS</th>
+                <th>Browser</th>
+                <th>Logged In</th>
+                <th>Last Active</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: "center", color: "var(--muted, #888)", padding: 20 }}>No sessions found</td></tr>
+              ) : null}
+              {activeSessions.map(s => (
+                <tr key={s.id}>
+                  <td><strong>{s.username || `uid:${s.user_id}`}</strong></td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.ip_address || "–"}</td>
+                  <td>{deviceIcon(s.device_type)} {s.device_type || "Desktop"}</td>
+                  <td>{s.os || "–"}</td>
+                  <td>{s.browser || "–"}</td>
+                  <td style={{ fontSize: 12 }}>{formatTime(s.login_at)}</td>
+                  <td style={{ fontSize: 12 }}>{timeSince(s.last_active_at)}</td>
+                  <td><span className="statusBadge status-returned">Active</span></td>
+                  <td className="actionCell">
+                    <button className="dangerBtn compactBtn" type="button" onClick={() => revokeSession(s.id, s.username || `uid:${s.user_id}`)}>Revoke</button>
+                  </td>
+                </tr>
+              ))}
+              {inactiveSessions.slice(0, 20).map(s => (
+                <tr key={s.id} style={{ opacity: 0.45 }}>
+                  <td>{s.username || `uid:${s.user_id}`}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.ip_address || "–"}</td>
+                  <td>{deviceIcon(s.device_type)} {s.device_type || "Desktop"}</td>
+                  <td>{s.os || "–"}</td>
+                  <td>{s.browser || "–"}</td>
+                  <td style={{ fontSize: 12 }}>{formatTime(s.login_at)}</td>
+                  <td style={{ fontSize: 12 }}>{timeSince(s.last_active_at)}</td>
+                  <td><span className="statusBadge status-cancelled">{s.is_active ? "Expired" : "Revoked"}</span></td>
+                  <td>–</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main AdminPage ─────────────────────────────────────────────────────────
+
 export default function AdminPage() {
   const [users, setUsers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
@@ -498,6 +710,7 @@ export default function AdminPage() {
     password: "",
     role: "operations",
     is_active: true,
+    max_sessions: 5,
     perms: clone(ROLE_PRESETS.operations),
   });
   const [editUser, setEditUser] = useState(null);
@@ -537,13 +750,12 @@ export default function AdminPage() {
         password: createForm.password,
         role: createForm.role,
         is_active: createForm.is_active,
+        max_sessions: Number(createForm.max_sessions),
         permissions_json: JSON.stringify(createForm.perms),
       });
       setCreateForm({
-        username: "",
-        password: "",
-        role: "operations",
-        is_active: true,
+        username: "", password: "", role: "operations",
+        is_active: true, max_sessions: 5,
         perms: clone(ROLE_PRESETS.operations),
       });
       setMessage("User created successfully.");
@@ -600,6 +812,12 @@ export default function AdminPage() {
         </div>
       ) : null}
 
+      {/* ── Active Sessions ─────────────────────────────────────────── */}
+      <Card title="Active Sessions Dashboard">
+        <SessionsPanel users={users} />
+      </Card>
+
+      {/* ── Create New User ─────────────────────────────────────────── */}
       <Card title="Create New User">
         <form onSubmit={save}>
           <div className="createUserTopRow">
@@ -615,6 +833,15 @@ export default function AdminPage() {
               <label className="fieldLabel">Role Label</label>
               <select value={createForm.role} onChange={event => setCreateForm({ ...createForm, role: event.target.value })}>
                 {ROLE_NAMES.map(role => <option key={role}>{role}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="fieldLabel">Max Simultaneous Logins</label>
+              <select value={createForm.max_sessions} onChange={event => setCreateForm({ ...createForm, max_sessions: Number(event.target.value) })}>
+                <option value={0}>Unlimited</option>
+                {[1, 2, 3, 4, 5, 8, 10].map(n => (
+                  <option key={n} value={n}>{n} session{n > 1 ? "s" : ""}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -634,6 +861,7 @@ export default function AdminPage() {
         </form>
       </Card>
 
+      {/* ── Existing Users ──────────────────────────────────────────── */}
       <Card title="Existing Users">
         <div className="listToolbar">
           <SearchBar value={userSearch} onChange={value => { setUserSearch(value); userPg.setPage(1); }} suggestions={buildSuggestions(users)} placeholder="Search users by username, role, status, permissions..." />
@@ -646,6 +874,7 @@ export default function AdminPage() {
                 <th>ID</th>
                 <th>Username</th>
                 <th>Role</th>
+                <th>Max Logins</th>
                 <th>Status</th>
                 <th>Permissions Summary</th>
                 <th>Actions</th>
@@ -661,6 +890,9 @@ export default function AdminPage() {
                     <td>{user.id}</td>
                     <td><strong>{user.username}</strong></td>
                     <td><span className={`roleBadge role-${user.role}`}>{user.role}</span></td>
+                    <td style={{ textAlign: "center" }}>
+                      {user.max_sessions === 0 ? "∞" : (user.max_sessions ?? 5)}
+                    </td>
                     <td>
                       <span className={`statusBadge ${user.is_active ? "status-returned" : "status-cancelled"}`}>
                         {user.is_active ? "Active" : "Disabled"}
@@ -688,6 +920,7 @@ export default function AdminPage() {
         <Pagination total={userPg.total} page={userPg.page} pageSize={userPg.pageSize} onPageChange={userPg.setPage} onPageSizeChange={userPg.setPageSize} />
       </Card>
 
+      {/* ── Audit Logs ──────────────────────────────────────────────── */}
       <Card title="Audit Logs">
         <div className="listToolbar">
           <SearchBar value={auditSearch} onChange={value => { setAuditSearch(value); auditPg.setPage(1); }} suggestions={buildSuggestions(auditLogs)} placeholder="Search audit by user, action, entity, ID, details..." />

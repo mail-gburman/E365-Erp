@@ -215,7 +215,7 @@ export default function Layout({ children }) {
                 {role === "admin" ? <button className="profileDropdownItem" type="button" disabled={demoLoading} onClick={() => { setProfileMenuOpen(false); handleLoadDemo(); }}>{demoLoading ? "Working..." : "Load Fresh Demo Data"}</button> : null}
                 {role === "admin" ? <button className="profileDropdownItem" type="button" disabled={demoLoading || !demoState.installed} onClick={() => { setProfileMenuOpen(false); handleRemoveDemo(); }}>Remove Demo Data</button> : null}
                 {role === "admin" ? <button className="profileDropdownItem dangerText" type="button" onClick={() => { setProfileMenuOpen(false); handleEraseAll(); }}>Erase All Data</button> : null}
-                <button className="profileDropdownItem" type="button" onClick={() => { setProfileMenuOpen(false); clearSession(); navigate("/login"); }}>Logout</button>
+                <button className="profileDropdownItem" type="button" onClick={async () => { setProfileMenuOpen(false); await clearSession(); navigate("/login"); }}>Logout</button>
               </div>
             )}
           </div>

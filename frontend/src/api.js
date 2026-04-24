@@ -1,12 +1,9 @@
-import { getToken } from "./auth";
+import { getToken, clearSessionSync } from "./auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 async function parse(res) {
   if (res.status === 401) {
-    localStorage.removeItem("kps_token");
-    localStorage.removeItem("kps_role");
-    localStorage.removeItem("kps_username");
-    localStorage.removeItem("kps_permissions");
+    clearSessionSync();
     throw new Error("Session expired or token invalid. Please login again.");
   }
   if (!res.ok) throw new Error(await res.text());
@@ -219,6 +216,13 @@ export const api = {
   quotePdfUrl: (id) => `${API_BASE}/quotes/${id}/pdf`,
 };
 
+export async function serverLogout() {
+  /** Revoke the current session on the server. Fire-and-forget — never throws. */
+  try {
+    await fetch(`${API_BASE}/auth/logout`, { method: "POST", headers: headers(true) });
+  } catch (_) { /* ignore — token may already be expired */ }
+}
+
 export const adminApi = {
   users: () => get("/admin/users"),
   demoDatasetStatus: () => get("/admin/demo-dataset"),
@@ -234,6 +238,16 @@ export const adminApi = {
   },
   deleteUser: async (id) => {
     const res = await fetch(`${API_BASE}/admin/users/${id}`, { method: "DELETE", headers: headers(true) });
+    return parse(res);
+  },
+  // Session management
+  sessions: () => get("/admin/sessions"),
+  revokeSession: async (id) => {
+    const res = await fetch(`${API_BASE}/admin/sessions/${id}`, { method: "DELETE", headers: headers(true) });
+    return parse(res);
+  },
+  revokeUserSessions: async (userId) => {
+    const res = await fetch(`${API_BASE}/admin/sessions/user/${userId}`, { method: "DELETE", headers: headers(true) });
     return parse(res);
   },
 };
