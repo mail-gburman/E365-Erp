@@ -4,17 +4,11 @@ After=network.target
 
 [Service]
 User=ubuntu
-Group=www-data
-WorkingDirectory=/opt/kps_erp/backend
+WorkingDirectory=/opt/kps_erp/kps-erp-v8_9_10/backend
 EnvironmentFile=/opt/kps_erp/.env
-ExecStart=/opt/kps_erp/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
+ExecStart=/opt/kps_erp/kps-erp-v8_9_10/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2
 Restart=always
 RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/opt/kps_erp/backend/uploads
 
 [Install]
 WantedBy=multi-user.target
