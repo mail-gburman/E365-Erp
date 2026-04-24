@@ -240,6 +240,137 @@ function PermissionGrid({ perms, onChange }) {
   );
 }
 
+function isSessionGone(session) {
+  if (!session?.is_active) return true;
+  if (session?.expires_at) {
+    return new Date(session.expires_at + (session.expires_at.endsWith("Z") ? "" : "Z")) < new Date();
+  }
+  return false;
+}
+
+function SessionCapacityBar({ activeSessions, maxSessions }) {
+  const unlimited = Number(maxSessions) === 0;
+  const safeMax = unlimited ? Math.max(activeSessions, 5) : Math.max(Number(maxSessions) || 1, 1);
+  const used = Math.min(activeSessions, safeMax);
+  const pct = unlimited ? Math.min((activeSessions / safeMax) * 100, 100) : Math.min((activeSessions / safeMax) * 100, 100);
+
+  return (
+    <div style={{ minWidth: 120 }}>
+      <div
+        style={{
+          position: "relative",
+          height: 8,
+          borderRadius: 999,
+          overflow: "hidden",
+          background: "#17191f",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(90deg, #16a34a 0%, #eab308 55%, #dc2626 100%)",
+            opacity: 0.28,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: `${pct}%`,
+            background: "linear-gradient(90deg, #22c55e 0%, #f59e0b 58%, #ef4444 100%)",
+            borderRadius: 999,
+            transition: "width 0.25s ease",
+          }}
+        />
+        {!unlimited &&
+          Array.from({ length: Math.max(safeMax - 1, 0) }, (_, idx) => (
+            <span
+              key={idx}
+              style={{
+                position: "absolute",
+                left: `${((idx + 1) / safeMax) * 100}%`,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: "rgba(255,255,255,0.42)",
+              }}
+            />
+          ))}
+      </div>
+      <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted,#888)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{activeSessions} active</span>
+        <span>{unlimited ? "∞ max" : `${used}/${safeMax}`}</span>
+      </div>
+    </div>
+  );
+}
+
+function CompactSessionCapacityBar({ activeSessions, maxSessions }) {
+  const unlimited = Number(maxSessions) === 0;
+  const safeMax = unlimited ? Math.max(activeSessions, 5) : Math.max(Number(maxSessions) || 1, 1);
+  const pct = Math.min((activeSessions / safeMax) * 100, 100);
+
+  return (
+    <div style={{ width: "100%", minWidth: 120 }}>
+      <div
+        style={{
+          position: "relative",
+          height: 10,
+          borderRadius: 999,
+          overflow: "hidden",
+          background: "#17191f",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg, #16a34a 0%, #eab308 55%, #dc2626 100%)", opacity: 0.28 }} />
+        <div style={{ position: "absolute", inset: 0, width: `${pct}%`, background: "linear-gradient(90deg, #22c55e 0%, #f59e0b 58%, #ef4444 100%)", borderRadius: 999 }} />
+        {!unlimited &&
+          Array.from({ length: Math.max(safeMax - 1, 0) }, (_, idx) => (
+            <span
+              key={idx}
+              style={{
+                position: "absolute",
+                left: `${((idx + 1) / safeMax) * 100}%`,
+                top: 0,
+                bottom: 0,
+                width: 1,
+                background: "rgba(255,255,255,0.42)",
+              }}
+            />
+          ))}
+      </div>
+      <div style={{ marginTop: 5, fontSize: 11, color: "var(--muted,#888)", display: "flex", justifyContent: "space-between", gap: 8 }}>
+        <span>{activeSessions} active</span>
+        <span>{unlimited ? "∞ max" : `${activeSessions}/${safeMax}`}</span>
+      </div>
+    </div>
+  );
+}
+
+const presetFieldWrapStyle = { minWidth: 0 };
+const presetInputStyle = {
+  width: "100%",
+  minWidth: 0,
+  background: "var(--panel2,#161616)",
+  color: "var(--text,#fff)",
+  border: "1px solid var(--line,rgba(255,255,255,.08))",
+  borderRadius: 10,
+  padding: "11px 12px",
+  outline: "none",
+  fontSize: 14,
+  lineHeight: 1.35,
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,.02)",
+};
+const presetLabelStyle = {
+  display: "block",
+  margin: "0 0 6px 2px",
+  fontSize: 11,
+  color: "var(--muted,#b4b4b8)",
+  lineHeight: 1.2,
+};
+
 // ── TAB 1: Role Presets ────────────────────────────────────────────────────
 
 function PresetsTab() {
@@ -309,6 +440,71 @@ function PresetsTab() {
   }
 
   const total = MODULE_KEYS.length * ACTIONS.length;
+  const editorTitle = editingBuiltin
+    ? `Edit Built-in Preset: ${form.name.charAt(0).toUpperCase() + form.name.slice(1)}`
+    : editingId
+      ? "Edit Custom Preset"
+      : "Create Custom Preset";
+
+  function renderPresetEditor(inline = false) {
+    return (
+      <div style={inline ? { borderTop: "1px solid var(--border,#2a2d35)", padding: "14px 16px 18px" } : undefined}>
+        {inline && <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>{editorTitle}</div>}
+        {editingBuiltin && (
+          <div style={{ background: "#1e3a5f22", border: "1px solid #2563eb44", borderRadius: 8, padding: "8px 14px", marginBottom: 14, fontSize: 12, color: "#93c5fd" }}>
+            ℹ️ You are editing a built-in preset. Name locked. Use <strong>Reset</strong> to restore defaults.
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) minmax(320px,2fr)", gap: 12, marginBottom: 16 }}>
+          <div style={presetFieldWrapStyle}>
+            <label className="fieldLabel" style={presetLabelStyle}>Preset Name {!editingBuiltin && "*"}</label>
+            <input
+              placeholder="e.g. Floor Manager, Cameraman, Finance Lead…"
+              value={form.name}
+              disabled={editingBuiltin}
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              style={editingBuiltin ? { ...presetInputStyle, opacity: 0.55, cursor: "not-allowed", background: "#2a2d33", color: "#d4d4d8" } : presetInputStyle}
+            />
+          </div>
+          <div style={presetFieldWrapStyle}>
+            <label className="fieldLabel" style={presetLabelStyle}>Description</label>
+            <input
+              placeholder="Short description of this role's responsibilities…"
+              value={form.description}
+              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+              style={presetInputStyle}
+            />
+          </div>
+        </div>
+
+        <div className="savedRolesPanel">
+          <div className="savedRolesTitle">Start from a built-in template</div>
+          <div className="presetRow">
+            {ROLE_NAMES.map(r => (
+              <button key={r} type="button" className="presetBtn" onClick={() => applyBuiltin(r)}>
+                Copy {r.charAt(0).toUpperCase() + r.slice(1)}
+              </button>
+            ))}
+            <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(false) }))}>Clear All</button>
+            <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(true) }))}>Allow All</button>
+          </div>
+        </div>
+
+        <PermissionGrid perms={form.perms} onChange={perms => setForm(f => ({ ...f, perms }))} />
+
+        <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
+          <button className="primaryBtn" type="button" onClick={savePreset} disabled={saving}>
+            {saving ? "Saving…" : (editingId ? "Update Preset" : "Save Preset")}
+          </button>
+          <button className="ghostBtn" type="button" onClick={cancel}>Cancel</button>
+          <span className="helperText" style={{ marginLeft: 8 }}>
+            {countPerms(form.perms)}/{total} permissions enabled
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -414,73 +610,15 @@ function PresetsTab() {
                   <PermissionGrid perms={p} onChange={() => {}} />
                 </div>
               )}
+
+              {isEditing && renderPresetEditor(true)}
             </div>
           );
         })}
       </div>
 
       {/* ── Create / Edit form ── */}
-      {(creating || editingId) && (
-        <Card title={
-          editingBuiltin
-            ? `Edit Built-in Preset: ${form.name.charAt(0).toUpperCase() + form.name.slice(1)}`
-            : editingId
-              ? "Edit Custom Preset"
-              : "Create Custom Preset"
-        }>
-          {editingBuiltin && (
-            <div style={{ background: "#1e3a5f22", border: "1px solid #2563eb44", borderRadius: 8, padding: "8px 14px", marginBottom: 14, fontSize: 12, color: "#93c5fd" }}>
-              ℹ️ You are editing a built-in preset. The name cannot be changed. Use <strong>Reset</strong> on the card to restore the original defaults.
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-            <div style={{ flex: 1 }}>
-              <label className="fieldLabel">Preset Name {!editingBuiltin && "*"}</label>
-              <input
-                placeholder="e.g. Floor Manager, Cameraman, Finance Lead…"
-                value={form.name}
-                disabled={editingBuiltin}
-                onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                style={editingBuiltin ? { opacity: 0.5, cursor: "not-allowed" } : {}}
-              />
-            </div>
-            <div style={{ flex: 2 }}>
-              <label className="fieldLabel">Description</label>
-              <input
-                placeholder="Short description of this role's responsibilities…"
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="savedRolesPanel">
-            <div className="savedRolesTitle">Start from a built-in template</div>
-            <div className="presetRow">
-              {ROLE_NAMES.map(r => (
-                <button key={r} type="button" className="presetBtn" onClick={() => applyBuiltin(r)}>
-                  Copy {r.charAt(0).toUpperCase() + r.slice(1)}
-                </button>
-              ))}
-              <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(false) }))}>Clear All</button>
-              <button type="button" className="presetBtn" onClick={() => setForm(f => ({ ...f, perms: allPerms(true) }))}>Allow All</button>
-            </div>
-          </div>
-
-          <PermissionGrid perms={form.perms} onChange={perms => setForm(f => ({ ...f, perms }))} />
-
-          <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="primaryBtn" type="button" onClick={savePreset} disabled={saving}>
-              {saving ? "Saving…" : (editingId ? "Update Preset" : "Save Preset")}
-            </button>
-            <button className="ghostBtn" type="button" onClick={cancel}>Cancel</button>
-            <span className="helperText" style={{ marginLeft: 8 }}>
-              {countPerms(form.perms)}/{total} permissions enabled
-            </span>
-          </div>
-        </Card>
-      )}
+      {creating && <Card title={editorTitle}>{renderPresetEditor(false)}</Card>}
     </div>
   );
 }
@@ -573,6 +711,7 @@ function EditUserModal({ open, user, presets, onClose, onSave }) {
 
 function UsersTab() {
   const [users, setUsers] = useState([]);
+  const [sessions, setSessions] = useState([]);
   const [presets, setPresets] = useState([]);
   const [msg, setMsg] = useState("");
   const [editUser, setEditUser] = useState(null);
@@ -585,6 +724,7 @@ function UsersTab() {
 
   function load() {
     adminApi.users().then(setUsers).catch(e => setMsg(String(e.message || e)));
+    adminApi.sessions().then(setSessions).catch(() => {});
     adminApi.presets().then(setPresets).catch(() => {});
   }
   useEffect(() => { load(); }, []);
@@ -624,6 +764,10 @@ function UsersTab() {
 
   const total = MODULE_KEYS.length * ACTIONS.length;
   const allPresetNames = [...new Set([...ROLE_NAMES, ...presets.filter(p => !p.is_builtin).map(p => p.name)])];
+  const activeSessionCountByUser = sessions.reduce((acc, session) => {
+    if (!isSessionGone(session)) acc[session.user_id] = (acc[session.user_id] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div>
@@ -688,19 +832,22 @@ function UsersTab() {
           <table>
             <thead>
               <tr>
-                <th>ID</th><th>Username</th><th>Role</th><th>Max Logins</th><th>Status</th><th>Permissions</th><th>Actions</th>
+                <th>ID</th><th>Username</th><th>Role</th><th>Session Capacity</th><th>Status</th><th>Permissions</th><th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {pg.pageData.map(user => {
                 const p = parsePerms(user.permissions_json);
                 const active = countPerms(p);
+                const activeSessions = activeSessionCountByUser[user.id] || 0;
                 return (
                   <tr key={user.id}>
                     <td>{user.id}</td>
                     <td><strong>{user.username}</strong></td>
                     <td><span className={`roleBadge role-${user.role}`}>{user.role}</span></td>
-                    <td style={{ textAlign: "center" }}>{user.max_sessions === 0 ? "∞" : (user.max_sessions ?? 5)}</td>
+                    <td>
+                      <SessionCapacityBar activeSessions={activeSessions} maxSessions={user.max_sessions ?? 5} />
+                    </td>
                     <td><span className={`statusBadge ${user.is_active ? "status-returned" : "status-cancelled"}`}>{user.is_active ? "Active" : "Disabled"}</span></td>
                     <td>
                       <div className="permSummaryBar"><div className="permSummaryFill" style={{ width: `${total ? active/total*100 : 0}%` }} /></div>
@@ -729,11 +876,13 @@ function UsersTab() {
 
 function ActivityTab() {
   const [sessions, setSessions] = useState([]);
+  const [users, setUsers] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState("");
   const [sessionSearch, setSessionSearch] = useState("");
   const [auditSearch, setAuditSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const auditPg = usePagination(useSearch(auditLogs, auditSearch), 25);
 
   function loadSessions() {
@@ -742,8 +891,9 @@ function ActivityTab() {
       .then(data => { setSessions(data); setLoading(false); })
       .catch(e => { setMsg(String(e.message || e)); setLoading(false); });
   }
+  function loadUsers() { adminApi.users().then(setUsers).catch(() => {}); }
   function loadAudit() { systemApi.auditLogs().then(setAuditLogs).catch(() => {}); }
-  useEffect(() => { loadSessions(); loadAudit(); }, []);
+  useEffect(() => { loadSessions(); loadAudit(); loadUsers(); }, []);
 
   async function revoke(id, label) {
     if (!confirm(`Revoke session for ${label}?`)) return;
@@ -768,24 +918,33 @@ function ActivityTab() {
     if (sec < 86400) return `${Math.floor(sec/3600)}h ago`;
     return `${Math.floor(sec/86400)}d ago`;
   }
-  function isGone(s) {
-    if (!s.is_active) return true;
-    if (s.expires_at) return new Date(s.expires_at + (s.expires_at.endsWith("Z") ? "" : "Z")) < new Date();
-    return false;
-  }
   function deviceIcon(t) { return t === "Mobile" ? "📱" : t === "Tablet" ? "📟" : "💻"; }
 
   const filtered = sessions.filter(s => {
     const q = sessionSearch.toLowerCase();
-    return !q || [s.username,s.ip_address,s.os,s.browser,s.device_type].some(v => (v||"").toLowerCase().includes(q));
+    const matchQuery = !q || [s.username, s.ip_address, s.os, s.browser, s.device_type, s.device_id].some(v => (v || "").toLowerCase().includes(q));
+    const matchUser = !selectedUserId || s.user_id === selectedUserId;
+    return matchQuery && matchUser;
   });
-  const active = filtered.filter(s => !isGone(s));
-  const inactive = filtered.filter(s => isGone(s));
+  const active = filtered.filter(s => !isSessionGone(s));
+  const inactive = filtered.filter(s => isSessionGone(s));
 
   // Per-user active count for summary chips
+  const userById = users.reduce((acc, user) => {
+    acc[user.id] = user;
+    return acc;
+  }, {});
   const byUser = {};
-  active.forEach(s => { if (!byUser[s.user_id]) byUser[s.user_id] = { username: s.username, count: 0 }; byUser[s.user_id].count++; });
-
+  active.forEach(s => {
+    if (!byUser[s.user_id]) {
+      byUser[s.user_id] = {
+        username: s.username,
+        count: 0,
+        maxSessions: userById[s.user_id]?.max_sessions ?? 5,
+      };
+    }
+    byUser[s.user_id].count++;
+  });
   return (
     <div>
       {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button></div>}
@@ -800,18 +959,52 @@ function ActivityTab() {
         {Object.values(byUser).length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
             {Object.entries(byUser).map(([uid, info]) => (
-              <div key={uid} style={{ background: "var(--surface2,#23272e)", borderRadius: 8, padding: "5px 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                <span style={{ fontWeight: 600 }}>{info.username}</span>
-                <span style={{ background: "#2563eb", color: "#fff", borderRadius: 99, padding: "1px 8px", fontSize: 11 }}>{info.count} active</span>
-                <button className="dangerBtn compactBtn" type="button" style={{ fontSize: 11, padding: "2px 8px" }} onClick={() => revokeAll(Number(uid), info.username)}>Kick all</button>
+              <div
+                key={uid}
+                style={{
+                  width: "100%",
+                  background: Number(uid) === selectedUserId ? "rgba(229,9,47,.12)" : "var(--surface2,#23272e)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  display: "grid",
+                  gridTemplateColumns: "minmax(120px,180px) minmax(90px,120px) minmax(220px,1fr) auto auto",
+                  alignItems: "center",
+                  gap: 14,
+                  fontSize: 13,
+                  border: Number(uid) === selectedUserId ? "1px solid rgba(229,9,47,.35)" : "1px solid rgba(255,255,255,.06)",
+                }}
+              >
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{info.username}</span>
+                <span style={{ background: "#2563eb", color: "#fff", borderRadius: 999, padding: "3px 10px", fontSize: 11, fontWeight: 700, justifySelf: "start" }}>{info.count} active</span>
+                <CompactSessionCapacityBar activeSessions={info.count} maxSessions={info.maxSessions} />
+                <button
+                  className="ghostBtn compactBtn"
+                  type="button"
+                  style={{ fontSize: 11, padding: "7px 12px", whiteSpace: "nowrap" }}
+                  onClick={() => setSelectedUserId(Number(uid) === selectedUserId ? null : Number(uid))}
+                >
+                  {Number(uid) === selectedUserId ? "Selected" : "Select"}
+                </button>
+                <button
+                  className="primaryBtn compactBtn"
+                  type="button"
+                  style={{ fontSize: 11, padding: "7px 12px", whiteSpace: "nowrap" }}
+                  onClick={() => revokeAll(Number(uid), info.username)}
+                >
+                  Kick All
+                </button>
               </div>
             ))}
           </div>
         )}
 
         <div className="listToolbar" style={{ marginBottom: 12 }}>
-          <input type="text" placeholder="Search by user, IP, OS, browser…" value={sessionSearch} onChange={e => setSessionSearch(e.target.value)}
-            style={{ minWidth: 260, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border,#333)", background: "var(--surface2,#1e2228)", color: "inherit" }} />
+          <SearchBar
+            value={sessionSearch}
+            onChange={v => setSessionSearch(v)}
+            suggestions={buildSuggestions(sessions)}
+            placeholder="Search by user, device ID, IP, OS, browser…"
+          />
           <span className="helperText">{active.length} active · {inactive.length} expired/revoked</span>
           <button className="ghostBtn compactBtn" type="button" onClick={loadSessions}>↻ Refresh</button>
         </div>
@@ -820,15 +1013,16 @@ function ActivityTab() {
           <div className="tableWrap">
             <table>
               <thead>
-                <tr><th>User</th><th>IP Address</th><th>Device</th><th>OS</th><th>Browser</th><th>Logged In</th><th>Last Active</th><th>Status</th><th>Action</th></tr>
+                <tr><th>User</th><th>Device ID</th><th>IP Address</th><th>Device</th><th>OS</th><th>Browser</th><th>Logged In</th><th>Last Active</th><th>Status</th><th>Action</th></tr>
               </thead>
               <tbody>
                 {active.length === 0 && inactive.length === 0 && (
-                  <tr><td colSpan={9} style={{ textAlign:"center", color:"var(--muted,#888)", padding: 24 }}>No sessions found. Users need to log in once to register their session.</td></tr>
+                  <tr><td colSpan={10} style={{ textAlign:"center", color:"var(--muted,#888)", padding: 24 }}>No sessions found. Users need to log in once to register their session.</td></tr>
                 )}
                 {active.map(s => (
                   <tr key={s.id}>
                     <td><strong>{s.username || `uid:${s.user_id}`}</strong></td>
+                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.device_id || "–"}</td>
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.ip_address || "–"}</td>
                     <td>{deviceIcon(s.device_type)} {s.device_type || "Desktop"}</td>
                     <td>{s.os || "–"}</td>
@@ -842,6 +1036,7 @@ function ActivityTab() {
                 {inactive.slice(0, 30).map(s => (
                   <tr key={s.id} style={{ opacity: 0.4 }}>
                     <td>{s.username || `uid:${s.user_id}`}</td>
+                    <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.device_id || "–"}</td>
                     <td style={{ fontFamily: "monospace", fontSize: 12 }}>{s.ip_address || "–"}</td>
                     <td>{deviceIcon(s.device_type)} {s.device_type || "Desktop"}</td>
                     <td>{s.os || "–"}</td>
