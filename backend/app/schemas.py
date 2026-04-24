@@ -18,6 +18,7 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
     permissions_json: Optional[str] = None
     is_active: bool = True
+    max_sessions: int = 5  # 0 = unlimited
 
 class UserUpdate(BaseModel):
     password: Optional[str] = None
@@ -27,6 +28,7 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     permissions_json: Optional[str] = None
     is_active: Optional[bool] = None
+    max_sessions: Optional[int] = None
 
 class UserAdminRead(BaseModel):
     id: int
@@ -36,6 +38,22 @@ class UserAdminRead(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     permissions_json: Optional[str] = None
+    is_active: bool
+    max_sessions: int = 5
+    class Config:
+        from_attributes = True
+
+class UserSessionRead(BaseModel):
+    id: int
+    user_id: int
+    username: Optional[str] = None   # populated from join
+    ip_address: Optional[str] = None
+    os: Optional[str] = None
+    browser: Optional[str] = None
+    device_type: Optional[str] = None
+    login_at: Optional[datetime] = None
+    last_active_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = None
     is_active: bool
     class Config:
         from_attributes = True

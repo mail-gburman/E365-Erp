@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -60,6 +61,77 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user = Depe
     db.commit()
     return {"ok": True}
 
+
+# ── Session management ──────────────────────────────────────────────────────
+
+@router.get("/sessions", response_model=list[schemas.UserSessionRead])
+def list_sessions(db: Session = Depends(get_db)):
+    """Return all sessions (active + recently expired) newest first."""
+    now = datetime.utcnow()
+    sessions = (
+        db.query(models.UserSession)
+        .order_by(models.UserSession.login_at.desc())
+        .limit(500)
+        .all()
+    )
+    result = []
+    for s in sessions:
+        item = schemas.UserSessionRead.model_validate(s)
+        item.username = s.user.username if s.user else None
+        result.append(item)
+    return result
+
+
+@router.delete("/sessions/{session_id}")
+def revoke_session(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Revoke a specific session by ID."""
+    session = db.query(models.UserSession).filter(models.UserSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    session.is_active = False
+    audit(db, current_user.username, "revoke", "session", entity_id=session_id,
+          details={"target_user_id": session.user_id})
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/sessions/user/{user_id}")
+def revoke_user_sessions(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Revoke ALL active sessions for a specific user."""
+    updated = (
+        db.query(models.UserSession)
+        .filter(models.UserSession.user_id == user_id, models.UserSession.is_active == True)
+        .update({"is_active": False}, synchronize_session=False)
+    )
+    audit(db, current_user.username, "revoke_all", "session",
+          details={"target_user_id": user_id, "count": updated})
+    db.commit()
+    return {"ok": True, "revoked": updated}
+
+
+@router.delete("/sessions/expired/cleanup")
+def cleanup_expired_sessions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Remove session records older than 30 days."""
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    deleted = (
+        db.query(models.UserSession)
+        .filter(models.UserSession.login_at < cutoff)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"ok": True, "deleted": deleted}
+
+
+# ── Demo dataset ────────────────────────────────────────────────────────────
 
 @router.get("/demo-dataset")
 def get_demo_dataset_status(db: Session = Depends(get_db)):

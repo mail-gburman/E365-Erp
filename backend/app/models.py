@@ -9,12 +9,34 @@ class User(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String, unique=True, index=True, nullable=False)
     password_hash = Column(String, nullable=False)
-    role = Column(String, nullable=False)  # admin / operations / store
+    role = Column(String, nullable=False)  # admin / operations / store / producer / qc / viewer / accounts
     full_name = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     permissions_json = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    max_sessions = Column(Integer, default=5, nullable=False)  # 0 = unlimited
+
+    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+
+
+class UserSession(Base):
+    """Tracks every active login session for auditing and concurrent-session control."""
+    __tablename__ = "user_sessions"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    token_jti = Column(String, unique=True, index=True, nullable=False)  # JWT jti claim
+    ip_address = Column(String, nullable=True)
+    user_agent_raw = Column(Text, nullable=True)
+    os = Column(String, nullable=True)
+    browser = Column(String, nullable=True)
+    device_type = Column(String, nullable=True)  # Desktop / Mobile / Tablet
+    login_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_active_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    user = relationship("User", back_populates="sessions")
 
 class Warehouse(Base):
     __tablename__ = "warehouses"

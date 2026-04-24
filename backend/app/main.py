@@ -230,6 +230,8 @@ _MIGRATIONS = [
     ("inventory_items", "vendor_available_from", "DATE"),
     ("inventory_items", "vendor_available_until", "DATE"),
     ("inventory_items", "qty_in_stock", "INTEGER"),
+    # 0007 — session management
+    ("users", "max_sessions", "INTEGER DEFAULT 5"),
 ]
 with engine.connect() as conn:
     insp = inspect(engine)
