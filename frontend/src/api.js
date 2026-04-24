@@ -251,6 +251,10 @@ export const adminApi = {
     const res = await fetch(`${API_BASE}/admin/presets/${id}`, { method: "DELETE", headers: headers(true) });
     return parse(res);
   },
+  resetPreset: async (id) => {
+    const res = await fetch(`${API_BASE}/admin/presets/${id}/reset`, { method: "POST", headers: headers(true) });
+    return parse(res);
+  },
   // Session management
   sessions: () => get("/admin/sessions"),
   revokeSession: async (id) => {
