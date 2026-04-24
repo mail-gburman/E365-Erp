@@ -232,6 +232,7 @@ _MIGRATIONS = [
     ("inventory_items", "qty_in_stock", "INTEGER"),
     # 0007 — session management
     ("users", "max_sessions", "INTEGER DEFAULT 5"),
+    ("user_sessions", "device_id", "VARCHAR"),
     # 0008 — role presets timestamps
     ("role_presets", "updated_at", "DATETIME"),
 ]

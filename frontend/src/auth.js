@@ -1,5 +1,7 @@
 import { serverLogout } from "./api";
 
+const DEVICE_ID_KEY = "kps_device_id";
+
 export function getToken() {
   return localStorage.getItem("kps_token") || "";
 }
@@ -39,4 +41,19 @@ export function getUsername() {
 
 export function getPermissions() {
   try { return JSON.parse(localStorage.getItem("kps_permissions") || "{}"); } catch { return {}; }
+}
+
+export function getOrCreateDeviceId() {
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY) || "";
+  if (deviceId) return deviceId;
+
+  const randomPart = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
+    : Math.random().toString(36).slice(2, 10);
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "unknown";
+  const platform = typeof navigator !== "undefined" ? (navigator.platform || "web") : "web";
+  const seed = `${platform}-${ua}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "browser";
+  deviceId = `${seed}-${randomPart}`.slice(0, 64);
+  localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  return deviceId;
 }

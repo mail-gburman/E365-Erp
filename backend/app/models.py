@@ -39,6 +39,7 @@ class UserSession(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     token_jti = Column(String, unique=True, index=True, nullable=False)  # JWT jti claim
+    device_id = Column(String, nullable=True)
     ip_address = Column(String, nullable=True)
     user_agent_raw = Column(Text, nullable=True)
     os = Column(String, nullable=True)

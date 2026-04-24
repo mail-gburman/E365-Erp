@@ -1,4 +1,4 @@
-import { getToken, clearSessionSync } from "./auth";
+import { getToken, clearSessionSync, getOrCreateDeviceId } from "./auth";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 async function parse(res) {
@@ -28,6 +28,7 @@ export async function login(username, password) {
   const fd = new URLSearchParams();
   fd.set("username", username);
   fd.set("password", password);
+  fd.set("device_id", getOrCreateDeviceId());
   return fetch(`${API_BASE}/auth/login`, { method: "POST", headers: headers(true), body: fd }).then(parse);
 }
 export const api = {

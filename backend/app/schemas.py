@@ -69,6 +69,7 @@ class UserSessionRead(BaseModel):
     id: int
     user_id: int
     username: Optional[str] = None   # populated from join
+    device_id: Optional[str] = None
     ip_address: Optional[str] = None
     os: Optional[str] = None
     browser: Optional[str] = None

@@ -19,6 +19,7 @@ def login(
     request: Request,
     username: str = Form(...),
     password: str = Form(...),
+    device_id: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     user = authenticate_user(db, username, password)
@@ -59,6 +60,7 @@ def login(
     session = models.UserSession(
         user_id=user.id,
         token_jti=jti,
+        device_id=(device_id or "")[:120] or None,
         ip_address=ip,
         user_agent_raw=ua_string[:512] if ua_string else None,
         os=ua_info["os"],
@@ -70,7 +72,7 @@ def login(
         is_active=True,
     )
     db.add(session)
-    audit(db, user.username, "login", "session", details={"ip": ip, "os": ua_info["os"], "browser": ua_info["browser"]})
+    audit(db, user.username, "login", "session", details={"ip": ip, "os": ua_info["os"], "browser": ua_info["browser"], "device_id": (device_id or "")[:120] or None})
     db.commit()
 
     return {
