@@ -20,6 +20,19 @@ class User(Base):
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
 
 
+class RolePreset(Base):
+    """Admin-managed named permission templates."""
+    __tablename__ = "role_presets"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False, index=True)
+    description = Column(String, nullable=True)
+    permissions_json = Column(Text, nullable=False)
+    is_builtin = Column(Boolean, default=False, nullable=False)
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class UserSession(Base):
     """Tracks every active login session for auditing and concurrent-session control."""
     __tablename__ = "user_sessions"

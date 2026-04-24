@@ -62,6 +62,65 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user = Depe
     return {"ok": True}
 
 
+# ── Role Preset CRUD ────────────────────────────────────────────────────────
+
+@router.get("/presets", response_model=list[schemas.RolePresetRead])
+def list_presets(db: Session = Depends(get_db)):
+    return db.query(models.RolePreset).order_by(models.RolePreset.is_builtin.desc(), models.RolePreset.name).all()
+
+
+@router.post("/presets", response_model=schemas.RolePresetRead)
+def create_preset(payload: schemas.RolePresetCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if db.query(models.RolePreset).filter(models.RolePreset.name == payload.name).first():
+        raise HTTPException(status_code=400, detail="A preset with this name already exists.")
+    preset = models.RolePreset(
+        name=payload.name,
+        description=payload.description,
+        permissions_json=payload.permissions_json,
+        is_builtin=False,
+        created_by=current_user.username,
+    )
+    db.add(preset)
+    audit(db, current_user.username, "create", "role_preset", details={"name": payload.name})
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+@router.put("/presets/{preset_id}", response_model=schemas.RolePresetRead)
+def update_preset(preset_id: int, payload: schemas.RolePresetUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    preset = db.query(models.RolePreset).filter(models.RolePreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found.")
+    if preset.is_builtin:
+        raise HTTPException(status_code=400, detail="Built-in presets cannot be edited.")
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data:
+        existing = db.query(models.RolePreset).filter(models.RolePreset.name == data["name"], models.RolePreset.id != preset_id).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="A preset with this name already exists.")
+    for k, v in data.items():
+        setattr(preset, k, v)
+    preset.updated_at = datetime.utcnow()
+    audit(db, current_user.username, "update", "role_preset", entity_id=preset_id, details={"name": preset.name})
+    db.commit()
+    db.refresh(preset)
+    return preset
+
+
+@router.delete("/presets/{preset_id}")
+def delete_preset(preset_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    preset = db.query(models.RolePreset).filter(models.RolePreset.id == preset_id).first()
+    if not preset:
+        raise HTTPException(status_code=404, detail="Preset not found.")
+    if preset.is_builtin:
+        raise HTTPException(status_code=400, detail="Built-in presets cannot be deleted.")
+    audit(db, current_user.username, "delete", "role_preset", entity_id=preset_id, details={"name": preset.name})
+    db.delete(preset)
+    db.commit()
+    return {"ok": True}
+
+
 # ── Session management ──────────────────────────────────────────────────────
 
 @router.get("/sessions", response_model=list[schemas.UserSessionRead])

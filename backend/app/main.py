@@ -232,6 +232,8 @@ _MIGRATIONS = [
     ("inventory_items", "qty_in_stock", "INTEGER"),
     # 0007 — session management
     ("users", "max_sessions", "INTEGER DEFAULT 5"),
+    # 0008 — role presets timestamps
+    ("role_presets", "updated_at", "DATETIME"),
 ]
 with engine.connect() as conn:
     insp = inspect(engine)
