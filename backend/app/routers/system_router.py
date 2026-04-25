@@ -3,7 +3,8 @@ import datetime
 import os
 import subprocess
 import sys
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Body, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from ..database import get_db
@@ -84,8 +85,18 @@ def _uploaded_document_type(entity_type: str | None) -> str:
     return doc_type if doc_type in {"vendor", "client", "inventory", "warehouse", "manpower"} else "other"
 
 @router.get("/documents", response_model=list[schemas.StatutoryDocumentRead])
-def list_documents(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    rows = db.query(models.StatutoryDocument).order_by(models.StatutoryDocument.id.desc()).all()
+def list_documents(
+    entity_type: Optional[str] = Query(None),
+    entity_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    q = db.query(models.StatutoryDocument).order_by(models.StatutoryDocument.id.desc())
+    if entity_type:
+        q = q.filter(models.StatutoryDocument.entity_type == entity_type)
+    if entity_id:
+        q = q.filter(models.StatutoryDocument.entity_id == entity_id)
+    rows = q.all()
     return [row for row in rows if has_document_permission(current_user, _uploaded_document_type(row.entity_type), "view")]
 
 @router.post("/documents", dependencies=[Depends(require_permission("uploads","add"))])

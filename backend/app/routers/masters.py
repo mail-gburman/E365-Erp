@@ -197,6 +197,18 @@ def create_warehouse(payload: schemas.WarehouseCreate, db: Session = Depends(get
     db.commit(); db.refresh(item)
     return item
 
+@router.put("/warehouses/{warehouse_id}", response_model=schemas.WarehouseRead, dependencies=[Depends(require_permission("masters", "edit"))])
+def update_warehouse(warehouse_id: int, payload: schemas.WarehouseUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    item = db.query(models.Warehouse).filter(models.Warehouse.id == warehouse_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Warehouse not found.")
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(item, k, v)
+    audit(db, current_user.username, "update", "warehouse", entity_id=warehouse_id, details=data)
+    db.commit(); db.refresh(item)
+    return item
+
 @router.get("/vendors", response_model=list[schemas.VendorRead], dependencies=[Depends(require_permission("masters","view"))])
 def list_vendors(db: Session = Depends(get_db)):
     return db.query(models.Vendor).order_by(models.Vendor.name.asc()).all()
@@ -267,6 +279,18 @@ def create_equipment_master(payload: schemas.EquipmentMasterCreate, db: Session 
     item = models.EquipmentMaster(**data)
     db.add(item)
     audit(db, current_user.username, "create", "equipment_master", details=data)
+    db.commit(); db.refresh(item)
+    return item
+
+@router.put("/equipment-master/{em_id}", response_model=schemas.EquipmentMasterRead, dependencies=[Depends(require_permission("masters", "edit"))])
+def update_equipment_master(em_id: int, payload: schemas.EquipmentMasterUpdate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    item = db.query(models.EquipmentMaster).filter(models.EquipmentMaster.id == em_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Equipment master not found.")
+    data = payload.model_dump(exclude_unset=True)
+    for k, v in data.items():
+        setattr(item, k, v)
+    audit(db, current_user.username, "update", "equipment_master", entity_id=em_id, details=data)
     db.commit(); db.refresh(item)
     return item
 

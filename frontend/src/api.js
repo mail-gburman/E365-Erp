@@ -42,8 +42,8 @@ export const api = {
     if (rangeStart && rangeEnd) path += `?range_start=${rangeStart}&range_end=${rangeEnd}`;
     return get(path);
   },
-  warehouses: () => get("/warehouses"),
-  createWarehouse: (p) => post("/warehouses", p),
+  dashboardConflicts: () => get("/dashboard/conflicts"),
+  dashboardAvailablePersonnel: () => get("/dashboard/available-personnel"),
   bulkUploadPreview: async (entityType, file) => {
     const fd = new FormData();
     fd.append("entity_type", entityType);
@@ -94,13 +94,21 @@ export const api = {
   vendors: () => get("/vendors"),
   clients: () => get("/clients"),
   createClient: (p) => post("/clients", p),
+  updateClient: (id, p) => fetch(`${API_BASE}/clients/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   createVendor: (p) => post("/vendors", p),
+  updateVendor: (id, p) => fetch(`${API_BASE}/vendors/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   equipmentMaster: () => get("/equipment-master"),
   createEquipmentMaster: (p) => post("/equipment-master", p),
+  updateEquipmentMaster: (id, p) => fetch(`${API_BASE}/equipment-master/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   inventory: () => get("/inventory"),
   createInventory: (p) => post("/inventory", p),
+  updateInventory: (id, p) => fetch(`${API_BASE}/inventory/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   crew: () => get("/crew"),
   createCrew: (p) => post("/crew", p),
+  updateCrew: (id, p) => fetch(`${API_BASE}/crew/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
+  warehouses: () => get("/warehouses"),
+  createWarehouse: (p) => post("/warehouses", p),
+  updateWarehouse: (id, p) => fetch(`${API_BASE}/warehouses/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),
   procurement: () => get("/procurement"),
   createProcurement: (p) => post("/procurement", p),
   projects: () => get("/projects/"),
@@ -272,6 +280,7 @@ export const systemApi = {
   health: () => get("/health"),
   auditLogs: () => get("/audit-logs"),
   documents: () => get("/documents"),
+  documentsByEntity: (entityType, entityId) => get(`/documents?entity_type=${encodeURIComponent(entityType)}&entity_id=${entityId}`),
   documentLibrary: () => get("/system/document-library"),
   uploadDocument: async (formData) => {
     const res = await fetch(`${API_BASE}/documents`, { method: "POST", headers: headers(true), body: formData });
