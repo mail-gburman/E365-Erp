@@ -109,6 +109,12 @@ class WarehouseBase(BaseModel):
     contact_no: Optional[str] = None
 
 class WarehouseCreate(WarehouseBase): pass
+class WarehouseUpdate(BaseModel):
+    name: Optional[str] = None
+    city: Optional[str] = None
+    address: Optional[str] = None
+    manager_name: Optional[str] = None
+    contact_no: Optional[str] = None
 class WarehouseRead(WarehouseBase):
     id: int
     class Config:
@@ -154,6 +160,15 @@ class EquipmentMasterBase(BaseModel):
     notes: Optional[str] = None
 
 class EquipmentMasterCreate(EquipmentMasterBase): pass
+class EquipmentMasterUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    item_type: Optional[str] = None
+    brand: Optional[str] = None
+    model_no: Optional[str] = None
+    mandatory_accessory_codes: Optional[str] = None
+    optional_accessory_codes: Optional[str] = None
+    notes: Optional[str] = None
 class EquipmentMasterRead(EquipmentMasterBase):
     id: int
     equipment_code: str

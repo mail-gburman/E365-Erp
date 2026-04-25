@@ -461,6 +461,8 @@ def list_booking_details(db: Session = Depends(get_db)):
             "project_id": b.project_id,
             "parent_booking_id": b.parent_booking_id,
             "project_title": b.project.title if b.project else None,
+            "block_start": b.project.block_start.isoformat() if b.project and b.project.block_start else None,
+            "block_end": b.project.block_end.isoformat() if b.project and b.project.block_end else None,
             "destination": b.destination,
             "status": b.status,
             "cancellation_reason": b.cancellation_reason,

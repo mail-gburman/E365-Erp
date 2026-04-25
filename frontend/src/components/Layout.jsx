@@ -77,18 +77,18 @@ export default function Layout({ children }) {
 
   const canSeeAccounts = role === "admin" || role === "accounts" || Boolean(permissions?.accounts?.view);
   const links = useMemo(() => ([
-    ["/", "Dashboard"],
-    ["/additions", "Additions"],
-    ["/registry", "Master Registry"],
-    ["/bookings", "Booking"],
-    ["/calendar", "Calendar"],
-    ["/operations", "Papers & QC"],
-    ["/services", "Service Jobs"],
-    ["/vendors", "Vendors & Procurement"],
-    ["/accounts", "Accounts"],
-    ["/audit", "Audit & Exports"],
-    ["/admin", "Admin Users"],
-    ["/system", "System"],
+    ["/", "Dashboard", "📊"],
+    ["/additions", "Additions", "➕"],
+    ["/registry", "Master Registry", "📋"],
+    ["/bookings", "Booking", "📦"],
+    ["/calendar", "Calendar", "🗓️"],
+    ["/operations", "Papers & QC", "📄"],
+    ["/services", "Service Jobs", "🔧"],
+    ["/vendors", "Vendors & Procurement", "🏪"],
+    ["/accounts", "Accounts", "💰"],
+    ["/audit", "Audit & Exports", "📤"],
+    ["/admin", "Admin Users", "👤"],
+    ["/system", "System", "⚙️"],
   ].filter(([href]) => {
     if (href === "/admin") return role === "admin";
     if (href === "/accounts") return canSeeAccounts;
@@ -163,14 +163,14 @@ export default function Layout({ children }) {
       <div className="sidebarOverlay" onClick={() => setSidebarOpen(false)} />
       <aside className="sidebar">
         <div className="sidebarInner">
-          {/* Desktop collapse toggle */}
+          {/* Collapse toggle — top right, above logo */}
           <button className="sidebarCollapseBtn" onClick={() => setSidebarCollapsed(p => !p)} title={sidebarCollapsed ? "Expand menu" : "Collapse menu"}>
             {sidebarCollapsed ? "▶" : "◀"}
           </button>
           <div className="brand">
             <img src="/logo.png" alt="Kaleidoscope" className="brandLogo" />
             {!sidebarCollapsed && (
-              <div>
+              <div className="brandText">
                 <div className="brandTitle">Kaleidoscope</div>
                 <div className="brandSub">ERP Enterprise</div>
               </div>
@@ -183,7 +183,7 @@ export default function Layout({ children }) {
             </div>
           )}
           <nav className="nav">
-            {links.map(([href, label]) => (
+            {links.map(([href, label, icon]) => (
               <Link
                 key={href}
                 to={href}
@@ -191,7 +191,8 @@ export default function Layout({ children }) {
                 onClick={() => setSidebarOpen(false)}
                 data-label={label}
               >
-                {sidebarCollapsed ? label.slice(0, 2) : label}
+                <span className="navLinkIcon">{icon}</span>
+                <span className="navLinkText">{label}</span>
               </Link>
             ))}
           </nav>

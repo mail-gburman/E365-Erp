@@ -149,17 +149,20 @@ export default function DashboardPage() {
     const deployedCrewIds = new Set(activeBookings.flatMap((booking) => (booking.crew || []).map((member) => member.id)));
     const activeEquipmentIds = new Set(activeBookings.flatMap((booking) => (booking.equipment || []).map((item) => item.id)));
     const fallback = {
-      total_inventory: inventory.length || dashboard.total_inventory || 0,
-      total_crew: crew.length || dashboard.total_crew || 0,
-      active_shoots: activeProjects || dashboard.active_shoots || 0,
-      warranty_expiring_soon: inventory.length ? countWarrantyExpiringSoon(inventory) : (dashboard.warranty_expiring_soon || 0),
-      personnel_deployed: deployedCrewIds.size || dashboard.personnel_deployed || 0,
-      personnel_availability: crew.length ? Math.max(crew.length - deployedCrewIds.size, 0) : (dashboard.personnel_availability || 0),
-      equipment_in_service: serviceJobs.length ? serviceJobs.filter((job) => job.status === "in_service").length : (dashboard.equipment_in_service || 0),
-      equipment_utilization: inventory.length ? Math.round((activeEquipmentIds.size / inventory.length) * 10000) / 100 : (dashboard.equipment_utilization || 0),
-      third_party_equipment: inventory.length ? inventory.filter((item) => item.owner_type === "third_party").length : (dashboard.third_party_equipment || 0),
-      third_party_active: inventory.length ? inventory.filter((item) => item.owner_type === "third_party" && ["reserved", "on_shoot"].includes(item.status)).length : (dashboard.third_party_active || 0),
-      external_crew: crew.length ? crew.filter((member) => ["external", "contractual", "freelance"].includes(member.manpower_type)).length : (dashboard.external_crew || 0),
+      total_inventory: dashboard.total_inventory ?? inventory.length ?? 0,
+      total_crew: dashboard.total_crew ?? crew.length ?? 0,
+      active_shoots: dashboard.active_shoots ?? activeProjects ?? 0,
+      warranty_expiring_soon: dashboard.warranty_expiring_soon ?? (inventory.length ? countWarrantyExpiringSoon(inventory) : 0),
+      personnel_deployed: dashboard.personnel_deployed ?? deployedCrewIds.size ?? 0,
+      personnel_availability: dashboard.personnel_availability ?? (crew.length ? Math.max(crew.length - deployedCrewIds.size, 0) : 0),
+      equipment_in_service: dashboard.equipment_in_service ?? (serviceJobs.length ? serviceJobs.filter((job) => job.status === "in_service").length : 0),
+      equipment_utilization: dashboard.equipment_utilization ?? (inventory.length ? Math.round((activeEquipmentIds.size / inventory.length) * 10000) / 100 : 0),
+      third_party_equipment: dashboard.third_party_equipment ?? (inventory.length ? inventory.filter((item) => item.owner_type === "third_party").length : 0),
+      third_party_active: dashboard.third_party_active ?? (inventory.length ? inventory.filter((item) => item.owner_type === "third_party" && ["reserved", "on_shoot"].includes(item.status)).length : 0),
+      external_crew: dashboard.external_crew ?? (crew.length ? crew.filter((member) => ["external", "contractual", "freelance"].includes(member.manpower_type)).length : 0),
+      scheduling_conflicts: dashboard.scheduling_conflicts ?? 0,
+      equipment_conflicts: dashboard.equipment_conflicts ?? 0,
+      crew_conflicts: dashboard.crew_conflicts ?? 0,
     };
 
     const merged = {
@@ -260,12 +263,12 @@ export default function DashboardPage() {
 
   const drillPersonnel = async () => {
     try {
-      const crew = await api.crew();
-      const avail = crew.filter(c => c.status === "available");
+      const payload = await api.dashboardAvailablePersonnel();
+      const avail = payload.rows || [];
       openDrilldown(
-        `Available Personnel — ${avail.length} of ${crew.length}`,
+        `Available Personnel — ${payload.count ?? avail.length} of ${payload.total ?? avail.length}`,
         ["Employee Code", "Name", "Role", "Type", "Station"],
-        avail.map(c => [c.employee_code, c.full_name, c.role, c.manpower_type, c.home_station]),
+        avail.map(c => [c.employee_code, c.name, c.role, c.type, c.station]),
         "/registry"
       );
     } catch (e) { console.error(e); }
@@ -286,30 +289,57 @@ export default function DashboardPage() {
 
   const drillConflicts = async () => {
     try {
-      const bookings = await api.bookingDetails();
-      const conflicts = bookings.filter((booking) => booking.is_conflict);
+      const payload = await api.dashboardConflicts();
+      const conflicts = (payload.rows || []).map((row) => [row.job_card, row.project, row.destination, row.status, row.issue]);
       openDrilldown(
-        `Scheduling Conflicts — ${conflicts.length} booking${conflicts.length === 1 ? "" : "s"}`,
+        `Scheduling Conflicts — ${payload.count ?? conflicts.length} total`,
         ["Job Card", "Project", "Destination", "Status", "Issue"],
-        conflicts.map((booking) => [
-          booking.job_card_id,
-          booking.project_title || `Project #${booking.project_id}`,
-          booking.destination,
-          booking.status,
-          "Equipment or crew overlap detected",
-        ]),
+        conflicts,
         "/bookings"
       );
     } catch (e) { console.error(e); }
   };
 
+  const drillEquipmentConflicts = async () => {
+    try {
+      const payload = await api.dashboardConflicts();
+      const rows = (payload.rows || []).filter(r => r.issue === "Equipment overlap");
+      openDrilldown(
+        `Equipment Conflicts — ${data?.equipment_conflicts ?? 0} conflict${(data?.equipment_conflicts ?? 0) === 1 ? "" : "s"}`,
+        ["Job Card", "Project", "Destination", "Status", "Issue"],
+        rows.map(r => [r.job_card, r.project, r.destination, r.status, r.issue]),
+        "/bookings"
+      );
+    } catch (e) { console.error(e); }
+  };
+
+  const drillCrewConflicts = async () => {
+    try {
+      const payload = await api.dashboardConflicts();
+      const rows = (payload.rows || []).filter(r => r.issue === "Crew overlap");
+      openDrilldown(
+        `Crew Conflicts — ${data?.crew_conflicts ?? 0} conflict${(data?.crew_conflicts ?? 0) === 1 ? "" : "s"}`,
+        ["Job Card", "Project", "Destination", "Status", "Issue"],
+        rows.map(r => [r.job_card, r.project, r.destination, r.status, r.issue]),
+        "/bookings"
+      );
+    } catch (e) { console.error(e); }
+  };
+
+  // Helper: does [blockStart, blockEnd] overlap with [rs, re] range strings (YYYY-MM-DD)?
+  const inRange = (blockStart, blockEnd, rs, re) => {
+    if (!blockStart || !blockEnd || !rs || !re) return false;
+    return new Date(blockStart) <= new Date(re + "T23:59:59") && new Date(blockEnd) >= new Date(rs + "T00:00:00");
+  };
+
   const drillRangeBookings = async () => {
     try {
       const bookings = await api.bookingDetails();
+      const filtered = bookings.filter((b) => inRange(b.block_start, b.block_end, rangeStart, rangeEnd));
       openDrilldown(
         `Bookings in Selected Range — ${data?.range_bookings ?? 0}`,
         ["Job Card", "Project", "Destination", "Status"],
-        bookings.map((booking) => [
+        filtered.map((booking) => [
           booking.job_card_id,
           booking.project_title || `Project #${booking.project_id}`,
           booking.destination,
@@ -323,10 +353,15 @@ export default function DashboardPage() {
   const drillRangeProjects = async () => {
     try {
       const projects = await api.projects();
+      const filtered = projects.filter((p) => inRange(
+        p.block_start || p.expected_start_date || p.shoot_start,
+        p.block_end || p.expected_end_date || p.shoot_end,
+        rangeStart, rangeEnd
+      ));
       openDrilldown(
         `Projects in Selected Range — ${data?.range_projects ?? 0}`,
         ["Project", "Status", "Venue", "Window"],
-        projects.map((project) => [
+        filtered.map((project) => [
           project.title,
           project.status,
           project.venue,
@@ -340,11 +375,11 @@ export default function DashboardPage() {
   const drillRangeDispatched = async () => {
     try {
       const bookings = await api.bookingDetails();
-      const dispatched = bookings.filter((booking) => booking.status === "dispatched");
+      const filtered = bookings.filter((b) => b.status === "dispatched" && inRange(b.block_start, b.block_end, rangeStart, rangeEnd));
       openDrilldown(
         `Dispatched in Selected Range — ${data?.range_dispatched ?? 0}`,
         ["Job Card", "Project", "Destination", "Status"],
-        dispatched.map((booking) => [
+        filtered.map((booking) => [
           booking.job_card_id,
           booking.project_title || `Project #${booking.project_id}`,
           booking.destination,
@@ -358,11 +393,11 @@ export default function DashboardPage() {
   const drillRangeReturns = async () => {
     try {
       const bookings = await api.bookingDetails();
-      const finished = bookings.filter((booking) => ["returned", "cancelled"].includes(booking.status));
+      const filtered = bookings.filter((b) => ["returned", "cancelled"].includes(b.status) && inRange(b.block_start, b.block_end, rangeStart, rangeEnd));
       openDrilldown(
         `Returned / Cancelled in Selected Range — ${data?.range_returned ?? 0} / ${data?.range_cancelled ?? 0}`,
         ["Job Card", "Project", "Destination", "Status"],
-        finished.map((booking) => [
+        filtered.map((booking) => [
           booking.job_card_id,
           booking.project_title || `Project #${booking.project_id}`,
           booking.destination,
@@ -376,15 +411,20 @@ export default function DashboardPage() {
   const drillReturnsDueToday = async () => {
     try {
       const bookings = await api.bookingDetails();
-      const due = bookings.filter((booking) => booking.status === "dispatched");
+      const todayStr = fmtDate(new Date());
+      const due = bookings.filter((b) =>
+        ["confirmed", "dispatched"].includes(b.status) &&
+        b.block_end && b.block_end.substring(0, 10) === todayStr
+      );
       openDrilldown(
         `Returns Due Today — ${data?.returns_due_today ?? 0}`,
-        ["Job Card", "Project", "Destination", "Status"],
+        ["Job Card", "Project", "Destination", "Status", "Due Date"],
         due.map((booking) => [
           booking.job_card_id,
           booking.project_title || `Project #${booking.project_id}`,
           booking.destination,
           booking.status,
+          booking.block_end ? booking.block_end.substring(0, 10) : "-",
         ]),
         "/bookings"
       );
@@ -394,15 +434,20 @@ export default function DashboardPage() {
   const drillOverdueReturns = async () => {
     try {
       const bookings = await api.bookingDetails();
-      const overdue = bookings.filter((booking) => booking.status === "dispatched");
+      const now = new Date();
+      const overdue = bookings.filter((b) =>
+        ["confirmed", "dispatched"].includes(b.status) &&
+        b.block_end && new Date(b.block_end) < now
+      );
       openDrilldown(
         `Overdue Returns — ${data?.overdue_returns ?? 0}`,
-        ["Job Card", "Project", "Destination", "Status"],
+        ["Job Card", "Project", "Destination", "Status", "Was Due"],
         overdue.map((booking) => [
           booking.job_card_id,
           booking.project_title || `Project #${booking.project_id}`,
           booking.destination,
           booking.status,
+          booking.block_end ? booking.block_end.substring(0, 10) : "-",
         ]),
         "/bookings"
       );
@@ -497,8 +542,8 @@ export default function DashboardPage() {
       <div className="grid2">
         <Card title="Conflict & Returns">
           <div className="statRow">
-            <div style={{ cursor: "pointer" }} onClick={drillConflicts}><strong>{data?.equipment_conflicts ?? 0}</strong><span>Equipment conflicts</span></div>
-            <div style={{ cursor: "pointer" }} onClick={drillConflicts}><strong>{data?.crew_conflicts ?? 0}</strong><span>Crew conflicts</span></div>
+            <div style={{ cursor: "pointer" }} onClick={drillEquipmentConflicts}><strong>{data?.equipment_conflicts ?? 0}</strong><span>Equipment conflicts</span></div>
+            <div style={{ cursor: "pointer" }} onClick={drillCrewConflicts}><strong>{data?.crew_conflicts ?? 0}</strong><span>Crew conflicts</span></div>
             <div style={{ cursor: "pointer" }} onClick={drillReturnsDueToday}><strong>{data?.returns_due_today ?? 0}</strong><span>Returns due today</span></div>
           </div>
           {data?.overdue_returns > 0 && (
