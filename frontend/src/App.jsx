@@ -17,13 +17,13 @@ import CalendarPage from "./pages/CalendarPage";
 import { getToken } from "./auth";
 
 function Protected({ children }) {
-  return getToken() ? <Layout>{children}</Layout> : <Navigate to="/login" replace />;
+  return getToken() ? <Layout>{children}</Layout> : <Navigate to="/auth/login" replace />;
 }
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/auth/login" element={<LoginPage />} />
       <Route path="/" element={<Protected><DashboardPage /></Protected>} />
       <Route path="/additions" element={<Protected><AdditionsPage /></Protected>} />
       <Route path="/registry" element={<Protected><MasterRegistryPage /></Protected>} />
