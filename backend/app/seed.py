@@ -36,16 +36,19 @@ def seed_builtin_presets(db: Session):
 
 def seed_db(db: Session):
     seed_builtin_presets(db)
-    if db.query(models.User).first():
-        return
 
-    # ── USERS ──
-    users = [
-        models.User(username="admin", password_hash=hash_password("admin123"), role="admin", permissions_json=json.dumps(ROLE_DEFAULTS["admin"])),
-        models.User(username="operations", password_hash=hash_password("ops123"), role="operations", permissions_json=json.dumps(ROLE_DEFAULTS["operations"])),
-        models.User(username="store", password_hash=hash_password("store123"), role="store", permissions_json=json.dumps(ROLE_DEFAULTS["store"])),
-    ]
-    db.add_all(users)
+    if not db.query(models.User).first():
+        users = [
+            models.User(username="admin", password_hash=hash_password("admin123"), role="admin", permissions_json=json.dumps(ROLE_DEFAULTS["admin"])),
+            models.User(username="operations", password_hash=hash_password("ops123"), role="operations", permissions_json=json.dumps(ROLE_DEFAULTS["operations"])),
+            models.User(username="store", password_hash=hash_password("store123"), role="store", permissions_json=json.dumps(ROLE_DEFAULTS["store"])),
+        ]
+        db.add_all(users)
+        db.commit()
+
+    # Business/reference seed should still run after a reset that preserves users.
+    if db.query(models.Warehouse).first():
+        return
 
     # ── WAREHOUSES ──
     warehouses = [

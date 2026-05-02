@@ -92,6 +92,7 @@ export const api = {
     }
   },
   vendors: () => get("/vendors"),
+  mastersBootstrap: () => get("/bootstrap"),
   clients: () => get("/clients"),
   createClient: (p) => post("/clients", p),
   updateClient: (id, p) => fetch(`${API_BASE}/clients/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) }).then(parse),

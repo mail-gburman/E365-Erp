@@ -189,6 +189,17 @@ def _infer_item_type(sheet_name: str):
 def list_warehouses(db: Session = Depends(get_db)):
     return db.query(models.Warehouse).order_by(models.Warehouse.name.asc()).all()
 
+@router.get("/bootstrap", response_model=schemas.MastersBootstrapRead, dependencies=[Depends(require_permission("masters","view"))])
+def masters_bootstrap(db: Session = Depends(get_db)):
+    return {
+        "warehouses": db.query(models.Warehouse).order_by(models.Warehouse.name.asc()).all(),
+        "vendors": db.query(models.Vendor).order_by(models.Vendor.name.asc()).all(),
+        "clients": db.query(models.Client).order_by(models.Client.name.asc()).all(),
+        "inventory": db.query(models.InventoryItem).order_by(models.InventoryItem.id.desc()).all(),
+        "equipment_master": db.query(models.EquipmentMaster).order_by(models.EquipmentMaster.name.asc()).all(),
+        "crew": db.query(models.CrewMember).order_by(models.CrewMember.id.desc()).all(),
+    }
+
 @router.post("/warehouses", response_model=schemas.WarehouseRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_warehouse(payload: schemas.WarehouseCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     item = models.Warehouse(**payload.model_dump())

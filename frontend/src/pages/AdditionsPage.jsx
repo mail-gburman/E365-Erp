@@ -396,7 +396,18 @@ export default function AdditionsPage() {
     api.equipmentMaster().then(setEquipmentMaster);
     api.crew().then(setCrewList);
   };
-  useEffect(() => { load(); }, []);
+  const loadBootstrap = async () => {
+    const data = await api.mastersBootstrap();
+    setWarehouses(data.warehouses || []);
+    setVendors(data.vendors || []);
+    setClients(data.clients || []);
+    setInventory(data.inventory || []);
+    setEquipmentMaster(data.equipment_master || []);
+    setCrewList(data.crew || []);
+  };
+  useEffect(() => {
+    loadBootstrap().catch((e) => setMessage(String(e.message || e)));
+  }, []);
 
   // Pre-fill form when navigated from Master Registry Edit button
   useEffect(() => {

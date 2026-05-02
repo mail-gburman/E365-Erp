@@ -178,6 +178,15 @@ def dashboard(
     }
 
 
+@router.get("/snapshot")
+def dashboard_snapshot(
+    db: Session = Depends(get_db),
+    range_start: Optional[str] = Query(None),
+    range_end: Optional[str] = Query(None),
+):
+    return dashboard(db=db, range_start=range_start, range_end=range_end)
+
+
 @router.get("/conflicts")
 def dashboard_conflicts(db: Session = Depends(get_db)):
     rows, equipment_conflicts, crew_conflicts = _booking_conflict_rows(_active_bookings(db))

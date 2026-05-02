@@ -108,6 +108,141 @@ ACTION_LABELS = {
     "reset": "Reset",
 }
 
+_PRESERVED_RESET_TABLES = {"users", "user_sessions", "role_presets"}
+
+
+def _snapshot_auth_state(db: Session):
+    users = []
+    for user in db.query(models.User).all():
+        users.append({
+            "username": user.username,
+            "password_hash": user.password_hash,
+            "role": user.role,
+            "full_name": user.full_name,
+            "phone": user.phone,
+            "email": user.email,
+            "permissions_json": user.permissions_json,
+            "is_active": user.is_active,
+            "max_sessions": user.max_sessions,
+        })
+
+    sessions = []
+    for session in db.query(models.UserSession).all():
+        if not session.user:
+            continue
+        sessions.append({
+            "username": session.user.username,
+            "token_jti": session.token_jti,
+            "device_id": session.device_id,
+            "ip_address": session.ip_address,
+            "user_agent_raw": session.user_agent_raw,
+            "os": session.os,
+            "browser": session.browser,
+            "device_type": session.device_type,
+            "login_at": session.login_at,
+            "last_active_at": session.last_active_at,
+            "expires_at": session.expires_at,
+            "is_active": session.is_active,
+        })
+
+    presets = []
+    for preset in db.query(models.RolePreset).all():
+        presets.append({
+            "name": preset.name,
+            "description": preset.description,
+            "permissions_json": preset.permissions_json,
+            "is_builtin": preset.is_builtin,
+            "created_by": preset.created_by,
+        })
+
+    return {
+        "users": users,
+        "sessions": sessions,
+        "presets": presets,
+    }
+
+
+def _restore_auth_state(db: Session, snapshot):
+    preserved_preset_names = {row["name"] for row in snapshot.get("presets", []) if row.get("name")}
+    if preserved_preset_names:
+        db.query(models.RolePreset).filter(~models.RolePreset.name.in_(preserved_preset_names)).delete(synchronize_session=False)
+    for row in snapshot.get("presets", []):
+        if not row.get("name"):
+            continue
+        preset = db.query(models.RolePreset).filter(models.RolePreset.name == row["name"]).first()
+        if not preset:
+            preset = models.RolePreset(name=row["name"])
+            db.add(preset)
+        preset.description = row.get("description")
+        preset.permissions_json = row.get("permissions_json") or "{}"
+        preset.is_builtin = bool(row.get("is_builtin"))
+        preset.created_by = row.get("created_by")
+
+    preserved_usernames = {row["username"] for row in snapshot.get("users", []) if row.get("username")}
+    if preserved_usernames:
+        db.query(models.UserSession).delete(synchronize_session=False)
+        db.query(models.User).filter(~models.User.username.in_(preserved_usernames)).delete(synchronize_session=False)
+
+    user_id_by_username = {}
+    for row in snapshot.get("users", []):
+        if not row.get("username"):
+            continue
+        user = db.query(models.User).filter(models.User.username == row["username"]).first()
+        if not user:
+            user = models.User(username=row["username"], password_hash=row["password_hash"], role=row["role"])
+            db.add(user)
+        user.password_hash = row["password_hash"]
+        user.role = row["role"]
+        user.full_name = row.get("full_name")
+        user.phone = row.get("phone")
+        user.email = row.get("email")
+        user.permissions_json = row.get("permissions_json")
+        user.is_active = bool(row.get("is_active", True))
+        user.max_sessions = row.get("max_sessions") if row.get("max_sessions") is not None else 5
+        db.flush()
+        user_id_by_username[row["username"]] = user.id
+
+    for row in snapshot.get("sessions", []):
+        username = row.get("username")
+        user_id = user_id_by_username.get(username)
+        if not user_id:
+            continue
+        db.add(models.UserSession(
+            user_id=user_id,
+            token_jti=row["token_jti"],
+            device_id=row.get("device_id"),
+            ip_address=row.get("ip_address"),
+            user_agent_raw=row.get("user_agent_raw"),
+            os=row.get("os"),
+            browser=row.get("browser"),
+            device_type=row.get("device_type"),
+            login_at=row.get("login_at"),
+            last_active_at=row.get("last_active_at"),
+            expires_at=row.get("expires_at"),
+            is_active=bool(row.get("is_active", True)),
+        ))
+
+
+def _reset_business_tables(engine):
+    from sqlalchemy import text, inspect
+
+    if engine.dialect.name == "postgresql":
+        with engine.connect() as conn:
+            tables = [t for t in inspect(engine).get_table_names() if t not in _PRESERVED_RESET_TABLES]
+            if tables:
+                quoted = ", ".join(f'"{table}"' for table in tables)
+                conn.execute(text(f"TRUNCATE TABLE {quoted} RESTART IDENTITY CASCADE"))
+            conn.commit()
+        return
+
+    with engine.begin() as conn:
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        for table in reversed(Base.metadata.sorted_tables):
+            if table.name in _PRESERVED_RESET_TABLES:
+                continue
+            conn.execute(table.delete())
+        conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+
 
 def _range_dates(range_key, start_date, end_date):
     now = datetime.utcnow()
@@ -499,21 +634,23 @@ def audit_zip(range_key: str = Query("7d"), category: str = Query("all"), start_
 
 @router.post("/reset-all", dependencies=[Depends(require_roles("admin"))])
 def reset_all(current_user = Depends(get_current_user)):
-    from sqlalchemy import text, inspect
-    if engine.dialect.name == "postgresql":
-        with engine.connect() as conn:
-            tables = inspect(engine).get_table_names()
-            for t in tables:
-                conn.execute(text(f'DROP TABLE IF EXISTS "{t}" CASCADE'))
-            conn.commit()
-    else:
-        Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    snapshot_session = SessionLocal()
+    try:
+        auth_snapshot = _snapshot_auth_state(snapshot_session)
+    finally:
+        snapshot_session.close()
+
+    _reset_business_tables(engine)
+
     seed_session = SessionLocal()
     try:
         seed_db(seed_session)
+        _restore_auth_state(seed_session, auth_snapshot)
         audit(seed_session, current_user.username, "reset", "system", details={"message": "All data erased and reseeded"})
         seed_session.commit()
+    except Exception:
+        seed_session.rollback()
+        raise
     finally:
         seed_session.close()
     return {"ok": True}

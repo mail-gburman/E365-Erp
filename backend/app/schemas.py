@@ -307,6 +307,15 @@ class CrewRead(CrewBase):
     class Config:
         from_attributes = True
 
+
+class MastersBootstrapRead(BaseModel):
+    warehouses: list[WarehouseRead] = Field(default_factory=list)
+    vendors: list[VendorRead] = Field(default_factory=list)
+    clients: list[ClientRead] = Field(default_factory=list)
+    inventory: list[InventoryRead] = Field(default_factory=list)
+    equipment_master: list[EquipmentMasterRead] = Field(default_factory=list)
+    crew: list[CrewRead] = Field(default_factory=list)
+
 class ProjectDateRead(BaseModel):
     date_type: str
     date_value: date
