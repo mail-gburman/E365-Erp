@@ -114,8 +114,8 @@ export default function Layout({ children }) {
   }
 
   async function handleEraseAll() {
-    if (!confirm("Erase all data and reseed the system?")) return;
-    if (!confirm("Final confirmation: this cannot be undone.")) return;
+    if (!confirm("Erase all business data and reseed the system? User accounts, passwords, and login sessions will be kept.")) return;
+    if (!confirm("Final confirmation: live records will be cleared, but user credential data will stay.")) return;
     try {
       await auditApi.resetAll();
       alert("All data erased and reseeded successfully. The page will reload.");
