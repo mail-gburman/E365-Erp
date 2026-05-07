@@ -14,6 +14,7 @@ import AdminPage from "./pages/AdminPage";
 import SystemPage from "./pages/SystemPage";
 import AuditPage from "./pages/AuditPage";
 import CalendarPage from "./pages/CalendarPage";
+import CompanyProfilePage from "./pages/CompanyProfilePage";
 import { getToken } from "./auth";
 
 function Protected({ children }) {
@@ -36,6 +37,7 @@ export default function App() {
       <Route path="/system" element={<Protected><SystemPage /></Protected>} />
       <Route path="/calendar" element={<Protected><CalendarPage /></Protected>} />
       <Route path="/audit" element={<Protected><AuditPage /></Protected>} />
+      <Route path="/company-profile" element={<Protected><CompanyProfilePage /></Protected>} />
     </Routes>
   );
 }
