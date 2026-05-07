@@ -448,23 +448,49 @@ export default function CalendarPage() {
 
       {/* Legend / Filter */}
       <Card title="Filter by Event Type">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {Object.entries(COLOR_MAP).map(([key, val]) => (
-            <button
-              key={key}
-              className="calLegendBtn"
-              style={{
-                background: visibleTypes.includes(key) ? val.bg : "rgba(255,255,255,.03)",
-                borderColor: visibleTypes.includes(key) ? val.border : "var(--line)",
-                color: visibleTypes.includes(key) ? "#fff" : "var(--muted)",
-              }}
-              onClick={() => toggleType(key)}
-            >
-              <span className="calLegendDot" style={{ background: val.border }} />
-              {val.label}
-            </button>
-          ))}
-        </div>
+        {(() => {
+          const SHOOT_KEYS = ["travel", "setup", "technical", "shoot", "off", "end", "return"];
+          const BOOKING_KEYS = ["planned", "confirmed", "blocked", "dispatched", "supplementary"];
+          const renderGroup = (keys) => (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {keys.map(key => {
+                const val = COLOR_MAP[key];
+                if (!val) return null;
+                return (
+                  <button
+                    key={key}
+                    className="calLegendBtn"
+                    style={{
+                      background: visibleTypes.includes(key) ? val.bg : "rgba(255,255,255,.03)",
+                      borderColor: visibleTypes.includes(key) ? val.border : "var(--line)",
+                      color: visibleTypes.includes(key) ? "#fff" : "var(--muted)",
+                    }}
+                    onClick={() => toggleType(key)}
+                  >
+                    <span className="calLegendDot" style={{ background: val.border }} />
+                    {val.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
+          return (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 6 }}>
+                  Shoot Events
+                </div>
+                {renderGroup(SHOOT_KEYS)}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 6 }}>
+                  Booking Events
+                </div>
+                {renderGroup(BOOKING_KEYS)}
+              </div>
+            </>
+          );
+        })()}
       </Card>
 
       {/* Month Navigation */}
