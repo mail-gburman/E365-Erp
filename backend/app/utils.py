@@ -109,7 +109,7 @@ def make_branded_pdf(title, subtitle, lines):
         c.setFont("Helvetica", 11)
         c.drawString(left, height - 148, subtitle)
         c.setFont("Helvetica", 8)
-        c.drawString(left, height - 162, "E365 Event ERP | 326 Shantipally, Kolkata 700107")
+        c.drawString(left, height - 162, COMPANY_ADDRESS_LINE)
         return height - 180
 
     def _branded_new_page():
@@ -296,7 +296,7 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"E365 Manpower Details {job_card_id}")
-    c.setAuthor("E365 Event ERP")
+    c.setAuthor("Eventory")
     width, height = A4
     left = 42
     right = width - 42
@@ -441,7 +441,7 @@ def make_calendar_day_summary_pdf(summary_date, rows):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(f"E365 Calendar Day Summary {summary_date}")
-    c.setAuthor("E365 Event ERP")
+    c.setAuthor("Eventory")
     c.setSubject(f"Calendar day summary for {summary_date}")
     width, height = A4
     left = 36
@@ -1053,10 +1053,9 @@ def make_address_label_pdf(to_name, to_address, to_contact, to_gstin=None, extra
     y -= 22
     c.setFont("Helvetica", 12)
     for line in [
-        "E365 Event ERP,",
-        "326, Shantipally, Near Siemens,",
-        "Kolkata : 700107.",
-        "Contact : 033-4073 4036",
+        "CREATVO STUDIOS,",
+        "Eventory ERP",
+        "Powered by CREATVO STUDIOS / E365",
     ]:
         c.drawString(left, y, line)
         y -= 16
@@ -1101,8 +1100,8 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c.setFont("Helvetica-Bold", 15)
     c.drawRightString(right, y - 10, "CREATVO STUDIOS")
     c.setFont("Helvetica", 8.5)
-    c.drawRightString(right, y - 24, "326, Shantipally, Kolkata – 700107")
-    c.drawRightString(right, y - 36, "GSTIN: 19AALFK2467Q1ZG  |  Tel: 033-4073 4036  |  Mob: 8697738894")
+    c.drawRightString(right, y - 24, "Eventory ERP")
+    c.drawRightString(right, y - 36, "Powered by CREATVO STUDIOS / E365")
     y -= 60
     c.setLineWidth(1.2)
     c.line(left, y, right, y)
@@ -1156,10 +1155,9 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     y -= 18
     c.setFont("Helvetica", 11)
     for line in [
-        "E365 Event ERP,",
-        "326, Santipally,",
-        "Kolkata : 700107",
-        "Contact No. 8697738894, 033-4073 4036",
+        "CREATVO STUDIOS,",
+        "Eventory ERP",
+        "Powered by CREATVO STUDIOS / E365",
     ]:
         c.drawString(left, y, line)
         y -= 16
@@ -1180,7 +1178,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c.setFont("Helvetica", 10)
     c.drawString(left, y, "(Authorised Signatory)")
     y -= 14
-    c.drawString(left, y, "For E365 Event ERP")
+    c.drawString(left, y, "For CREATVO STUDIOS")
     y -= 20
     dt = declaration_date or date.today().strftime("%d/%m/%Y")
     c.drawString(left, y, f"Dated: {dt}")
@@ -1252,7 +1250,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         y -= 18
 
     c.setTitle(f"Invoice {getattr(invoice, 'invoice_number', '')}")
-    c.setAuthor("E365 Event ERP")
+    c.setAuthor("Eventory")
     draw_header()
 
     invoice_number = getattr(invoice, 'invoice_number', '-')
@@ -1393,8 +1391,8 @@ def make_quotation_pdf(quote, client_name, project_title=None):
     c.setFont("Helvetica-Bold", 20)
     c.drawRightString(right, y - 18, "QUOTATION")
     c.setFont("Helvetica", 9)
-    c.drawRightString(right, y - 32, "E365 Event ERP")
-    c.drawRightString(right, y - 44, "326 Shantipally, Kolkata 700107")
+    c.drawRightString(right, y - 32, "Eventory ERP")
+    c.drawRightString(right, y - 44, "Powered by CREATVO STUDIOS / E365")
     y -= 90
 
     # ── Quote meta block ─────────────────────────────────────────────────────
@@ -1520,7 +1518,7 @@ def make_quotation_pdf(quote, client_name, project_title=None):
 
     # ── Footer ────────────────────────────────────────────────────────────────
     c.setFont("Helvetica", 8)
-    c.drawString(left, 38, "For E365 Event ERP")
+    c.drawString(left, 38, "For CREATVO STUDIOS")
     c.drawRightString(right, 38, "Authorised Signatory")
     c.line(left, 54, right, 54)
     c.drawCentredString(width / 2, 24, "This is a computer-generated quotation.")

@@ -270,7 +270,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
     expected_ret_str = item.expected_return_date.strftime("%d/%m/%Y") if getattr(item, "expected_return_date", None) else "-"
     actual_ret_str = item.actual_return_date.strftime("%d/%m/%Y") if getattr(item, "actual_return_date", None) else "-"
     pdf = make_branded_pdf(
-        "E365 Event ERP - Service Outbound Paper",
+        "Eventory - Service Outbound Paper",
         "Equipment servicing movement document",
         [
             f"Job Number: {item.job_number}",
@@ -284,7 +284,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
             f"Alternate Contact: {item.alternate_contact_name or '-'}",
             f"Alternate Mobile: {item.alternate_contact_mobile or '-'}",
             f"Email: {item.contact_email or '-'}",
-            f"Pickup Address: {item.pickup_address or 'E365 Kolkata Office'}",
+            f"Pickup Address: {item.pickup_address or 'CREATVO STUDIOS Office'}",
             f"Delivery Address: {_coalesce(item.delivery_address, _vendor_address(vendor)) or '-'}",
             f"Sent Date: {sent_date_str}",
             f"Expected Return: {expected_ret_str}",
@@ -322,8 +322,8 @@ def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
     if item.attachments:
         item_desc += f", with {len(item.attachments)} damage photo(s) on record"
     vendor = item.vendor
-    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "E365 Inhouse Service")
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "E365 Event ERP, Kolkata")
+    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "CREATVO STUDIOS Inhouse Service")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "CREATVO STUDIOS")
     to_contact_parts = [
         _coalesce(item.contact_person_mobile, vendor.phone if vendor else None),
         item.contact_email,
@@ -349,10 +349,10 @@ def service_address_label_pdf(job_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Service job not found.")
     vendor = item.vendor
-    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "E365 Inhouse Service")
+    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "CREATVO STUDIOS Inhouse Service")
     contact_name = item.contact_person_name or None
     to_name = vendor_name if not contact_name else f"{vendor_name}\nAttn: {contact_name}"
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "E365 Event ERP, Kolkata")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "CREATVO STUDIOS")
     to_contact_parts = [item.contact_person_mobile, item.alternate_contact_mobile, item.contact_email, vendor.phone if vendor else None]
     to_contact = " | ".join([str(x) for x in to_contact_parts if x])
     to_gstin = vendor.gst_number if vendor else None

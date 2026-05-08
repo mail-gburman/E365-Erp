@@ -16,7 +16,7 @@ from .routers import quotes as quotes_router
 
 configure_tenant_scoping(models)
 
-app = FastAPI(title="E365 Event ERP API", version="9.1.0")
+app = FastAPI(title="Eventory API", version="9.1.0")
 
 @app.middleware("http")
 async def tenant_context_middleware(request: Request, call_next):
@@ -393,4 +393,4 @@ app.include_router(quotes_router.router)
 
 @app.get("/")
 def root():
-    return {"message": "E365 Event ERP API running", "version": "9.1.0"}
+    return {"message": "Eventory API running", "version": "9.1.0"}
