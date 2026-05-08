@@ -227,11 +227,11 @@ def ensure_demo_data(db: Session):
         models.Client,
         {"client_code": "CLI-90001"},
         {
-            "name": "Apex Corporate Media",
+            "name": "Apex Corporate Events",
             "industry_type": "Corporate Events",
             "billing_address": "BKC Corporate Park, Mumbai",
             "gst_number": "27APEXC9000A1Z9",
-            "notes": "Demo client for corporate summit, dispatch, and supplementary workflow.",
+            "notes": "Demo client for corporate event, dispatch, and supplementary workflow.",
             "is_demo": True,
         },
     )
@@ -240,8 +240,8 @@ def ensure_demo_data(db: Session):
         models.Client,
         {"client_code": "CLI-90002"},
         {
-            "name": "Northstar Documentary Unit",
-            "industry_type": "Documentary",
+            "name": "Northstar Entertainment Unit",
+            "industry_type": "Entertainment Events",
             "billing_address": "Sector 62, Noida",
             "gst_number": "09NSTAR9000B1Z8",
             "notes": "Demo client for return QC, damage, service, and cancellation workflow.",
@@ -256,48 +256,49 @@ def ensure_demo_data(db: Session):
         ]),
         (demo_client_b, [
             {"contact_name": "Reema Dutt", "designation": "Line Producer", "email": "reema@northstar.demo", "phone_country_code": "+91", "phone_number": "9820002001", "is_primary": True},
-            {"contact_name": "Kabir Sharma", "designation": "Field Director", "email": "kabir@northstar.demo", "phone_country_code": "+91", "phone_number": "9820002002", "is_primary": False},
+            {"contact_name": "Kabir Sharma", "designation": "Event Director", "email": "kabir@northstar.demo", "phone_country_code": "+91", "phone_number": "9820002002", "is_primary": False},
         ]),
     ]:
         for contact in contacts:
             _ensure(db, models.ClientContact, {"client_id": client.id, "contact_name": contact["contact_name"]}, contact)
 
-    # Extra inventory types for demo filters
-    eqm_fx9 = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01000")
-    eqm_halo = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01032")
+    # Equipment master lookups for kit / bundle parents
+    eqm_mac = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01000")   # Martin MAC Aura XB
+    eqm_ql5 = _query_one(db, models.EquipmentMaster, equipment_code="EQM-01032")   # Yamaha QL5
 
-    # Kit parent items
-    kit_eng = _ensure(
-        db, models.InventoryItem, {"asset_code": "E365/KIT/ENG-01"},
+    # Kit parent – Stage Lighting Pack
+    kit_stg = _ensure(
+        db, models.InventoryItem, {"asset_code": "E365/KIT/STG-01"},
         {
-            "product_code": "PRD-900001", "name": "ENG Camera Kit", "category": "CAMERA KIT",
+            "product_code": "PRD-900001", "name": "Stage Lighting Pack", "category": "LIGHTING KIT",
             "item_type": "kit", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
-            "status": "available", "location_text": "Kolkata – Bay A",
+            "status": "available", "location_text": "Kolkata – Lighting Bay A",
             "service_status": "not_in_service", "warranty_expiry": date(2027, 6, 30),
-            "statutory_tag": "E365/KIT/ENG-01",
-            "equipment_master_id": eqm_fx9.id if eqm_fx9 else None,
-            "notes": "ENG Kit: FX9 body + V-mount battery + charger. Auto-expands in booking.", "is_demo": True,
+            "statutory_tag": "E365/KIT/STG-01",
+            "equipment_master_id": eqm_mac.id if eqm_mac else None,
+            "notes": "Lighting pack: MAC Aura XB head + DMX cable + XLR cable. Auto-expands in booking.", "is_demo": True,
         },
     )[0]
 
-    bundle_stream = _ensure(
-        db, models.InventoryItem, {"asset_code": "E365/BND/STREAM-01"},
+    # Bundle parent – FOH Audio Bundle
+    bundle_audio = _ensure(
+        db, models.InventoryItem, {"asset_code": "E365/BND/AUDIO-01"},
         {
-            "product_code": "PRD-900002", "name": "Corporate Streaming Bundle", "category": "STREAMING",
+            "product_code": "PRD-900002", "name": "FOH Audio Bundle", "category": "AUDIO BUNDLE",
             "item_type": "bundle", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
-            "status": "available", "location_text": "Kolkata – Bay B",
+            "status": "available", "location_text": "Kolkata – Mixer Bay",
             "service_status": "not_in_service", "warranty_expiry": date(2027, 3, 31),
-            "statutory_tag": "E365/BND/STREAM-01",
-            "equipment_master_id": eqm_halo.id if eqm_halo else None,
-            "notes": "Streaming bundle: encoder + switcher + PTZ cam. Auto-expands in booking.", "is_demo": True,
+            "statutory_tag": "E365/BND/AUDIO-01",
+            "equipment_master_id": eqm_ql5.id if eqm_ql5 else None,
+            "notes": "FOH bundle: Yamaha QL5 mixer + 2x JBL SRX815P + 2x SRX818SP sub. Auto-expands in booking.", "is_demo": True,
         },
     )[0]
 
     # Consumables with qty_in_stock
     for asset_code, product_code, name, category, qty, notes in [
         ("E365/CON/GAFF-01", "PRD-900003", "Gaffer Tape (Box of 12)", "CONSUMABLE", 12, "Heavy-duty gaffer tape, black."),
-        ("E365/CON/CF-01", "PRD-900010", "CFexpress Card Type B 512GB", "MEMORY CARD", 6, "CFexpress B cards for FX9 / FX6."),
-        ("E365/CON/BATT-AA-01", "PRD-900011", "AA Batteries (Pack of 24)", "CONSUMABLE", 20, "For wireless mics and remotes."),
+        ("E365/CON/LAMP-01", "PRD-900010", "Replacement Lamp MSD 200W (5pcs)", "LAMP", 5, "MSD 200W lamps for Elation Platinum Spot 5R Pro."),
+        ("E365/CON/BATT-AA-01", "PRD-900011", "AA Batteries (Pack of 24)", "CONSUMABLE", 20, "For wireless receivers and remotes."),
     ]:
         _ensure(
             db, models.InventoryItem, {"asset_code": asset_code},
@@ -312,12 +313,12 @@ def ensure_demo_data(db: Session):
 
     # Third-party equipment WITH rental windows
     for asset_code, product_code, name, category, avail_from, avail_until, notes in [
-        ("3P/LGT/ASTERA-01", "PRD-900004", "Astera Tube Light Set (8pcs)", "LIGHTING",
+        ("3P/LGT/ASTERA-01", "PRD-900004", "Astera AX1 PixelBar Tube Set (8pcs)", "LIGHTING",
          date(2026, 4, 20), date(2026, 5, 15), "Rented from Filmlite India for April–May events."),
-        ("3P/CAM/MOVI-01", "PRD-900005", "DJI Ronin 4D Gimbal Rental", "GIMBAL",
-         date(2026, 4, 25), date(2026, 5, 10), "Rented from CineGear Mumbai. Available only Apr 25 – May 10."),
-        ("3P/AUD/SENN-01", "PRD-900006", "Sennheiser MKH 8050 + Boom Rental", "AUDIO",
-         date(2026, 4, 21), date(2026, 6, 30), "Rented from Sound Solutions Kolkata. Long-term rental."),
+        ("3P/LGT/ADJ-01", "PRD-900005", "ADJ Mega Bar 50RCX Moving Bar Rental", "LIGHTING",
+         date(2026, 4, 25), date(2026, 5, 10), "Rented from StageGear Mumbai. Available only Apr 25 – May 10."),
+        ("3P/AUD/SENN-01", "PRD-900006", "Sennheiser EW 500 G4 Wireless Set (4ch)", "WIRELESS AUDIO",
+         date(2026, 4, 21), date(2026, 6, 30), "Rented from AudioVision Kolkata. Long-term rental for events."),
     ]:
         _ensure(
             db, models.InventoryItem, {"asset_code": asset_code},
@@ -333,16 +334,16 @@ def ensure_demo_data(db: Session):
             },
         )
 
-    # Kit child items linked to kit_eng
-    cam_body = _query_one(db, models.InventoryItem, asset_code="E365/CAM/FX9-03")
-    bat_vm = _query_one(db, models.InventoryItem, asset_code="E365/BAT/VM-03")
-    charger = _query_one(db, models.InventoryItem, asset_code="E365/CHR/02")
-    if cam_body and not cam_body.parent_item_id:
-        cam_body.parent_item_id = kit_eng.id
-    if bat_vm and not bat_vm.parent_item_id:
-        bat_vm.parent_item_id = kit_eng.id
-    if charger and not charger.parent_item_id:
-        charger.parent_item_id = kit_eng.id
+    # Kit child items linked to kit_stg
+    mac_head3 = _query_one(db, models.InventoryItem, asset_code="E365/LGT/MAC-03")
+    dmx_cable3 = _query_one(db, models.InventoryItem, asset_code="E365/CBL/DMX-03")
+    xlr_cable2 = _query_one(db, models.InventoryItem, asset_code="E365/CBL/XLR-02")
+    if mac_head3 and not mac_head3.parent_item_id:
+        mac_head3.parent_item_id = kit_stg.id
+    if dmx_cable3 and not dmx_cable3.parent_item_id:
+        dmx_cable3.parent_item_id = kit_stg.id
+    if xlr_cable2 and not xlr_cable2.parent_item_id:
+        xlr_cable2.parent_item_id = kit_stg.id
 
     demo_crew, _ = _ensure(
         db,
@@ -350,7 +351,7 @@ def ensure_demo_data(db: Session):
         {"employee_code": "EMP-90001"},
         {
             "full_name": "Samarjit Pal",
-            "role": "Data Wrangler",
+            "role": "Lighting Technician",
             "manpower_type": "freelance",
             "vendor_id": vendor_crew.id,
             "home_station": "Kolkata",
@@ -374,7 +375,7 @@ def ensure_demo_data(db: Session):
 
     project_specs = [
         {
-            "title": "Demo Draft Product Film Prep",
+            "title": "Demo Draft Brand Activation Prep",
             "client": demo_client_a,
             "warehouse_id": warehouse_main.id,
             "venue": "Kolkata Studio Floor 2",
@@ -427,14 +428,14 @@ def ensure_demo_data(db: Session):
             "notes": "Confirmed project for dispatched and partial-return demo.",
         },
         {
-            "title": "Demo Returned Wildlife Documentary",
+            "title": "Demo Returned Sangeet Night Booking",
             "client": demo_client_b,
             "warehouse_id": warehouse_main.id,
-            "venue": "Sundarbans Field Unit",
-            "show_type": "Reality Show",
+            "venue": "Netaji Indoor Stadium, Kolkata",
+            "show_type": "Event",
             "status": "confirmed",
-            "shoot_start": datetime(2026, 4, 8, 5, 30),
-            "shoot_end": datetime(2026, 4, 8, 18, 0),
+            "shoot_start": datetime(2026, 4, 8, 17, 0),
+            "shoot_end": datetime(2026, 4, 8, 23, 0),
             "block_start": datetime(2026, 4, 7, 0, 0),
             "block_end": datetime(2026, 4, 9, 23, 59, 59),
             "dates": [
@@ -495,20 +496,20 @@ def ensure_demo_data(db: Session):
             _ensure_project_date(db, project.id, date_type, date_value)
         projects[spec["title"]] = project
 
-    db.commit()  # commit clients, crew, inventory, projects
+    db.commit()
 
     # Resource lookups
     assets = {
         code: _query_one(db, models.InventoryItem, asset_code=code)
         for code in [
-            "E365/CAM/FX9-03", "E365/CAM/FX9-04", "E365/CAM/HDC-01", "E365/CAM/HDC-02",
-            "E365/BAT/VM-03", "E365/BAT/VM-04", "E365/CHR/02", "E365/CHR/03",
-            "E365/TRI/S18-02", "E365/WLS/BOLT-01", "E365/COM/BP-01", "E365/SSD/T7-01",
-            "E365/PWR/EXT-01", "E365/PWR/EXT-02", "E365/AUD/XLR-02", "E365/RPL/3P-01",
-            "E365/CNV/FS-01", "E365/STR/HELO-01", "3P/CAM/RED-01", "3P/CAM/ARRI-01",
-            "E365/KIT/ENG-01", "E365/BND/STREAM-01",
-            "3P/LGT/ASTERA-01", "3P/CAM/MOVI-01", "3P/AUD/SENN-01",
-            "E365/CON/GAFF-01", "E365/CON/CF-01",
+            "E365/LGT/MAC-03", "E365/LGT/MAC-04", "E365/AUD/JBL-02", "E365/AUD/JBL-03",
+            "E365/CBL/DMX-03", "E365/AUD/SUB-03", "E365/CBL/XLR-02", "E365/CBL/XLR-03",
+            "E365/TRS/H30-02", "E365/AUD/WLS-01", "E365/AUD/WLS-02", "E365/STD/CRN-01",
+            "E365/PWR/EXT-01", "E365/PWR/EXT-02", "E365/AUD/WLS-03", "E365/LED/CTL-01",
+            "E365/AUD/AMP-01", "E365/AUD/AMP-02", "3P/AUD/DB-01", "3P/LGT/ROBE-01",
+            "E365/KIT/STG-01", "E365/BND/AUDIO-01",
+            "3P/LGT/ASTERA-01", "3P/LGT/ADJ-01", "3P/AUD/SENN-01",
+            "E365/CON/GAFF-01", "E365/CON/LAMP-01",
         ]
     }
     crew = {
@@ -517,11 +518,11 @@ def ensure_demo_data(db: Session):
     }
 
     # Kit accessory rule
-    if assets["E365/KIT/ENG-01"] and assets["E365/BAT/VM-03"]:
+    if assets["E365/KIT/STG-01"] and assets["E365/CBL/DMX-03"]:
         _ensure(
             db,
             models.KitAccessoryRule,
-            {"parent_item_id": assets["E365/KIT/ENG-01"].id, "accessory_item_id": assets["E365/BAT/VM-03"].id},
+            {"parent_item_id": assets["E365/KIT/STG-01"].id, "accessory_item_id": assets["E365/CBL/DMX-03"].id},
             {"is_mandatory": True},
         )
 
@@ -538,7 +539,7 @@ def ensure_demo_data(db: Session):
             "project_id": projects["Demo Planned Brand Launch"].id,
             "destination": "JW Marriott Ballroom, Kolkata",
             "status": "planned",
-            "remarks": "Primary planned booking for launch show.",
+            "remarks": "Primary planned booking for brand launch show.",
             "transport_mode": "company_vehicle",
             "awb_number": "E365-DEMO-LAUNCH-01",
             "contact_person_name": "Nisha Kapoor",
@@ -553,7 +554,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["E365/CAM/FX9-03", "E365/BAT/VM-03", "E365/CHR/02", "E365/TRI/S18-02", "E365/SSD/T7-01", "E365/KIT/ENG-01"]:
+    for asset_code in ["E365/LGT/MAC-03", "E365/CBL/DMX-03", "E365/CBL/XLR-02", "E365/TRS/H30-02", "E365/STD/CRN-01", "E365/KIT/STG-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, parent_booking.id, item.id)
@@ -578,7 +579,7 @@ def ensure_demo_data(db: Session):
             "parent_booking_id": parent_booking.id,
             "destination": "JW Marriott Ballroom, Kolkata",
             "status": "blocked",
-            "remarks": "Supplementary add-on for extra power and wireless video.",
+            "remarks": "Supplementary add-on for extra wireless audio and power extension.",
             "transport_mode": "company_vehicle",
             "awb_number": "E365-DEMO-LAUNCH-S1",
             "contact_person_name": "Mukul Jain",
@@ -590,7 +591,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["E365/WLS/BOLT-01", "E365/PWR/EXT-01"]:
+    for asset_code in ["E365/AUD/WLS-01", "E365/PWR/EXT-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, supplementary_booking.id, item.id)
@@ -606,7 +607,7 @@ def ensure_demo_data(db: Session):
             "project_id": projects["Demo Confirmed Leadership Summit"].id,
             "destination": "Jio Convention Centre, Mumbai",
             "status": "dispatched",
-            "remarks": "Dispatched summit package with partial-return history.",
+            "remarks": "Dispatched summit audio and lighting package with partial-return history.",
             "transport_mode": "courier",
             "awb_number": "AWB-DEMO-90002",
             "contact_person_name": "Harsh Vyas",
@@ -618,7 +619,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["E365/CAM/HDC-01", "E365/CAM/HDC-02", "E365/BAT/VM-04", "E365/CHR/03", "E365/COM/BP-01", "E365/BND/STREAM-01", "3P/LGT/ASTERA-01"]:
+    for asset_code in ["E365/AUD/JBL-02", "E365/AUD/JBL-03", "E365/AUD/SUB-03", "E365/CBL/XLR-03", "E365/AUD/WLS-02", "E365/BND/AUDIO-01", "3P/LGT/ASTERA-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, dispatched_booking.id, item.id)
@@ -631,15 +632,15 @@ def ensure_demo_data(db: Session):
             person.status = "blocked"
             _ensure_custody(db, dispatched_booking.id, None, person.id, "handover", "Office", "Jio Convention Centre, Mumbai", "Mumbai Transit", "Demo dispatched crew handover")
     _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90002"}, {"booking_id": dispatched_booking.id, "pass_type": "gate_out", "approved_by": "Operations Lead", "status": "issued", "remarks": "Demo dispatched gate out"})
-    if assets["E365/COM/BP-01"]:
+    if assets["E365/AUD/WLS-02"]:
         _ensure(
             db,
             models.PartialReturn,
-            {"booking_id": dispatched_booking.id, "inventory_item_id": assets["E365/COM/BP-01"].id},
-            {"returned_by": "Store Runner", "condition_status": "good", "notes": "Returned early after comms desk wrap."},
+            {"booking_id": dispatched_booking.id, "inventory_item_id": assets["E365/AUD/WLS-02"].id},
+            {"returned_by": "Store Runner", "condition_status": "good", "notes": "Returned early after wireless monitoring wrap."},
         )
-        assets["E365/COM/BP-01"].status = "available"
-        _ensure_custody(db, dispatched_booking.id, assets["E365/COM/BP-01"].id, None, "partial_return", "Jio Convention Centre, Mumbai", "Store", "Mumbai Transit", "Demo partial return")
+        assets["E365/AUD/WLS-02"].status = "available"
+        _ensure_custody(db, dispatched_booking.id, assets["E365/AUD/WLS-02"].id, None, "partial_return", "Jio Convention Centre, Mumbai", "Store", "Mumbai Transit", "Demo partial return")
 
     returned_booking, _ = _ensure(
         db,
@@ -647,10 +648,10 @@ def ensure_demo_data(db: Session):
         {"job_card_id": "JC-90003"},
         {
             "booking_code": "BK-90003",
-            "project_id": projects["Demo Returned Wildlife Documentary"].id,
-            "destination": "Sundarbans Field Unit",
+            "project_id": projects["Demo Returned Sangeet Night Booking"].id,
+            "destination": "Netaji Indoor Stadium, Kolkata",
             "status": "returned",
-            "remarks": "Returned documentary package with damage and service closure.",
+            "remarks": "Returned sangeet night package with damage and service closure.",
             "transport_mode": "self",
             "awb_number": "FIELD-DEMO-90003",
             "contact_person_name": "Reema Dutt",
@@ -660,53 +661,53 @@ def ensure_demo_data(db: Session):
                 ("Reema Dutt", "9820002001", "XXXX-9201"),
                 ("Kabir Sharma", "9820002002", "XXXX-9202"),
             ),
-            "call_time": datetime(2026, 4, 8, 4, 30),
-            "packup_time": datetime(2026, 4, 8, 3, 30),
+            "call_time": datetime(2026, 4, 8, 15, 30),
+            "packup_time": datetime(2026, 4, 8, 14, 0),
             "is_demo": True,
         },
     )
-    for asset_code in ["3P/CAM/RED-01", "E365/AUD/XLR-02", "E365/RPL/3P-01", "E365/CNV/FS-01", "E365/STR/HELO-01"]:
+    for asset_code in ["3P/AUD/DB-01", "E365/AUD/WLS-03", "E365/LED/CTL-01", "E365/AUD/AMP-01", "E365/AUD/AMP-02"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, returned_booking.id, item.id)
             item.status = "available"
-            _ensure_custody(db, returned_booking.id, item.id, None, "gate_in", "Sundarbans Field Unit", "Store", "Kolkata Warehouse", "Demo returned gate in")
+            _ensure_custody(db, returned_booking.id, item.id, None, "gate_in", "Netaji Indoor Stadium, Kolkata", "Store", "Kolkata Warehouse", "Demo returned gate in")
     for crew_code in ["EMP-00003", "EMP-00008"]:
         person = crew[crew_code]
         if person:
             _ensure_booking_crew(db, returned_booking.id, person.id)
             person.status = "available"
-            _ensure_custody(db, returned_booking.id, None, person.id, "gate_in", "Sundarbans Field Unit", "Office", "Kolkata Warehouse", "Demo returned crew")
-    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90003-OUT"}, {"booking_id": returned_booking.id, "pass_type": "gate_out", "approved_by": "System Auto", "status": "issued", "remarks": "Demo documentary dispatch"})
-    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90003-IN"}, {"booking_id": returned_booking.id, "pass_type": "gate_in", "approved_by": "Store Controller", "status": "closed", "remarks": "Demo documentary return"})
-    _ensure(db, models.ReturnQC, {"booking_id": returned_booking.id}, {"checked_by": "Store QC", "all_items_returned": True, "damage_found": True, "cleaning_required": True, "remarks": "Minor connector damage on replay unit. Cleaning completed."})
+            _ensure_custody(db, returned_booking.id, None, person.id, "gate_in", "Netaji Indoor Stadium, Kolkata", "Office", "Kolkata Warehouse", "Demo returned crew")
+    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90003-OUT"}, {"booking_id": returned_booking.id, "pass_type": "gate_out", "approved_by": "System Auto", "status": "issued", "remarks": "Demo sangeet night dispatch"})
+    _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90003-IN"}, {"booking_id": returned_booking.id, "pass_type": "gate_in", "approved_by": "Store Controller", "status": "closed", "remarks": "Demo sangeet night return"})
+    _ensure(db, models.ReturnQC, {"booking_id": returned_booking.id}, {"checked_by": "Store QC", "all_items_returned": True, "damage_found": True, "cleaning_required": True, "remarks": "LED processor intermittent output during return QC. Cleaning completed."})
 
     service_completed, _ = _ensure(
         db,
         models.ServiceJob,
         {"job_number": "SRV-90001"},
         {
-            "inventory_item_id": assets["E365/RPL/3P-01"].id if assets["E365/RPL/3P-01"] else 1,
+            "inventory_item_id": assets["E365/LED/CTL-01"].id if assets["E365/LED/CTL-01"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 9),
             "expected_return_date": date(2026, 4, 12),
             "actual_return_date": date(2026, 4, 11),
             "status": "completed",
-            "problem_reported": "Playback output intermittently dropping frames.",
+            "problem_reported": "LED processor output signal intermittently failing under load.",
             "remarks": "Completed demo service closure from return damage log.",
             "source_booking_id": returned_booking.id,
             "is_demo": True,
         },
     )
-    if assets["E365/RPL/3P-01"]:
-        assets["E365/RPL/3P-01"].service_status = "not_in_service"
+    if assets["E365/LED/CTL-01"]:
+        assets["E365/LED/CTL-01"].service_status = "not_in_service"
     _ensure(
         db,
         models.DamageLog,
-        {"booking_id": returned_booking.id, "inventory_item_id": assets["E365/RPL/3P-01"].id if assets["E365/RPL/3P-01"] else 1, "stage": "return"},
+        {"booking_id": returned_booking.id, "inventory_item_id": assets["E365/LED/CTL-01"].id if assets["E365/LED/CTL-01"] else 1, "stage": "return"},
         {
-            "damage_description": "Playback feed flicker observed during return QC.",
+            "damage_description": "LED controller panel intermittent output observed during return QC.",
             "severity": "minor",
             "photo_path": None,
             "reported_by": "Store QC",
@@ -736,7 +737,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["3P/CAM/ARRI-01", "E365/PWR/EXT-02"]:
+    for asset_code in ["3P/LGT/ROBE-01", "E365/PWR/EXT-02"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, cancelled_booking.id, item.id)
@@ -749,22 +750,22 @@ def ensure_demo_data(db: Session):
             person.status = "available"
             _ensure_custody(db, cancelled_booking.id, None, person.id, "cancel", "Office", "Office", "Kolkata Warehouse", "Demo cancelled crew release")
 
-    db.commit()  # commit all bookings, equipment assignments, crew assignments
+    db.commit()
 
-    # More service/procurement/papers coverage
+    # More service / procurement / papers coverage
     _ensure(
         db,
         models.ServiceJob,
         {"job_number": "SRV-90002"},
         {
-            "inventory_item_id": assets["E365/CNV/FS-01"].id if assets["E365/CNV/FS-01"] else 1,
+            "inventory_item_id": assets["E365/AUD/AMP-01"].id if assets["E365/AUD/AMP-01"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 14),
             "expected_return_date": date(2026, 4, 19),
             "actual_return_date": None,
             "status": "in_service",
-            "problem_reported": "SDI lock unstable under load.",
+            "problem_reported": "Left channel output clipping at high volume.",
             "remarks": "Active demo service job.",
             "source_booking_id": dispatched_booking.id,
             "is_demo": True,
@@ -775,14 +776,14 @@ def ensure_demo_data(db: Session):
         models.ServiceJob,
         {"job_number": "SRV-90003"},
         {
-            "inventory_item_id": assets["E365/STR/HELO-01"].id if assets["E365/STR/HELO-01"] else 1,
+            "inventory_item_id": assets["E365/AUD/AMP-02"].id if assets["E365/AUD/AMP-02"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 16),
             "expected_return_date": date(2026, 4, 21),
             "actual_return_date": None,
             "status": "cancelled",
-            "problem_reported": "Preventive service not required after inspection.",
+            "problem_reported": "Preventive service not required after audio check.",
             "remarks": "Cancelled demo service job.",
             "source_booking_id": dispatched_booking.id,
             "is_demo": True,
@@ -791,15 +792,15 @@ def ensure_demo_data(db: Session):
 
     for paper_number, values in [
         ("PAP-90001", {"paper_type": "Event Dispatch", "reference_name": projects["Demo Planned Brand Launch"].title, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Operations Lead", "issue_status": "ready", "related_booking_id": parent_booking.id, "related_service_job_id": None, "remarks": "Parent booking dispatch papers", "signature_name": "Operations Lead"}),
-        ("PAP-90002", {"paper_type": "Supplementary Challan", "reference_name": _SUPP_JC_ID, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Store Controller", "issue_status": "issued", "related_booking_id": supplementary_booking.id, "related_service_job_id": None, "remarks": "Supplementary power and wireless add-on", "signature_name": "Store Controller"}),
-        ("PAP-90003", {"paper_type": "Service Declaration", "reference_name": "SRV-90002", "destination": vendor_service.city or "Kolkata", "issued_by": "Store Controller", "issue_status": "draft", "related_booking_id": None, "related_service_job_id": _query_one(db, models.ServiceJob, job_number="SRV-90002").id, "remarks": "Sent with converter unit", "signature_name": "Store Controller"}),
+        ("PAP-90002", {"paper_type": "Supplementary Challan", "reference_name": _SUPP_JC_ID, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Store Controller", "issue_status": "issued", "related_booking_id": supplementary_booking.id, "related_service_job_id": None, "remarks": "Supplementary wireless audio and power add-on", "signature_name": "Store Controller"}),
+        ("PAP-90003", {"paper_type": "Service Declaration", "reference_name": "SRV-90002", "destination": vendor_service.city or "Kolkata", "issued_by": "Store Controller", "issue_status": "draft", "related_booking_id": None, "related_service_job_id": _query_one(db, models.ServiceJob, job_number="SRV-90002").id, "remarks": "Sent with amplifier unit", "signature_name": "Store Controller"}),
     ]:
         _ensure(db, models.OutboundPaper, {"paper_number": paper_number}, {**values, "is_demo": True})
 
     for po_number, procurement_code, item_name, item_type, quantity, vendor_id, status, expected_date, notes in [
-        ("PO-90001", "PROC-90001", "Executive webcast bundle", "equipment", 1, vendor_equipment.id, "requested", date(2026, 4, 25), "Requested for overflow ballroom feed."),
-        ("PO-90002", "PROC-90002", "Wireless intercom add-on sets", "accessory", 4, vendor_equipment.id, "ordered", date(2026, 4, 27), "Ordered for summit breakaway rooms."),
-        ("PO-90003", "PROC-90003", "Freelance DIT support", "manpower", 1, vendor_crew.id, "received", date(2026, 4, 29), "Received and assigned for summit."),
+        ("PO-90001", "PROC-90001", "LED wall rental package – brand activation", "equipment", 1, vendor_equipment.id, "requested", date(2026, 4, 25), "Requested for overflow LED screen in ballroom."),
+        ("PO-90002", "PROC-90002", "Follow spot lights add-on package (2pcs)", "equipment", 2, vendor_equipment.id, "ordered", date(2026, 4, 27), "Ordered for summit breakaway stage."),
+        ("PO-90003", "PROC-90003", "Freelance LED technician support", "manpower", 1, vendor_crew.id, "received", date(2026, 4, 29), "Received and assigned for summit LED wall."),
         ("PO-90004", "PROC-90004", "Venue utility consumables", "consumable", 12, vendor_equipment.id, "cancelled", date(2026, 5, 1), "Cancelled after venue supplied consumables."),
     ]:
         _ensure(
@@ -819,28 +820,28 @@ def ensure_demo_data(db: Session):
             },
         )
 
-    db.commit()  # commit service jobs, papers, procurement orders
+    db.commit()
 
     # Statutory documents for download/demo
     _ensure_document(db, "client", demo_client_a.id, "Client GST Copy", "admin", "Demo statutory client document")
-    _ensure_document(db, "inventory", assets["E365/CAM/HDC-01"].id if assets["E365/CAM/HDC-01"] else 1, "Equipment Insurance Copy", "store", "Demo inventory document")
+    _ensure_document(db, "inventory", assets["E365/AUD/JBL-02"].id if assets["E365/AUD/JBL-02"] else 1, "Equipment Insurance Copy", "store", "Demo inventory document")
     _ensure_document(db, "crew", demo_crew.id, "Freelancer ID Proof", "operations", "Demo crew document")
     _ensure_document(db, "vendor", vendor_service.id, "Vendor Service Agreement", "admin", "Demo vendor compliance document")
     for demo_booking in [parent_booking, supplementary_booking, dispatched_booking, returned_booking, cancelled_booking]:
         _ensure_booking_crew_documents(db, demo_booking)
 
-    db.commit()  # commit documents
+    db.commit()
 
-    # ── Demo: Kit auto-expansion booking (ENG Kit → children auto-added) ──
+    # ── Demo: Kit auto-expansion booking (Stage Lighting Pack → children auto-added) ──
     kit_demo_project, _ = _ensure(
-        db, models.ProjectEvent, {"title": "Demo Reality Show – ENG Kit Booking"},
+        db, models.ProjectEvent, {"title": "Demo Event – Stage Lighting Pack Booking"},
         {
-            "show_type": "Reality Show", "client_id": demo_client_b.id,
+            "show_type": "Event", "client_id": demo_client_b.id,
             "venue": "Eco Park, Kolkata", "origin_warehouse_id": warehouse_main.id,
-            "shoot_start": datetime(2026, 5, 5, 8, 0), "shoot_end": datetime(2026, 5, 5, 20, 0),
+            "shoot_start": datetime(2026, 5, 5, 18, 0), "shoot_end": datetime(2026, 5, 5, 23, 0),
             "block_start": datetime(2026, 5, 4, 0, 0), "block_end": datetime(2026, 5, 6, 23, 59, 59),
             "status": "planned",
-            "notes": "Demo: ENG Camera Kit booked as a single unit. Children (camera, battery, charger) auto-linked.",
+            "notes": "Demo: Stage Lighting Pack booked as a single unit. Children (moving head, DMX cable, XLR cable) auto-linked.",
             "is_demo": True,
         },
     )
@@ -852,15 +853,15 @@ def ensure_demo_data(db: Session):
         {
             "booking_code": "BK-90005",
             "project_id": kit_demo_project.id, "destination": "Eco Park, Kolkata",
-            "status": "planned", "remarks": "ENG Kit booked — auto-expands to FX9 body + battery + charger.",
+            "status": "planned", "remarks": "Stage Lighting Pack booked — auto-expands to MAC Aura XB head + DMX cable + XLR cable.",
             "transport_mode": "company_vehicle", "awb_number": "E365-DEMO-KIT-01",
             "contact_person_name": "Reema Dutt", "contact_person_mobile": "9820002001",
-            "call_time": datetime(2026, 5, 5, 7, 0), "packup_time": datetime(2026, 5, 5, 21, 0),
+            "call_time": datetime(2026, 5, 5, 16, 0), "packup_time": datetime(2026, 5, 5, 23, 30),
             "is_demo": True,
         },
     )
     # Add kit parent + its children to booking (demonstrating auto-expansion)
-    for code in ["E365/KIT/ENG-01", "E365/CAM/FX9-03", "E365/BAT/VM-03", "E365/CHR/02"]:
+    for code in ["E365/KIT/STG-01", "E365/LGT/MAC-03", "E365/CBL/DMX-03", "E365/CBL/XLR-02"]:
         item = assets.get(code)
         if item:
             _ensure_booking_equipment(db, kit_booking.id, item.id)
@@ -875,10 +876,10 @@ def ensure_demo_data(db: Session):
         {
             "show_type": "Event", "client_id": demo_client_a.id,
             "venue": "ITC Sonar, Kolkata", "origin_warehouse_id": warehouse_main.id,
-            "shoot_start": datetime(2026, 5, 2, 10, 0), "shoot_end": datetime(2026, 5, 2, 22, 0),
+            "shoot_start": datetime(2026, 5, 2, 19, 0), "shoot_end": datetime(2026, 5, 2, 23, 0),
             "block_start": datetime(2026, 5, 1, 0, 0), "block_end": datetime(2026, 5, 3, 23, 59, 59),
             "status": "confirmed",
-            "notes": "Demo: Astera Tube Lights (3rd-party) rented for this event. Available Apr 20 – May 15.",
+            "notes": "Demo: Astera PixelBar Tubes (3rd-party) rented for this event. Available Apr 20 – May 15.",
             "is_demo": True,
         },
     )
@@ -890,14 +891,14 @@ def ensure_demo_data(db: Session):
         {
             "booking_code": "BK-90006",
             "project_id": tp_demo_project.id, "destination": "ITC Sonar, Kolkata",
-            "status": "confirmed", "remarks": "Astera tubes rented from Filmlite India. Vendor window: Apr 20 – May 15.",
+            "status": "confirmed", "remarks": "Astera PixelBar tubes rented from Filmlite India. Vendor window: Apr 20 – May 15.",
             "transport_mode": "vendor_transport", "awb_number": "ASTERA-DEMO-90006",
             "contact_person_name": "Nisha Kapoor", "contact_person_mobile": "9810001001",
-            "call_time": datetime(2026, 5, 2, 8, 0), "packup_time": datetime(2026, 5, 2, 23, 30),
+            "call_time": datetime(2026, 5, 2, 17, 0), "packup_time": datetime(2026, 5, 2, 23, 30),
             "is_demo": True,
         },
     )
-    for code in ["E365/CAM/FX9-04", "3P/LGT/ASTERA-01", "3P/AUD/SENN-01"]:
+    for code in ["E365/LGT/MAC-04", "3P/LGT/ASTERA-01", "3P/AUD/SENN-01"]:
         item = assets.get(code)
         if item:
             _ensure_booking_equipment(db, tp_booking.id, item.id)
@@ -912,83 +913,4 @@ def ensure_demo_data(db: Session):
         "status": "issued", "remarks": "Demo third-party lighting booking gate pass"
     })
 
-    db.commit()  # commit kit + third-party bookings
-
-    # ── Demo: Consumable usage ──
-    if assets.get("E365/CON/GAFF-01"):
-        _ensure_booking_equipment(db, returned_booking.id, assets["E365/CON/GAFF-01"].id)
-    if assets.get("E365/CON/CF-01"):
-        _ensure_booking_equipment(db, dispatched_booking.id, assets["E365/CON/CF-01"].id)
-
-    # Statutory documents for new items
-    if assets.get("3P/LGT/ASTERA-01"):
-        _ensure_document(db, "inventory", assets["3P/LGT/ASTERA-01"].id, "Vendor Rental Agreement", "store", "Demo 3rd-party rental agreement — Astera lights")
-    if assets.get("E365/KIT/ENG-01"):
-        _ensure_document(db, "inventory", assets["E365/KIT/ENG-01"].id, "Kit Asset Register", "store", "Demo ENG Kit statutory registration")
-
-    audit(db, "admin", "seed", "demo_data", details={
-        "message": "Demo dataset ensured for client presentation",
-        "clients": ["CLI-90001", "CLI-90002"],
-        "projects": [spec["title"] for spec in project_specs],
-        "bookings": ["JC-90001", "JC-90001-S1", "JC-90002", "JC-90003", "JC-90004", "JC-90005", "JC-90006"],
-    })
     db.commit()
-
-
-def remove_demo_data(db: Session):
-    demo_booking_ids = [row.id for row in db.query(models.EventBooking.id).filter(models.EventBooking.is_demo == True).all()]
-    demo_project_ids = [row.id for row in db.query(models.ProjectEvent.id).filter(models.ProjectEvent.is_demo == True).all()]
-    demo_service_ids = [row.id for row in db.query(models.ServiceJob.id).filter(models.ServiceJob.is_demo == True).all()]
-    demo_client_ids = [row.id for row in db.query(models.Client.id).filter(models.Client.is_demo == True).all()]
-    demo_inventory_ids = [row.id for row in db.query(models.InventoryItem.id).filter(models.InventoryItem.is_demo == True).all()]
-    demo_crew_ids = [row.id for row in db.query(models.CrewMember.id).filter(models.CrewMember.is_demo == True).all()]
-
-    if not any([demo_booking_ids, demo_project_ids, demo_service_ids, demo_client_ids, demo_inventory_ids, demo_crew_ids]):
-        return {"ok": True, "removed": False, "message": "No demo dataset found."}
-
-    # Break circular FK: service_jobs.source_damage_id ↔ damage_logs.auto_service_job_id
-    if demo_service_ids:
-        db.query(models.ServiceJob).filter(models.ServiceJob.id.in_(demo_service_ids)).update(
-            {"source_damage_id": None}, synchronize_session=False
-        )
-        db.query(models.DamageLog).filter(models.DamageLog.auto_service_job_id.in_(demo_service_ids)).delete(synchronize_session=False)
-    if demo_booking_ids:
-        db.query(models.DamageLog).filter(models.DamageLog.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.ReturnQC).filter(models.ReturnQC.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.PartialReturn).filter(models.PartialReturn.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.ChainOfCustody).filter(models.ChainOfCustody.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.GatePass).filter(models.GatePass.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.BookingEquipment).filter(models.BookingEquipment.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-        db.query(models.BookingCrew).filter(models.BookingCrew.booking_id.in_(demo_booking_ids)).delete(synchronize_session=False)
-    if demo_project_ids:
-        db.query(models.ProjectDate).filter(models.ProjectDate.project_id.in_(demo_project_ids)).delete(synchronize_session=False)
-
-    db.query(models.OutboundPaper).filter(models.OutboundPaper.is_demo == True).delete(synchronize_session=False)
-    db.query(models.ServiceJob).filter(models.ServiceJob.is_demo == True).delete(synchronize_session=False)
-    db.query(models.EventBooking).filter(models.EventBooking.is_demo == True).delete(synchronize_session=False)
-    db.query(models.ProjectEvent).filter(models.ProjectEvent.is_demo == True).delete(synchronize_session=False)
-    db.query(models.ProcurementOrder).filter(models.ProcurementOrder.is_demo == True).delete(synchronize_session=False)
-    db.query(models.StatutoryDocument).filter(models.StatutoryDocument.is_demo == True).delete(synchronize_session=False)
-    db.query(models.ClientContact).filter(models.ClientContact.client_id.in_(demo_client_ids)).delete(synchronize_session=False)
-    db.query(models.Client).filter(models.Client.is_demo == True).delete(synchronize_session=False)
-    db.query(models.InventoryItem).filter(models.InventoryItem.is_demo == True).delete(synchronize_session=False)
-    db.query(models.CrewMember).filter(models.CrewMember.is_demo == True).delete(synchronize_session=False)
-
-    _refresh_inventory_statuses(db)
-    _refresh_crew_statuses(db)
-    return {"ok": True, "removed": True, "message": "Demo dataset removed."}
-
-
-def main():
-    from .database import SessionLocal
-
-    db = SessionLocal()
-    try:
-        ensure_demo_data(db)
-        print("Demo dataset ensured.")
-    finally:
-        db.close()
-
-
-if __name__ == "__main__":
-    main()
