@@ -6,7 +6,7 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import DatePicker from "../components/DatePicker";
-import { CountryCodeSelect } from "../components/PhoneInput";
+import PhoneInput, { CountryCodeSelect } from "../components/PhoneInput";
 import { api, downloadAuthorized } from "../api";
 import { getBookingType } from "../auth";
 import { getBookingProfile, getEnabledDateTypes } from "../bookingProfiles";
@@ -713,9 +713,9 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
             <input placeholder="Courier / Logistics Partner" value={form.courier_partner || ""} onChange={e => setForm({ ...form, courier_partner: e.target.value })} />
             <input placeholder="AWB / Docket / Tracking Number" value={form.awb_number || ""} onChange={e => setForm({ ...form, awb_number: e.target.value })} />
             <input placeholder="Primary Contact Name" value={form.contact_person_name || ""} onChange={e => setForm({ ...form, contact_person_name: e.target.value })} />
-            <input placeholder="Primary Contact Mobile" value={form.contact_person_mobile || ""} onChange={e => setForm({ ...form, contact_person_mobile: e.target.value })} />
+            <PhoneInput placeholder="Primary Contact Mobile" value={form.contact_person_mobile || ""} onChange={v => setForm({ ...form, contact_person_mobile: v })} />
             <input placeholder="Alternate Contact Name" value={form.alternate_contact_name || ""} onChange={e => setForm({ ...form, alternate_contact_name: e.target.value })} />
-            <input placeholder="Alternate Contact Mobile" value={form.alternate_contact_mobile || ""} onChange={e => setForm({ ...form, alternate_contact_mobile: e.target.value })} />
+            <PhoneInput placeholder="Alternate Contact Mobile" value={form.alternate_contact_mobile || ""} onChange={v => setForm({ ...form, alternate_contact_mobile: v })} />
             <input placeholder="Contact Email" value={form.contact_email || ""} onChange={e => setForm({ ...form, contact_email: e.target.value })} />
             <textarea className="full" placeholder="Pickup Address / From Address" value={form.pickup_address || ""} onChange={e => setForm({ ...form, pickup_address: e.target.value })}></textarea>
             <textarea className="full" placeholder="Delivery Address / Service Centre Address" value={form.delivery_address || ""} onChange={e => setForm({ ...form, delivery_address: e.target.value })}></textarea>
@@ -818,7 +818,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
           <label className="fieldLabel">Contact Person</label>
           <input value={form.contact_person_name} onChange={e => setForm({...form, contact_person_name: e.target.value})} placeholder="Name" />
           <label className="fieldLabel">Contact Mobile</label>
-          <input value={form.contact_person_mobile} onChange={e => setForm({...form, contact_person_mobile: e.target.value})} placeholder="+91..." />
+          <PhoneInput value={form.contact_person_mobile} onChange={v => setForm({...form, contact_person_mobile: v})} placeholder="Phone number" />
           <label className="fieldLabel">Contact Aadhar</label>
           <input value={form.contact_person_aadhar} onChange={e => setForm({...form, contact_person_aadhar: e.target.value})} placeholder="Aadhar number" />
           <div className="full">
@@ -827,7 +827,7 @@ function EditBookingModal({ open, onClose, booking, project, onConfirmSave }) {
               {contacts.map((contact, index) => (
                 <div className="contactGrid" key={`edit-contact-${index}`}>
                   <input value={contact.name || ""} onChange={(e) => updateContact(index, "name", e.target.value)} placeholder="Contact name" />
-                  <input value={contact.mobile || ""} onChange={(e) => updateContact(index, "mobile", e.target.value)} placeholder="Mobile" />
+                  <PhoneInput value={contact.mobile || ""} onChange={v => updateContact(index, "mobile", v)} placeholder="Mobile" />
                   <div style={{ display: "flex", gap: 8 }}>
                     <input value={contact.aadhar || ""} onChange={(e) => updateContact(index, "aadhar", e.target.value)} placeholder="Aadhar" />
                     <button type="button" className="ghostBtn compactBtn" onClick={() => removeContact(index)}>Remove</button>
@@ -2350,7 +2350,7 @@ export default function BookingsPage() {
             <label className="fieldLabel">Contact Person Name</label>
             <input value={contactName} onChange={e=>setContactName(e.target.value)} placeholder="Contact person name" />
             <label className="fieldLabel">Contact Mobile</label>
-            <input value={contactMobile} onChange={e=>setContactMobile(e.target.value)} placeholder="+91..." />
+            <PhoneInput value={contactMobile} onChange={v => setContactMobile(v)} placeholder="Phone number" />
             <label className="fieldLabel">Contact Aadhar</label>
             <input value={contactAadhar} onChange={e=>setContactAadhar(e.target.value)} placeholder="Linked Aadhar number" />
             <div className="full">
@@ -2359,7 +2359,7 @@ export default function BookingsPage() {
                 {contacts.map((contact, index) => (
                   <div className="contactGrid" key={`contact-${index}`}>
                     <input value={contact.name} onChange={(e) => updateContact(index, "name", e.target.value)} placeholder="Contact name" />
-                    <input value={contact.mobile} onChange={(e) => updateContact(index, "mobile", e.target.value)} placeholder="Mobile" />
+                    <PhoneInput value={contact.mobile} onChange={v => updateContact(index, "mobile", v)} placeholder="Mobile" />
                     <div style={{ display: "flex", gap: 8 }}>
                       <input value={contact.aadhar} onChange={(e) => updateContact(index, "aadhar", e.target.value)} placeholder="Aadhar" />
                       <button type="button" className="ghostBtn compactBtn" onClick={() => removeContact(index)}>Remove</button>

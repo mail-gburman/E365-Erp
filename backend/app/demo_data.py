@@ -914,3 +914,28 @@ def ensure_demo_data(db: Session):
     })
 
     db.commit()
+
+
+def remove_demo_data(db: Session):
+    deleted = {}
+    for model, label in [
+        (models.OutboundPaper, "papers"),
+        (models.ServiceJob, "service_jobs"),
+        (models.ProcurementOrder, "procurement_orders"),
+        (models.StatutoryDocument, "documents"),
+        (models.EventBooking, "bookings"),
+        (models.ProjectEvent, "projects"),
+        (models.Client, "clients"),
+        (models.CrewMember, "crew"),
+        (models.InventoryItem, "inventory"),
+    ]:
+        if _has_column(model, "is_demo"):
+            rows = db.query(model).filter(getattr(model, "is_demo") == True).all()
+            for row in rows:
+                db.delete(row)
+            deleted[label] = len(rows)
+        else:
+            deleted[label] = 0
+    db.commit()
+    total = sum(deleted.values())
+    return {"message": f"Removed {total} demo records", "deleted": deleted}
