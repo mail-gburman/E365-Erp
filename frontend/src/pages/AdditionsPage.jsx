@@ -526,6 +526,9 @@ export default function AdditionsPage() {
   const supportsWarehouse = bookingProfile.features.warehouse !== false;
   const supportsConsumableStock = bookingProfile.features.consumableStock !== false;
   const supportsHardwareDetails = ["equipment", "decor"].includes(bookingProfile.value);
+  const inventoryDocumentSlotType = `inventory_${bookingProfile.value}` in documentSlots
+    ? `inventory_${bookingProfile.value}`
+    : "inventory";
   const [selectedId, setSelectedId] = useState(null);
   const [masterSearch, setMasterSearch] = useState("");
   const filteredInventoryQuick = useSearch(inventory, inventoryQuickSearch);
@@ -598,8 +601,8 @@ export default function AdditionsPage() {
     setEntityDocFiles(prev => ({ ...prev, [entityType]: { ...(prev[entityType] || {}), [key]: file } }));
   };
 
-  async function uploadEntityDocuments(entityType, entityId, label) {
-    const slots = documentSlots[entityType] || [];
+  async function uploadEntityDocuments(entityType, entityId, label, slotEntityType = entityType) {
+    const slots = documentSlots[slotEntityType] || [];
     const files = entityDocFiles[entityType] || {};
     let uploaded = 0;
     for (const slot of slots) {
@@ -693,7 +696,7 @@ export default function AdditionsPage() {
         clearEdit();
       } else {
         const created = await api.createInventory(payload);
-        const uploaded = await uploadEntityDocuments("inventory", created.id, inventoryForm.name);
+        const uploaded = await uploadEntityDocuments("inventory", created.id, inventoryForm.name, inventoryDocumentSlotType);
         if (inventoryImageFiles.length) { await uploadImages("inventory", created.id, inventoryImageFiles); setInventoryImageFiles([]); }
         setInventoryForm(blankInventory);
         setMessage(uploaded ? `Inventory item added with ${uploaded} document(s).` : "Inventory item added.");
@@ -1072,7 +1075,7 @@ export default function AdditionsPage() {
               <input type="file" accept="image/*" multiple onChange={e => setInventoryImageFiles(Array.from(e.target.files))} />
               <span className="helperText">{inventoryImageFiles.length ? `${inventoryImageFiles.length} image(s) selected` : "No images selected."}</span>
             </div>
-            {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType={`inventory_${bookingProfile.value}` in documentSlots ? `inventory_${bookingProfile.value}` : "inventory"} files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
+            {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType={inventoryDocumentSlotType} files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
             <button className="full primaryBtn" type="submit">{isEditing ? `Update ${bookingProfile.resourceLabel}` : `Save ${bookingProfile.resourceLabel}`}</button>
           </form>
           <div className="helperText" style={{marginTop:12}}>Quick View — see <strong>Master Registry</strong> for full details.</div>
