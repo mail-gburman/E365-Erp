@@ -324,10 +324,10 @@ export default function Layout({ children }) {
     setDemoLoading(false);
   }
 
-  const pageTitle = links.find(([href]) => href === location.pathname)?.[1] || "E365 ERP";
+  const pageTitle = links.find(([href]) => href === location.pathname)?.[1] || "Eventory ERP";
   const workspaceName = companyBrand?.name || getCompanyName() || "Company Workspace";
-  const brandLogo = role === "super_admin" ? "/logo.png?v=1" : (tenantLogoUrl || "/logo.png?v=1");
-  const brandTitle = role === "super_admin" ? "E365" : workspaceName;
+  const brandLogo = role === "super_admin" ? "" : tenantLogoUrl;
+  const brandTitle = role === "super_admin" ? "Master Console" : workspaceName;
   const brandSub = role === "super_admin" ? "" : "ERP";
 
   const shellClass = `shell ${role === "super_admin" ? "superAdminShell" : "tenantShell"}${sidebarOpen ? " sidebarOpen" : ""}${sidebarCollapsed ? " sidebarCollapsed" : ""}`;
@@ -344,18 +344,17 @@ export default function Layout({ children }) {
             {sidebarCollapsed ? "▶" : "◀"}
           </button>
           <div className={role === "super_admin" ? "brand" : "brand tenantBrand"}>
-            <img src={brandLogo} alt={brandTitle} className="brandLogo" />
+            {brandLogo ? <img src={brandLogo} alt={brandTitle} className="brandLogo" /> : null}
             {!sidebarCollapsed && (
               <div className="brandText">
                 <div className="brandTitle">{brandTitle}</div>
                 {brandSub ? <div className="brandSub">{brandSub}</div> : null}
-                <div className="brandPowered">Powered by E365</div>
               </div>
             )}
           </div>
           {!sidebarCollapsed && (
             <div className="brandMeta">
-              <div>{role === "super_admin" ? "E365 Master Admin" : workspaceName}</div>
+              <div>{role === "super_admin" ? "Master Admin" : workspaceName}</div>
               <div>{profile?.full_name || getUsername()} · {role}</div>
             </div>
           )}
@@ -373,6 +372,12 @@ export default function Layout({ children }) {
               </Link>
             ))}
           </nav>
+          {!sidebarCollapsed && (
+            <div className="sidebarProductMark">
+              <img src="/eventory-logo-invert.png?v=1" alt="Eventory" className="sidebarProductLogo" />
+              <div className="brandPowered">Powered by CREATIVO / E365</div>
+            </div>
+          )}
         </div>
       </aside>
       <main className="main">

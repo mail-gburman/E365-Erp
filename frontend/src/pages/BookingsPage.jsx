@@ -8,7 +8,7 @@ import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar"
 import DatePicker from "../components/DatePicker";
 import PhoneInput, { CountryCodeSelect } from "../components/PhoneInput";
 import { api, downloadAuthorized } from "../api";
-import { getBookingType } from "../auth";
+import { getBookingType, getCompanyName } from "../auth";
 import { getBookingProfile, getEnabledDateTypes } from "../bookingProfiles";
 
 const blankProject = { title:"", show_type:"Reality Show", client_id:"", venue:"", origin_warehouse_id:"", shoot_start:"", shoot_end:"", status:"planned", notes:"", dates:[] };
@@ -574,6 +574,10 @@ function PartialReturnModal({ open, onClose, booking, onSave, onServiceRequired 
 function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) {
   const today = new Date().toISOString().slice(0, 10);
   const current = open && issues?.length ? issues[0] : null;
+  const companyName = getCompanyName() || "Company";
+  const inhouseServiceName = `${companyName} Inhouse Service`;
+  const inhouseDeskName = `${companyName} Inhouse Service Desk`;
+  const companyOfficeName = `${companyName} Office`;
   const [form, setForm] = useState({});
   const [photoFiles, setPhotoFiles] = useState([]);
   const [photoCaption, setPhotoCaption] = useState("");
@@ -596,7 +600,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
       alternate_contact_name: "",
       alternate_contact_mobile: "",
       contact_email: "",
-      pickup_address: "E365 Kolkata Office",
+      pickup_address: companyOfficeName,
       delivery_address: "",
       package_count: 1,
       declared_value: "",
@@ -607,7 +611,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
     });
     setPhotoFiles([]);
     setPhotoCaption("");
-  }, [current?.id, current?.condition_status, current?.notes]);
+  }, [current?.id, current?.condition_status, current?.notes, companyOfficeName]);
 
   if (!open || !current) return null;
   const isInhouse = form.service_scope !== "vendor";
@@ -631,14 +635,14 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
         service_scope: undefined,
         inventory_item_id: Number(current.id),
         vendor_id: isInhouse ? null : (form.vendor_id ? Number(form.vendor_id) : null),
-        vendor_name: isInhouse ? "E365 Inhouse Service" : form.vendor_name,
+        vendor_name: isInhouse ? inhouseServiceName : form.vendor_name,
         expected_return_date: form.expected_return_date || null,
         actual_return_date: null,
         package_count: Number(form.package_count || 1),
         declared_value: form.declared_value === "" ? null : Number(form.declared_value),
         transport_mode: isInhouse ? "inhouse" : form.transport_mode,
-        pickup_address: form.pickup_address || "E365 Kolkata Office",
-        delivery_address: isInhouse ? "E365 Inhouse Service Desk" : form.delivery_address,
+        pickup_address: form.pickup_address || companyOfficeName,
+        delivery_address: isInhouse ? inhouseDeskName : form.delivery_address,
         awb_number: !isInhouse && form.transport_mode === "courier" ? form.awb_number : null,
         courier_partner: !isInhouse && form.transport_mode === "courier" ? form.courier_partner : null,
         source_booking_id: current.booking_id,
@@ -678,7 +682,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
             <option value="inhouse">Inhouse Service</option>
             <option value="vendor">Vendor / External Service</option>
           </select>
-          {isInhouse ? <input value="E365 Inhouse Service" disabled /> : <>
+          {isInhouse ? <input value={inhouseServiceName} disabled /> : <>
             <select value={form.vendor_id || ""} onChange={e => {
               const vid = e.target.value;
               const vendorObj = (vendors || []).find(v => String(v.id) === vid);

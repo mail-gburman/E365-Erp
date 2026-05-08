@@ -4,8 +4,8 @@ import { login } from "../api";
 import { setSession } from "../auth";
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("e365");
-  const [password, setPassword] = useState("e365master123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -24,9 +24,9 @@ export default function LoginPage() {
   return (
     <div className="loginPage">
       <form className="loginCard" onSubmit={onSubmit}>
-        <img src="/logo.png?v=1" alt="E365 ERP" className="loginLogo" />
-        <h1>E365 ERP Login</h1>
-        <p>Use e365 / e365master123 for master access or company admin login.</p>
+        <img src="/eventory-logo.png?v=1" alt="Eventory ERP" className="loginLogo" />
+        <h1>Eventory ERP Login</h1>
+        <p>Use your master or company admin login.</p>
         <input value={username} onChange={(e)=>setUsername(e.target.value)} placeholder="Username" />
         <input type="password" value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Password" />
         <button className="primaryBtn" type="submit">Login</button>

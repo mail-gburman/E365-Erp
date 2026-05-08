@@ -5,6 +5,7 @@ import AutocompleteInput from "../components/AutocompleteInput";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions } from "../components/SearchBar";
 import { api, downloadAuthorized, fetchBlobUrlAuthorized, viewAuthorized } from "../api";
+import { getCompanyName } from "../auth";
 
 const blank = {
   service_scope: "inhouse",
@@ -24,7 +25,7 @@ const blank = {
   alternate_contact_name: "",
   alternate_contact_mobile: "",
   contact_email: "",
-  pickup_address: "E365 Kolkata Office",
+  pickup_address: "",
   delivery_address: "",
   package_count: 1,
   declared_value: "",
@@ -81,6 +82,10 @@ function AttachmentThumb({ attachment }) {
 }
 
 export default function ServicesPage() {
+  const companyName = getCompanyName() || "Company";
+  const inhouseServiceName = `${companyName} Inhouse Service`;
+  const inhouseDeskName = `${companyName} Inhouse Service Desk`;
+  const companyOfficeName = `${companyName} Office`;
   const [inventory, setInventory] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -146,14 +151,14 @@ export default function ServicesPage() {
         service_scope: undefined,
         inventory_item_id: Number(form.inventory_item_id),
         vendor_id: isInhouse ? null : (form.vendor_id ? Number(form.vendor_id) : null),
-        vendor_name: isInhouse ? "E365 Inhouse Service" : form.vendor_name,
+        vendor_name: isInhouse ? inhouseServiceName : form.vendor_name,
         expected_return_date: form.expected_return_date || null,
         actual_return_date: form.actual_return_date || null,
         package_count: Number(form.package_count || 1),
         declared_value: form.declared_value === "" ? null : Number(form.declared_value),
         transport_mode: isInhouse ? "inhouse" : form.transport_mode,
-        pickup_address: form.pickup_address || "E365 Kolkata Office",
-        delivery_address: isInhouse ? "E365 Inhouse Service Desk" : form.delivery_address,
+        pickup_address: form.pickup_address || companyOfficeName,
+        delivery_address: isInhouse ? inhouseDeskName : form.delivery_address,
         awb_number: !isInhouse && form.transport_mode === "courier" ? form.awb_number : null,
         courier_partner: !isInhouse && form.transport_mode === "courier" ? form.courier_partner : null,
       });
@@ -281,7 +286,7 @@ export default function ServicesPage() {
               {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_code} - {v.name}</option>)}
             </select>
             <AutocompleteInput value={form.vendor_name} onChange={(v) => setForm({ ...form, vendor_name: v })} suggestions={vendors.map((v) => v.name)} placeholder="Vendor Name" required={form.service_scope === "vendor"} />
-            </> : <input value="E365 Inhouse Service" disabled />}
+            </> : <input value={inhouseServiceName} disabled />}
             <input type="date" value={form.sent_date} onChange={(e) => setForm({ ...form, sent_date: e.target.value })} required />
             <input type="date" value={form.expected_return_date} onChange={(e) => setForm({ ...form, expected_return_date: e.target.value })} />
 

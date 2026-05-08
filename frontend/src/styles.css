@@ -1207,6 +1207,24 @@ body{
   letter-spacing:.05em;
   text-transform:uppercase;
 }
+.sidebarProductMark{
+  margin-top:auto;
+  padding:12px 4px 2px;
+  border-top:1px solid rgba(255,255,255,.14);
+  display:grid;
+  gap:7px;
+}
+.sidebarProductLogo{
+  width:100%;
+  max-width:132px;
+  height:auto;
+  object-fit:contain;
+  filter:drop-shadow(0 8px 18px rgba(0,0,0,.36));
+}
+.sidebarProductMark .brandPowered{
+  max-width:150px;
+  color:rgba(255,255,255,.86);
+}
 .brandMeta{color:rgba(255,255,255,.90);}
 .navLink{
   color:rgba(255,255,255,.94);
@@ -1911,4 +1929,101 @@ button:disabled{opacity:.6;cursor:not-allowed;}
   line-height:1.25;
   color:#fbbf24;
   letter-spacing:.01em;
+}
+
+/* Light tenant/admin readability guardrails.
+   Dynamic logo themes can change accent colors, but content must keep WCAG-safe contrast. */
+:where(.tenantShell,.superAdminShell){
+  --readable-text:#111827;
+  --readable-muted:#475569;
+  --readable-subtle:#64748b;
+  --readable-panel:#ffffff;
+  --readable-panel-soft:#f8fafc;
+  --readable-line:#cbd5e1;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.page,.card,.metric,.detailCard,.modalCard,.tableWrap,.formGrid,.stackForms){
+  color:var(--readable-text);
+}
+
+:where(.tenantShell,.superAdminShell) :is(
+  p,
+  li,
+  td,
+  label,
+  .helperText,
+  .fieldLabel,
+  .metricSub,
+  .profileMeta,
+  .profileBtnText span,
+  .barLabel,
+  .statusText,
+  .sampleList,
+  .alertList,
+  .alertList li,
+  .auditDetailList,
+  .auditDetailList li,
+  .compactAuditList,
+  .serviceAttachmentMeta,
+  .serviceAttachmentMeta span,
+  .servicePhotoNameList
+){
+  color:var(--readable-muted);
+}
+
+:where(.tenantShell,.superAdminShell) :is(
+  .pageTitle,
+  .topBarTitle,
+  .cardHead h2,
+  .sectionTitle,
+  .serviceSectionTitle,
+  .metricLabel,
+  .detailVal,
+  .profileName,
+  strong,
+  th,
+  .tableWrap strong
+){
+  color:var(--readable-text);
+}
+
+:where(.tenantShell,.superAdminShell) :is(.helperText,.alertList,.auditDetailList){
+  font-size:12px;
+  line-height:1.55;
+}
+
+:where(.tenantShell,.superAdminShell) .fieldLabel{
+  color:#374151;
+  font-size:11px;
+  font-weight:800;
+}
+
+:where(.tenantShell,.superAdminShell) :is(input,select,textarea,.searchModalInput,.calSearchInput,.dateRangeRow input[type="date"]){
+  background:var(--readable-panel);
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+
+:where(.tenantShell,.superAdminShell) :is(input::placeholder,textarea::placeholder){
+  color:#6b7280;
+  opacity:1;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.serviceGuide,.uploadDropZone,.serviceAttachmentCard,.serviceAttachmentFallback){
+  background:var(--readable-panel-soft);
+  color:var(--readable-muted);
+  border-color:var(--readable-line);
+}
+
+:where(.tenantShell,.superAdminShell) .alertList{
+  display:grid;
+  gap:10px;
+}
+
+:where(.tenantShell,.superAdminShell) .alertList li{
+  margin-bottom:0;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.ghostBtn,.compactBtn,.tabBtn,.pgBtn,.dateQuickBtn,.calLegendBtn,.calFilterGroupBtn){
+  color:var(--readable-text);
 }

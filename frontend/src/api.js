@@ -343,7 +343,7 @@ export const auditApi = {
 
 const activeDownloads = new Set();
 
-export async function viewAuthorized(url, title = "E365 PDF") {
+export async function viewAuthorized(url, title = "Eventory PDF") {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (res.status === 401) throw new Error("Session expired or token invalid. Please login again.");
   if (!res.ok) throw new Error(await res.text());
@@ -388,7 +388,7 @@ export async function downloadAuthorized(url, filename) {
     const a = document.createElement("a");
     let wrapper = null;
     if (isPdf) {
-      wrapper = URL.createObjectURL(new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${filename || "E365 PDF"}</title><style>html,body{margin:0;height:100%;background:#111;}iframe{border:0;width:100%;height:100%;}</style></head><body><iframe src="${obj}" title="${filename || "E365 PDF"}"></iframe></body></html>`], { type: "text/html" }));
+      wrapper = URL.createObjectURL(new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${filename || "Eventory PDF"}</title><style>html,body{margin:0;height:100%;background:#111;}iframe{border:0;width:100%;height:100%;}</style></head><body><iframe src="${obj}" title="${filename || "Eventory PDF"}"></iframe></body></html>`], { type: "text/html" }));
       a.href = wrapper;
       a.target = "_blank";
       a.rel = "noopener noreferrer";

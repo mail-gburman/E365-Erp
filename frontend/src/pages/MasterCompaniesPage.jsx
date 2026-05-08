@@ -81,7 +81,7 @@ export default function MasterCompaniesPage() {
 
   return (
     <div className="page">
-      <h1 className="pageTitle">E365 Master Companies</h1>
+      <h1 className="pageTitle">Master Companies</h1>
       {msg ? <div className="messageBar">{msg}</div> : null}
 
       <Card title="Add Company Tenant">

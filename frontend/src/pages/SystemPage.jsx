@@ -3,7 +3,7 @@ import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { downloadAuthorized, systemApi } from "../api";
-import { getPermissions, getRole } from "../auth";
+import { getCompanyName, getPermissions, getRole } from "../auth";
 
 const DOCUMENT_PERMISSION_KEYS = {
   vendor: "uploads.vendor_documents_tab",
@@ -24,6 +24,7 @@ const DOCUMENT_PERMISSION_KEYS = {
 const DOCUMENT_FIELD_KEYS = Object.values(DOCUMENT_PERMISSION_KEYS);
 
 export default function SystemPage() {
+  const companyName = getCompanyName() || "Company";
   const [health, setHealth] = useState(null);
   const [documentLibrary, setDocumentLibrary] = useState({ tabs: [], documents: [] });
   const [activeDocType, setActiveDocType] = useState("all");
@@ -35,7 +36,7 @@ export default function SystemPage() {
   const [tallyDemoStatus, setTallyDemoStatus] = useState(null);
   const [message, setMessage] = useState("");
   const [tallyForm, setTallyForm] = useState({
-    connector_name: "E365 Office Tally Connector",
+    connector_name: `${companyName} Office Tally Connector`,
     machine_name: "Office Tally PC",
     tally_host: "127.0.0.1",
     tally_port: 9000,
