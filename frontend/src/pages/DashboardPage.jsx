@@ -4,6 +4,8 @@ import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 function Metric({ big, label, sub, onClick }) {
   return (
@@ -98,6 +100,7 @@ function DrilldownModal({ title, items, columns, actions = [], onClose }) {
 }
 
 export default function DashboardPage() {
+  const bookingProfile = getBookingProfile(getBookingType());
   const [data, setData] = useState(null);
   const [loadError, setLoadError] = useState("");
   const navigate = useNavigate();
@@ -124,6 +127,7 @@ export default function DashboardPage() {
   }, [navigate]);
 
   const loadData = useCallback(async (rs, re) => {
+    const supportsServiceJobs = Boolean(bookingProfile.features.serviceJobs);
     const labels = ["dashboard", "inventory", "crew", "projects", "bookings", "service jobs"];
     const results = await Promise.allSettled([
       api.dashboard(rs || undefined, re || undefined),
@@ -131,7 +135,7 @@ export default function DashboardPage() {
       api.crew(),
       api.projects(),
       api.bookingDetails(),
-      api.serviceJobDetails(),
+      supportsServiceJobs ? api.serviceJobDetails() : Promise.resolve([]),
     ]);
 
     const valueAt = (index, fallback) => results[index].status === "fulfilled" ? results[index].value : fallback;
@@ -155,7 +159,7 @@ export default function DashboardPage() {
       warranty_expiring_soon: dashboard.warranty_expiring_soon ?? (inventory.length ? countWarrantyExpiringSoon(inventory) : 0),
       personnel_deployed: dashboard.personnel_deployed ?? deployedCrewIds.size ?? 0,
       personnel_availability: dashboard.personnel_availability ?? (crew.length ? Math.max(crew.length - deployedCrewIds.size, 0) : 0),
-      equipment_in_service: dashboard.equipment_in_service ?? (serviceJobs.length ? serviceJobs.filter((job) => job.status === "in_service").length : 0),
+      equipment_in_service: dashboard.equipment_in_service ?? (supportsServiceJobs && serviceJobs.length ? serviceJobs.filter((job) => job.status === "in_service").length : 0),
       equipment_utilization: dashboard.equipment_utilization ?? (inventory.length ? Math.round((activeEquipmentIds.size / inventory.length) * 10000) / 100 : 0),
       third_party_equipment: dashboard.third_party_equipment ?? (inventory.length ? inventory.filter((item) => item.owner_type === "third_party").length : 0),
       third_party_active: dashboard.third_party_active ?? (inventory.length ? inventory.filter((item) => item.owner_type === "third_party" && ["reserved", "on_shoot"].includes(item.status)).length : 0),
@@ -170,18 +174,18 @@ export default function DashboardPage() {
       ...fallback,
     };
     merged.chart = {
-      labels: ["Utilization", "Warranty Soon", "In Service", "Conflicts"],
+      labels: ["Utilization", bookingProfile.features.warranty ? "Warranty Soon" : "Compliance", bookingProfile.features.serviceJobs ? "In Service" : "Holds", "Conflicts"],
       values: [
         merged.equipment_utilization || 0,
-        merged.warranty_expiring_soon || 0,
-        merged.equipment_in_service || 0,
+        bookingProfile.features.warranty ? (merged.warranty_expiring_soon || 0) : 0,
+        bookingProfile.features.serviceJobs ? (merged.equipment_in_service || 0) : 0,
         merged.scheduling_conflicts || 0,
       ],
     };
     setData(merged);
-    const visibleFailures = failed.filter((name) => !["dashboard", "bookings", "projects"].includes(name));
+    const visibleFailures = failed.filter((name) => !["dashboard", "bookings", "projects"].includes(name) && (supportsServiceJobs || name !== "service jobs"));
     setLoadError(visibleFailures.length ? `Some live panels could not refresh: ${visibleFailures.join(", ")}` : "");
-  }, []);
+  }, [bookingProfile.features.serviceJobs, bookingProfile.features.warranty]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -217,8 +221,8 @@ export default function DashboardPage() {
       const inv = await api.inventory();
       const active = inv.filter(i => i.status === "reserved" || i.status === "on_shoot");
       openDrilldown(
-        `Equipment Utilization — ${active.length} active of ${inv.length}`,
-        ["Asset Code", "Name", "Category", "Status", "Location"],
+        `${bookingProfile.utilizationLabel} — ${active.length} active of ${inv.length}`,
+        [`${bookingProfile.resourceLabel} Code`, "Name", "Category", "Status", "Location"],
         active.map(i => [i.asset_code, i.name, i.category, i.status, i.location_text || "-"]),
         "/registry"
       );
@@ -226,27 +230,35 @@ export default function DashboardPage() {
   };
 
   const drillWarranty = async () => {
+    if (!bookingProfile.features.warranty) {
+      return openDrilldown(
+        `${bookingProfile.complianceLabel}`,
+        ["Workflow Check"],
+        [["Contracts, permits, riders, menus, IDs, or compliance documents should be tracked in Company Documents / Papers based on this company type."]],
+        "/operations"
+      );
+    }
     try {
       const inv = await api.inventory();
       const now = new Date();
       const week = new Date(now); week.setDate(now.getDate() + 7);
       const expiring = inv.filter(i => i.warranty_expiry && new Date(i.warranty_expiry) <= week);
       openDrilldown(
-        `Warranty Expiring Soon — ${expiring.length} items`,
-        ["Asset Code", "Name", "Warranty Expiry", "Status"],
+        `${bookingProfile.complianceLabel} — ${expiring.length} items`,
+        [`${bookingProfile.resourceLabel} Code`, "Name", "Warranty Expiry", "Status"],
         expiring.map(i => [i.asset_code, i.name, i.warranty_expiry, i.status]),
         "/registry"
       );
     } catch (e) { console.error(e); }
   };
 
-  const drillActiveShoots = async () => {
+  const drillActiveEvents = async () => {
     try {
       const [projects, bookings] = await Promise.all([api.projects(), api.bookingDetails()]);
       const activeProjects = projects.filter((project) => ["planned", "confirmed"].includes(project.status));
       openDrilldown(
-        `Active Shoots — ${activeProjects.length} projects`,
-        ["Project", "Status", "Shoot Window", "Booking Status", "Job Cards"],
+        `Active Events — ${activeProjects.length} projects`,
+        ["Project", "Status", "Event Window", "Booking Status", "Job Cards"],
         activeProjects.map((project) => {
           const linkedBookings = bookings.filter((booking) => booking.project_id === project.id);
           const bookingStatuses = [...new Set(linkedBookings.map((booking) => booking.status))].join(", ") || "No booking";
@@ -275,12 +287,20 @@ export default function DashboardPage() {
   };
 
   const drillService = async () => {
+    if (!bookingProfile.features.serviceJobs) {
+      return openDrilldown(
+        `${bookingProfile.serviceLabel}`,
+        ["Workflow Check"],
+        [["No repair/service workflow for this booking type. Use availability, contracts, documents, and booking holds instead."]],
+        "/bookings"
+      );
+    }
     try {
       const jobs = await api.serviceJobDetails();
       const active = jobs.filter(j => j.status === "in_service");
       openDrilldown(
-        `Equipment in Service — ${active.length} items`,
-        ["Job No.", "Equipment", "Vendor", "Sent Date", "Expected Return"],
+        `${bookingProfile.serviceLabel} — ${active.length} items`,
+        ["Job No.", bookingProfile.resourceLabel, "Vendor", "Sent Date", "Expected Return"],
         active.map(j => [j.job_number, `${j.asset_code} - ${j.inventory_name}`, j.vendor_name, j.sent_date, j.expected_return_date || "-"]),
         "/services"
       );
@@ -305,7 +325,7 @@ export default function DashboardPage() {
       const payload = await api.dashboardConflicts();
       const rows = (payload.rows || []).filter(r => r.issue === "Equipment overlap");
       openDrilldown(
-        `Equipment Conflicts — ${data?.equipment_conflicts ?? 0} conflict${(data?.equipment_conflicts ?? 0) === 1 ? "" : "s"}`,
+        `${bookingProfile.conflictLabel} — ${data?.equipment_conflicts ?? 0} conflict${(data?.equipment_conflicts ?? 0) === 1 ? "" : "s"}`,
         ["Job Card", "Project", "Destination", "Status", "Issue"],
         rows.map(r => [r.job_card, r.project, r.destination, r.status, r.issue]),
         "/bookings"
@@ -417,7 +437,7 @@ export default function DashboardPage() {
         b.block_end && b.block_end.substring(0, 10) === todayStr
       );
       openDrilldown(
-        `Returns Due Today — ${data?.returns_due_today ?? 0}`,
+        `${bookingProfile.returnLabel} — ${bookingProfile.features.returns ? (data?.returns_due_today ?? 0) : 0}`,
         ["Job Card", "Project", "Destination", "Status", "Due Date"],
         due.map((booking) => [
           booking.job_card_id,
@@ -459,8 +479,8 @@ export default function DashboardPage() {
       const inv = await api.inventory();
       const thirdParty = inv.filter((item) => item.owner_type === "third_party");
       openDrilldown(
-        `Third-Party Equipment — ${thirdParty.length} items`,
-        ["Asset Code", "Name", "Category", "Status", "Location"],
+        `${bookingProfile.thirdPartyLabel} — ${thirdParty.length} items`,
+        [`${bookingProfile.resourceLabel} Code`, "Name", "Category", "Status", "Location"],
         thirdParty.map((item) => [item.asset_code, item.name, item.category, item.status, item.location_text || "-"]),
         "/registry"
       );
@@ -472,8 +492,8 @@ export default function DashboardPage() {
       const inv = await api.inventory();
       const activeThirdParty = inv.filter((item) => item.owner_type === "third_party" && ["reserved", "on_shoot"].includes(item.status));
       openDrilldown(
-        `Third-Party Active / On Shoot — ${activeThirdParty.length} items`,
-        ["Asset Code", "Name", "Category", "Status", "Location"],
+        `Third-Party Active / On Event — ${activeThirdParty.length} items`,
+        [`${bookingProfile.resourceLabel} Code`, "Name", "Category", "Status", "Location"],
         activeThirdParty.map((item) => [item.asset_code, item.name, item.category, item.status, item.location_text || "-"]),
         "/registry"
       );
@@ -531,20 +551,24 @@ export default function DashboardPage() {
       </Card>
 
       <div className="analyticsGrid">
-        <Metric big={`${data?.equipment_utilization ?? 0}%`} label="Equipment Utilization" sub={`${data?.total_inventory ?? 0} total items`} onClick={drillEquipUtil} />
-        <Metric big={data?.warranty_expiring_soon ?? 0} label="Warranty Expiring Soon" sub="within 7 days" onClick={drillWarranty} />
-        <Metric big={data?.active_shoots ?? 0} label="Active Shoots" sub="planned + confirmed" onClick={drillActiveShoots} />
+        <Metric big={`${data?.equipment_utilization ?? 0}%`} label={bookingProfile.utilizationLabel} sub={`${data?.total_inventory ?? 0} total ${bookingProfile.resourcePlural.toLowerCase()}`} onClick={drillEquipUtil} />
+        <Metric big={bookingProfile.features.warranty ? (data?.warranty_expiring_soon ?? 0) : 0} label={bookingProfile.complianceLabel} sub={bookingProfile.features.warranty ? "within 7 days" : "documents / approvals"} onClick={drillWarranty} />
+        <Metric big={data?.active_shoots ?? 0} label="Active Events" sub="planned + confirmed" onClick={drillActiveEvents} />
         <Metric big={data?.personnel_availability ?? 0} label="Personnel Available" sub={`${data?.personnel_deployed ?? 0} deployed · ${data?.total_crew ?? 0} total`} onClick={drillPersonnel} />
-        <Metric big={data?.equipment_in_service ?? 0} label="Equipment in Service" sub="under repair / maintenance" onClick={drillService} />
-        <Metric big={data?.scheduling_conflicts ?? 0} label="Scheduling Conflicts" sub="equipment + crew" onClick={drillConflicts} />
+        <Metric big={bookingProfile.features.serviceJobs ? (data?.equipment_in_service ?? 0) : 0} label={bookingProfile.serviceLabel} sub={bookingProfile.features.serviceJobs ? "under repair / maintenance" : "availability / booking hold"} onClick={drillService} />
+        <Metric big={data?.scheduling_conflicts ?? 0} label="Scheduling Conflicts" sub={`${bookingProfile.resourceLabel.toLowerCase()} + crew`} onClick={drillConflicts} />
       </div>
 
       <div className="grid2">
         <Card title="Conflict & Returns">
           <div className="statRow">
-            <div style={{ cursor: "pointer" }} onClick={drillEquipmentConflicts}><strong>{data?.equipment_conflicts ?? 0}</strong><span>Equipment conflicts</span></div>
+            <div style={{ cursor: "pointer" }} onClick={drillEquipmentConflicts}><strong>{data?.equipment_conflicts ?? 0}</strong><span>{bookingProfile.conflictLabel}</span></div>
             <div style={{ cursor: "pointer" }} onClick={drillCrewConflicts}><strong>{data?.crew_conflicts ?? 0}</strong><span>Crew conflicts</span></div>
-            <div style={{ cursor: "pointer" }} onClick={drillReturnsDueToday}><strong>{data?.returns_due_today ?? 0}</strong><span>Returns due today</span></div>
+            {bookingProfile.features.returns ? (
+              <div style={{ cursor: "pointer" }} onClick={drillReturnsDueToday}><strong>{data?.returns_due_today ?? 0}</strong><span>{bookingProfile.returnLabel}</span></div>
+            ) : (
+              <div><strong>{bookingProfile.features.contractTracking ? "Docs" : "Follow-up"}</strong><span>{bookingProfile.returnLabel}</span></div>
+            )}
           </div>
           {data?.overdue_returns > 0 && (
             <div className="messageBar" style={{marginTop:12, cursor: "pointer"}} onClick={drillOverdueReturns}>
@@ -554,8 +578,8 @@ export default function DashboardPage() {
         </Card>
         <Card title="Third-Party & External Resources">
           <div className="statRow">
-            <div style={{ cursor: "pointer" }} onClick={drillThirdPartyEquipment}><strong>{data?.third_party_equipment ?? 0}</strong><span>3rd Party Equipment</span></div>
-            <div style={{ cursor: "pointer" }} onClick={drillThirdPartyActive}><strong>{data?.third_party_active ?? 0}</strong><span>3P Active / On Shoot</span></div>
+            <div style={{ cursor: "pointer" }} onClick={drillThirdPartyEquipment}><strong>{data?.third_party_equipment ?? 0}</strong><span>{bookingProfile.thirdPartyLabel}</span></div>
+            <div style={{ cursor: "pointer" }} onClick={drillThirdPartyActive}><strong>{data?.third_party_active ?? 0}</strong><span>3P Active / On Event</span></div>
             <div style={{ cursor: "pointer" }} onClick={drillExternalCrew}><strong>{data?.external_crew ?? 0}</strong><span>External Crew</span></div>
           </div>
         </Card>
@@ -567,8 +591,8 @@ export default function DashboardPage() {
             {(data?.chart?.labels || []).map((label, idx) => (
               <div key={label} className="barItem" style={{ cursor: "pointer" }} onClick={() => {
                 if (label === "Utilization") drillEquipUtil();
-                else if (label === "Warranty Soon") drillWarranty();
-                else if (label === "In Service") drillService();
+                else if (label === "Warranty Soon" || label === "Compliance") drillWarranty();
+                else if (label === "In Service" || label === "Holds") drillService();
                 else if (label === "Conflicts") drillConflicts();
               }}>
                 <div className="barFill" style={{ height: `${Math.min(Number(vals[idx] || 0), 100)}%` }}></div>

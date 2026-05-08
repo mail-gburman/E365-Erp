@@ -1,4 +1,4 @@
-KPS ERP Enterprise v8.9.8 patch notes
+E365 ERP Enterprise v8.9.8 patch notes
 
 Included fixes:
 1. Service booking / service job form now supports business dispatch fields:

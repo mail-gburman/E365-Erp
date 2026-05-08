@@ -6,9 +6,10 @@ from .auth import hash_password
 from .permissions import ROLE_DEFAULTS
 from .utils import calc_block_window
 
-_BUILTIN_PRESET_NAMES = ["admin", "producer", "operations", "store", "accounts", "qc", "viewer"]
+_BUILTIN_PRESET_NAMES = ["super_admin", "admin", "producer", "operations", "store", "accounts", "qc", "viewer"]
 
 _BUILTIN_DESCRIPTIONS = {
+    "super_admin": "E365 master access for SaaS company onboarding",
     "admin":      "Full access to all modules and actions",
     "producer":   "Project & booking oversight, approvals, exports — no master edits",
     "operations": "End-to-end field ops: bookings, dispatch, returns, QC, papers",
@@ -37,14 +38,49 @@ def seed_builtin_presets(db: Session):
 def seed_db(db: Session):
     seed_builtin_presets(db)
 
-    if not db.query(models.User).first():
-        users = [
-            models.User(username="admin", password_hash=hash_password("admin123"), role="admin", permissions_json=json.dumps(ROLE_DEFAULTS["admin"])),
-            models.User(username="operations", password_hash=hash_password("ops123"), role="operations", permissions_json=json.dumps(ROLE_DEFAULTS["operations"])),
-            models.User(username="store", password_hash=hash_password("store123"), role="store", permissions_json=json.dumps(ROLE_DEFAULTS["store"])),
-        ]
-        db.add_all(users)
+    default_company = db.query(models.Company).filter(models.Company.name == "E365 Demo Event Company").first()
+    if not default_company:
+        default_company = models.Company(
+            name="E365 Demo Event Company",
+            legal_name="E365 Demo Event Company",
+            contact_person="Company Admin",
+            email="admin@e365.demo",
+            country="India",
+            status="active",
+        )
+        db.add(default_company)
         db.commit()
+        db.refresh(default_company)
+
+    if not db.query(models.User).filter(models.User.username == "e365").first():
+        db.add(models.User(
+            username="e365",
+            password_hash=hash_password("e365master123"),
+            role="super_admin",
+            full_name="E365 Master Admin",
+            email="master@e365erp.com",
+            permissions_json=json.dumps(ROLE_DEFAULTS["super_admin"]),
+            company_id=None,
+        ))
+        db.commit()
+
+    default_users = [
+        ("admin", "admin123", "admin"),
+        ("operations", "ops123", "operations"),
+        ("store", "store123", "store"),
+    ]
+    for username, password, role in default_users:
+        if not db.query(models.User).filter(models.User.username == username).first():
+            db.add(models.User(
+                username=username,
+                password_hash=hash_password(password),
+                role=role,
+                company_id=default_company.id,
+                permissions_json=json.dumps(ROLE_DEFAULTS[role]),
+            ))
+    for user in db.query(models.User).filter(models.User.role != "super_admin", models.User.company_id.is_(None)).all():
+        user.company_id = default_company.id
+    db.commit()
 
     # Business/reference seed should still run after a reset that preserves users.
     if db.query(models.Warehouse).first():
@@ -52,11 +88,11 @@ def seed_db(db: Session):
 
     # ── WAREHOUSES ──
     warehouses = [
-        models.Warehouse(code="WH-KOL-MAIN", name="KPS Main Warehouse - Kolkata", city="Kolkata", address="Topsia Industrial Area, EM Bypass", manager_name="S. Ghosh", contact_no="9000000101"),
-        models.Warehouse(code="WH-KOL-SL", name="KPS Salt Lake Facility", city="Kolkata", address="Salt Lake Sector V, IT Hub", manager_name="Arindam Roy", contact_no="9000000102"),
-        models.Warehouse(code="WH-KOL-TOLLY", name="KPS Tollygunge Studio Store", city="Kolkata", address="Tollygunge Circular Road", manager_name="Bikash Dey", contact_no="9000000103"),
-        models.Warehouse(code="WH-MUM-MAIN", name="KPS Mumbai Transit Store", city="Mumbai", address="Goregaon Film City Area", manager_name="R. Mehta", contact_no="9000000201"),
-        models.Warehouse(code="WH-MUM-AND", name="KPS Andheri Facility", city="Mumbai", address="Andheri West, Link Road", manager_name="Ramesh Nair", contact_no="9000000202"),
+        models.Warehouse(code="WH-KOL-MAIN", name="E365 Main Warehouse - Kolkata", city="Kolkata", address="Topsia Industrial Area, EM Bypass", manager_name="S. Ghosh", contact_no="9000000101"),
+        models.Warehouse(code="WH-KOL-SL", name="E365 Salt Lake Facility", city="Kolkata", address="Salt Lake Sector V, IT Hub", manager_name="Arindam Roy", contact_no="9000000102"),
+        models.Warehouse(code="WH-KOL-TOLLY", name="E365 Tollygunge Studio Store", city="Kolkata", address="Tollygunge Circular Road", manager_name="Bikash Dey", contact_no="9000000103"),
+        models.Warehouse(code="WH-MUM-MAIN", name="E365 Mumbai Transit Store", city="Mumbai", address="Goregaon Film City Area", manager_name="R. Mehta", contact_no="9000000201"),
+        models.Warehouse(code="WH-MUM-AND", name="E365 Andheri Facility", city="Mumbai", address="Andheri West, Link Road", manager_name="Ramesh Nair", contact_no="9000000202"),
     ]
     db.add_all(warehouses)
 
@@ -135,67 +171,67 @@ def seed_db(db: Session):
 
     inv_items = [
         # Cameras
-        ("KPS/CAM/FX9-01", "Sony FX9 Camera Body #1", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C1", "EQM-01000"),
-        ("KPS/CAM/FX9-02", "Sony FX9 Camera Body #2", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C1", "EQM-01000"),
-        ("KPS/CAM/FX9-03", "Sony FX9 Camera Body #3", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C2", "EQM-01000"),
-        ("KPS/CAM/FX9-04", "Sony FX9 Camera Body #4", "CAMERA", "device", w2.id, "inhouse", None, "Mumbai Rack A", "EQM-01000"),
-        ("KPS/CAM/HDC-01", "Sony HDC-4300 Studio Camera #1", "CAMERA", "device", w1.id, "inhouse", None, "Studio Bay", "EQM-01004"),
-        ("KPS/CAM/HDC-02", "Sony HDC-4300 Studio Camera #2", "CAMERA", "device", w1.id, "inhouse", None, "Studio Bay", "EQM-01004"),
+        ("E365/CAM/FX9-01", "Sony FX9 Camera Body #1", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C1", "EQM-01000"),
+        ("E365/CAM/FX9-02", "Sony FX9 Camera Body #2", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C1", "EQM-01000"),
+        ("E365/CAM/FX9-03", "Sony FX9 Camera Body #3", "CAMERA", "device", w1.id, "inhouse", None, "Shelf C2", "EQM-01000"),
+        ("E365/CAM/FX9-04", "Sony FX9 Camera Body #4", "CAMERA", "device", w2.id, "inhouse", None, "Mumbai Rack A", "EQM-01000"),
+        ("E365/CAM/HDC-01", "Sony HDC-4300 Studio Camera #1", "CAMERA", "device", w1.id, "inhouse", None, "Studio Bay", "EQM-01004"),
+        ("E365/CAM/HDC-02", "Sony HDC-4300 Studio Camera #2", "CAMERA", "device", w1.id, "inhouse", None, "Studio Bay", "EQM-01004"),
         ("3P/CAM/RED-01", "RED Komodo 6K Package", "CAMERA", "third_party_equipment", w2.id, "third_party", v2.id, "Mumbai Transit", None),
         ("3P/CAM/ARRI-01", "ARRI Amira Premium", "CAMERA", "third_party_equipment", w1.id, "third_party", v2.id, "Kolkata Store", None),
         # Recorders
-        ("KPS/REC/P2-01", "Panasonic P2 HD Recorder #1", "RECORDER", "device", w1.id, "inhouse", None, "Rack R1", "EQM-01001"),
-        ("KPS/REC/P2-02", "Panasonic P2 HD Recorder #2", "RECORDER", "device", w1.id, "inhouse", None, "Rack R1", "EQM-01001"),
+        ("E365/REC/P2-01", "Panasonic P2 HD Recorder #1", "RECORDER", "device", w1.id, "inhouse", None, "Rack R1", "EQM-01001"),
+        ("E365/REC/P2-02", "Panasonic P2 HD Recorder #2", "RECORDER", "device", w1.id, "inhouse", None, "Rack R1", "EQM-01001"),
         # Lenses
-        ("KPS/LENS/42X-01", "Fujinon HA42x Box Lens #1", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01002"),
-        ("KPS/LENS/42X-02", "Fujinon HA42x Box Lens #2", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01002"),
-        ("KPS/LENS/CN-01", "Canon CN-E 70-200mm #1", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01003"),
+        ("E365/LENS/42X-01", "Fujinon HA42x Box Lens #1", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01002"),
+        ("E365/LENS/42X-02", "Fujinon HA42x Box Lens #2", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01002"),
+        ("E365/LENS/CN-01", "Canon CN-E 70-200mm #1", "LENS", "device", w1.id, "inhouse", None, "Lens Locker", "EQM-01003"),
         # Vision Mixer
-        ("KPS/VMX/ATEM-01", "Blackmagic ATEM 4M/E #1", "VISION MIXER", "device", w1.id, "inhouse", None, "OB Van Bay", "EQM-01005"),
+        ("E365/VMX/ATEM-01", "Blackmagic ATEM 4M/E #1", "VISION MIXER", "device", w1.id, "inhouse", None, "OB Van Bay", "EQM-01005"),
         ("3P/VMX/KAHUNA-01", "Kahuna Vision Mixer", "VISION MIXER", "third_party_equipment", w1.id, "third_party", v4.id, "Rental Store", None),
         # Monitors
-        ("KPS/MON/LMD-01", "Sony LMD-A240 Monitor #1", "MONITOR", "device", w1.id, "inhouse", None, "Monitor Rack", "EQM-01006"),
-        ("KPS/MON/LMD-02", "Sony LMD-A240 Monitor #2", "MONITOR", "device", w1.id, "inhouse", None, "Monitor Rack", "EQM-01006"),
-        ("KPS/MON/LMD-03", "Sony LMD-A240 Monitor #3", "MONITOR", "device", w2.id, "inhouse", None, "Mumbai Rack", "EQM-01006"),
+        ("E365/MON/LMD-01", "Sony LMD-A240 Monitor #1", "MONITOR", "device", w1.id, "inhouse", None, "Monitor Rack", "EQM-01006"),
+        ("E365/MON/LMD-02", "Sony LMD-A240 Monitor #2", "MONITOR", "device", w1.id, "inhouse", None, "Monitor Rack", "EQM-01006"),
+        ("E365/MON/LMD-03", "Sony LMD-A240 Monitor #3", "MONITOR", "device", w2.id, "inhouse", None, "Mumbai Rack", "EQM-01006"),
         # Audio
-        ("KPS/AUD/SENN-01", "Sennheiser ew100 G4 Wireless Mic #1", "WIRELESS AUDIO", "device", w1.id, "inhouse", None, "Audio Bay", "EQM-01007"),
-        ("KPS/AUD/SENN-02", "Sennheiser ew100 G4 Wireless Mic #2", "WIRELESS AUDIO", "device", w1.id, "inhouse", None, "Audio Bay", "EQM-01007"),
-        ("KPS/AUD/XLR-01", "Audio Harness XLR Kit #1", "AUDIO", "accessory", w1.id, "inhouse", None, "Accessory Bay", "EQM-01030"),
-        ("KPS/AUD/XLR-02", "Audio Harness XLR Kit #2", "AUDIO", "accessory", w1.id, "inhouse", None, "Accessory Bay", "EQM-01030"),
+        ("E365/AUD/SENN-01", "Sennheiser ew100 G4 Wireless Mic #1", "WIRELESS AUDIO", "device", w1.id, "inhouse", None, "Audio Bay", "EQM-01007"),
+        ("E365/AUD/SENN-02", "Sennheiser ew100 G4 Wireless Mic #2", "WIRELESS AUDIO", "device", w1.id, "inhouse", None, "Audio Bay", "EQM-01007"),
+        ("E365/AUD/XLR-01", "Audio Harness XLR Kit #1", "AUDIO", "accessory", w1.id, "inhouse", None, "Accessory Bay", "EQM-01030"),
+        ("E365/AUD/XLR-02", "Audio Harness XLR Kit #2", "AUDIO", "accessory", w1.id, "inhouse", None, "Accessory Bay", "EQM-01030"),
         # Replay
-        ("KPS/RPL/3P-01", "Newtek 3Play 3P2 #1", "INSTANT REPLAY", "device", w1.id, "inhouse", None, "OB Van", "EQM-01008"),
+        ("E365/RPL/3P-01", "Newtek 3Play 3P2 #1", "INSTANT REPLAY", "device", w1.id, "inhouse", None, "OB Van", "EQM-01008"),
         # Converters
-        ("KPS/CNV/FS-01", "AJA FS-HDR Converter #1", "CONVERTOR", "device", w1.id, "inhouse", None, "Rack C1", "EQM-01009"),
-        ("KPS/CNV/FS-02", "AJA FS-HDR Converter #2", "CONVERTOR", "device", w1.id, "inhouse", None, "Rack C1", "EQM-01009"),
+        ("E365/CNV/FS-01", "AJA FS-HDR Converter #1", "CONVERTOR", "device", w1.id, "inhouse", None, "Rack C1", "EQM-01009"),
+        ("E365/CNV/FS-02", "AJA FS-HDR Converter #2", "CONVERTOR", "device", w1.id, "inhouse", None, "Rack C1", "EQM-01009"),
         # Streaming
-        ("KPS/STR/HELO-01", "AJA HELO Streaming Encoder #1", "STREAMING", "device", w1.id, "inhouse", None, "Streaming Bay", "EQM-01032"),
+        ("E365/STR/HELO-01", "AJA HELO Streaming Encoder #1", "STREAMING", "device", w1.id, "inhouse", None, "Streaming Bay", "EQM-01032"),
         # Batteries
-        ("KPS/BAT/VM-01", "V-Mount Battery Pack 150Wh #1", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
-        ("KPS/BAT/VM-02", "V-Mount Battery Pack 150Wh #2", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
-        ("KPS/BAT/VM-03", "V-Mount Battery Pack 150Wh #3", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
-        ("KPS/BAT/VM-04", "V-Mount Battery Pack 150Wh #4", "BATTERY", "accessory", w2.id, "inhouse", None, "Mumbai Battery", "EQM-01010"),
+        ("E365/BAT/VM-01", "V-Mount Battery Pack 150Wh #1", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
+        ("E365/BAT/VM-02", "V-Mount Battery Pack 150Wh #2", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
+        ("E365/BAT/VM-03", "V-Mount Battery Pack 150Wh #3", "BATTERY", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01010"),
+        ("E365/BAT/VM-04", "V-Mount Battery Pack 150Wh #4", "BATTERY", "accessory", w2.id, "inhouse", None, "Mumbai Battery", "EQM-01010"),
         # Chargers
-        ("KPS/CHR/01", "Dual Battery Charger #1", "CHARGER", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01011"),
-        ("KPS/CHR/02", "Dual Battery Charger #2", "CHARGER", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01011"),
-        ("KPS/CHR/03", "Dual Battery Charger #3", "CHARGER", "accessory", w2.id, "inhouse", None, "Mumbai Battery", "EQM-01011"),
+        ("E365/CHR/01", "Dual Battery Charger #1", "CHARGER", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01011"),
+        ("E365/CHR/02", "Dual Battery Charger #2", "CHARGER", "accessory", w1.id, "inhouse", None, "Battery Rack", "EQM-01011"),
+        ("E365/CHR/03", "Dual Battery Charger #3", "CHARGER", "accessory", w2.id, "inhouse", None, "Mumbai Battery", "EQM-01011"),
         # Tripods
-        ("KPS/TRI/S18-01", "Sachtler Video 18 S2 Tripod #1", "TRIPOD", "accessory", w1.id, "inhouse", None, "Tripod Bay", "EQM-01020"),
-        ("KPS/TRI/S18-02", "Sachtler Video 18 S2 Tripod #2", "TRIPOD", "accessory", w1.id, "inhouse", None, "Tripod Bay", "EQM-01020"),
+        ("E365/TRI/S18-01", "Sachtler Video 18 S2 Tripod #1", "TRIPOD", "accessory", w1.id, "inhouse", None, "Tripod Bay", "EQM-01020"),
+        ("E365/TRI/S18-02", "Sachtler Video 18 S2 Tripod #2", "TRIPOD", "accessory", w1.id, "inhouse", None, "Tripod Bay", "EQM-01020"),
         # Wireless Video
-        ("KPS/WLS/BOLT-01", "Teradek Bolt 4K LT #1", "WIRELESS VIDEO", "accessory", w1.id, "inhouse", None, "Wireless Bay", "EQM-01021"),
-        ("KPS/WLS/BOLT-02", "Teradek Bolt 4K LT #2", "WIRELESS VIDEO", "accessory", w1.id, "inhouse", None, "Wireless Bay", "EQM-01021"),
+        ("E365/WLS/BOLT-01", "Teradek Bolt 4K LT #1", "WIRELESS VIDEO", "accessory", w1.id, "inhouse", None, "Wireless Bay", "EQM-01021"),
+        ("E365/WLS/BOLT-02", "Teradek Bolt 4K LT #2", "WIRELESS VIDEO", "accessory", w1.id, "inhouse", None, "Wireless Bay", "EQM-01021"),
         # Communication
-        ("KPS/COM/BP-01", "Clear-Com Beltpack HS #1", "COMMUNICATION", "accessory", w1.id, "inhouse", None, "Com Bay", "EQM-01031"),
-        ("KPS/COM/BP-02", "Clear-Com Beltpack HS #2", "COMMUNICATION", "accessory", w1.id, "inhouse", None, "Com Bay", "EQM-01031"),
+        ("E365/COM/BP-01", "Clear-Com Beltpack HS #1", "COMMUNICATION", "accessory", w1.id, "inhouse", None, "Com Bay", "EQM-01031"),
+        ("E365/COM/BP-02", "Clear-Com Beltpack HS #2", "COMMUNICATION", "accessory", w1.id, "inhouse", None, "Com Bay", "EQM-01031"),
         # Hard disk
-        ("KPS/SSD/T7-01", "SSD Recording Drive 2TB #1", "HARD DISK", "accessory", w1.id, "inhouse", None, "Storage", "EQM-01033"),
-        ("KPS/SSD/T7-02", "SSD Recording Drive 2TB #2", "HARD DISK", "accessory", w1.id, "inhouse", None, "Storage", "EQM-01033"),
+        ("E365/SSD/T7-01", "SSD Recording Drive 2TB #1", "HARD DISK", "accessory", w1.id, "inhouse", None, "Storage", "EQM-01033"),
+        ("E365/SSD/T7-02", "SSD Recording Drive 2TB #2", "HARD DISK", "accessory", w1.id, "inhouse", None, "Storage", "EQM-01033"),
         # UPS
-        ("KPS/UPS/3K-01", "3KVA UPS System #1", "UPS", "device", w1.id, "inhouse", None, "Power Bay", "EQM-01034"),
+        ("E365/UPS/3K-01", "3KVA UPS System #1", "UPS", "device", w1.id, "inhouse", None, "Power Bay", "EQM-01034"),
         # Power
-        ("KPS/PWR/EXT-01", "Power Extension Board 16A #1", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
-        ("KPS/PWR/EXT-02", "Power Extension Board 16A #2", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
-        ("KPS/PWR/EXT-03", "Power Extension Board 16A #3", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
+        ("E365/PWR/EXT-01", "Power Extension Board 16A #1", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
+        ("E365/PWR/EXT-02", "Power Extension Board 16A #2", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
+        ("E365/PWR/EXT-03", "Power Extension Board 16A #3", "POWER", "accessory", w1.id, "inhouse", None, "Power Bay", "EQM-01035"),
     ]
 
     for idx, (asset, name, cat, itype, wh_id, owner, vid, loc, eqm_code) in enumerate(inv_items, start=1):
@@ -203,7 +239,7 @@ def seed_db(db: Session):
         status = "available"
         service_status = "ok"
         # Make one item in service
-        if asset == "KPS/MON/LMD-03":
+        if asset == "E365/MON/LMD-03":
             status = "servicing"
             service_status = "in_service"
         sn = f"SN-{idx:06d}" if itype == "device" else None
@@ -260,19 +296,19 @@ def seed_db(db: Session):
         ("Star Entertainment Award Night", "Event", "CLI-00002", "Film City Auditorium, Mumbai", w2.id, datetime(2026, 4, 18, 14, 0), 2, 6, 5, 4, "planned"),
         ("DD National Independence Day Coverage", "Sports", "CLI-00003", "Red Fort Grounds, Delhi", w1.id, datetime(2026, 8, 15, 6, 0), 3, 12, 8, 6, "planned"),
         ("Bengal Premier League Opening Ceremony", "Sports", "CLI-00004", "Salt Lake Stadium", w1.id, datetime(2026, 4, 25, 16, 0), 1, 2, 4, 2, "planned"),
-        ("Zee Bangla Sa Re Ga Ma Pa Shoot", "TV Show", "CLI-00005", "Zee Bangla Studio, Kolkata", w1.id, datetime(2026, 5, 5, 10, 0), 0, 1, 6, 2, "confirmed"),
+        ("Zee Bangla Sa Re Ga Ma Pa Event", "TV Show", "CLI-00005", "Zee Bangla Studio, Kolkata", w1.id, datetime(2026, 5, 5, 10, 0), 0, 1, 6, 2, "confirmed"),
         ("Colors Bangla Reality Show Episode 12", "Reality Show", "CLI-00006", "Colors Studio, EM Bypass", w1.id, datetime(2026, 5, 10, 9, 0), 0, 1, 8, 2, "planned"),
         ("IPL 2026 – KKR vs MI", "Sports", "CLI-00007", "Eden Gardens, Kolkata", w1.id, datetime(2026, 4, 20, 15, 0), 2, 3, 6, 4, "planned"),
     ]
     projects = []
-    for title, stype, cli_code, venue, wh_id, shoot_start, setup, travel, shoot, ret, status in project_data:
+    for title, stype, cli_code, venue, wh_id, event_start, setup, travel, event_hours, ret, status in project_data:
         client = db.query(models.Client).filter(models.Client.client_code == cli_code).first()
-        block_start, block_end = calc_block_window(shoot_start, setup, travel, shoot, ret)
-        shoot_end_dt = datetime(shoot_start.year, shoot_start.month, shoot_start.day, shoot_start.hour + shoot, shoot_start.minute) if shoot_start else None
-        setup_dt = (shoot_start - timedelta(days=setup)).date() if setup else None
-        expected_s = (shoot_start - timedelta(days=setup + 1)).date()
-        expected_e = (shoot_start + timedelta(hours=shoot + ret)).date()
-        p = models.ProjectEvent(title=title, show_type=stype, client_id=client.id if client else None, venue=venue, origin_warehouse_id=wh_id, shoot_start=shoot_start, shoot_end=shoot_end_dt, setup_date=setup_dt, off_days=0, expected_start_date=expected_s, expected_end_date=expected_e, setup_days=setup, block_start=block_start, block_end=block_end, status=status, notes=f"Seed project – {title}")
+        block_start, block_end = calc_block_window(event_start, setup, travel, event_hours, ret)
+        shoot_end_dt = datetime(event_start.year, event_start.month, event_start.day, event_start.hour + event_hours, event_start.minute) if event_start else None
+        setup_dt = (event_start - timedelta(days=setup)).date() if setup else None
+        expected_s = (event_start - timedelta(days=setup + 1)).date()
+        expected_e = (event_start + timedelta(hours=event_hours + ret)).date()
+        p = models.ProjectEvent(title=title, show_type=stype, client_id=client.id if client else None, venue=venue, origin_warehouse_id=wh_id, shoot_start=event_start, shoot_end=shoot_end_dt, setup_date=setup_dt, off_days=0, expected_start_date=expected_s, expected_end_date=expected_e, setup_days=setup, block_start=block_start, block_end=block_end, status=status, notes=f"Seed project – {title}")
         db.add(p)
         projects.append(p)
     db.commit()
@@ -284,16 +320,16 @@ def seed_db(db: Session):
     c5 = db.query(models.CrewMember).filter(models.CrewMember.employee_code == "EMP-00005").first()
     c6 = db.query(models.CrewMember).filter(models.CrewMember.employee_code == "EMP-00006").first()
 
-    i_fx9_1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/CAM/FX9-01").first()
-    i_fx9_2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/CAM/FX9-02").first()
-    i_bat1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/BAT/VM-01").first()
-    i_bat2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/BAT/VM-02").first()
-    i_chr1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/CHR/01").first()
-    i_tri1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/TRI/S18-01").first()
-    i_aud1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/AUD/SENN-01").first()
-    i_atem = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/VMX/ATEM-01").first()
-    i_mon1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/MON/LMD-01").first()
-    i_mon2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/MON/LMD-02").first()
+    i_fx9_1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/CAM/FX9-01").first()
+    i_fx9_2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/CAM/FX9-02").first()
+    i_bat1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/BAT/VM-01").first()
+    i_bat2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/BAT/VM-02").first()
+    i_chr1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/CHR/01").first()
+    i_tri1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/TRI/S18-01").first()
+    i_aud1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/AUD/SENN-01").first()
+    i_atem = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/VMX/ATEM-01").first()
+    i_mon1 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/MON/LMD-01").first()
+    i_mon2 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/MON/LMD-02").first()
 
     # Booking 1 - planned
     b1 = models.EventBooking(project_id=projects[0].id, booking_code="BK-00001", job_card_id=None, destination="Eden Gardens Broadcast Compound", status="planned", transport_mode="company_vehicle", contact_person_name="Arjun Sen", contact_person_mobile="9000000501", remarks="Main camera + audio setup for Match Day 1")
@@ -338,7 +374,7 @@ def seed_db(db: Session):
     db.add(models.GatePass(gate_pass_number="GATE-00002", booking_id=b2.id, pass_type="gate_out", approved_by="System Auto", status="issued", remarks="Seed gate out – BPL Opening"))
 
     # ── SERVICE JOBS ──
-    i_mon3 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "KPS/MON/LMD-03").first()
+    i_mon3 = db.query(models.InventoryItem).filter(models.InventoryItem.asset_code == "E365/MON/LMD-03").first()
     db.add(models.ServiceJob(job_number="SRV-00001", inventory_item_id=i_mon3.id, vendor_id=vendors[0].id, vendor_name="ProService Hub", sent_date=date(2026, 4, 5), expected_return_date=date(2026, 4, 12), status="in_service", problem_reported="Backlight flickering intermittently", remarks="Under warranty repair"))
 
     # ── PROCUREMENT ORDERS ──
@@ -349,7 +385,7 @@ def seed_db(db: Session):
     ])
 
     # ── PAPERS ──
-    db.add(models.OutboundPaper(paper_number="PAP-00001", paper_type="Shoot Dispatch", reference_name="Velocity Premier Cup – Match Day 1", destination="Eden Gardens Broadcast Compound", issued_by="Store Admin", issue_status="ready", related_booking_id=b1.id, signature_name="S. Ghosh", remarks="Main dispatch with all equipment"))
+    db.add(models.OutboundPaper(paper_number="PAP-00001", paper_type="Event Dispatch", reference_name="Velocity Premier Cup – Match Day 1", destination="Eden Gardens Broadcast Compound", issued_by="Store Admin", issue_status="ready", related_booking_id=b1.id, signature_name="S. Ghosh", remarks="Main dispatch with all equipment"))
     db.add(models.OutboundPaper(paper_number="PAP-00002", paper_type="Equipment Gate Pass", reference_name="BPL Opening Ceremony", destination="Salt Lake Stadium", issued_by="Operations", issue_status="draft", related_booking_id=b2.id, signature_name="Arindam Roy"))
 
     db.commit()

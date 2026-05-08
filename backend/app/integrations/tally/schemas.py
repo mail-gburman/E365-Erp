@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class ConnectorRegister(BaseModel):
-    connector_name: str = Field(default="KPS Local Tally Connector")
+    connector_name: str = Field(default="E365 Local Tally Connector")
     machine_name: Optional[str] = None
     tally_host: str = "127.0.0.1"
     tally_port: int = 9000

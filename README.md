@@ -1,12 +1,12 @@
-# KPS ERP Enterprise v4
+# E365 ERP Enterprise v4
 
-A larger full-stack starter for **KPS PRODUCTIONS AND SERVICES LLP / KPS Studios**.
+A larger full-stack starter for **E365 PRODUCTIONS AND SERVICES LLP / E365 Event ERP**.
 
 ## Included in this version
 - Login + roles (`admin`, `operations`, `store`)
 - PostgreSQL-ready backend with SQLite fallback
 - Deployment starter via Docker Compose
-- KPS branded frontend using your logo
+- E365 branded frontend using your logo
 - Analytics dashboard with chart-style cards
 - Warehouses, vendors, inventory, crew, procurement masters
 - Inventory item typing:
@@ -16,13 +16,13 @@ A larger full-stack starter for **KPS PRODUCTIONS AND SERVICES LLP / KPS Studios
   - bundle
   - third_party_equipment
   - consumable
-- Multiple devices and multiple manpower per shoot/event
+- Multiple devices and multiple manpower per event
 - Accessories can be linked to a parent item
-- Automatic shoot blocking logic:
-  - input shoot start
+- Automatic event blocking logic:
+  - input event start
   - input setup days
   - input travel hours
-  - input shoot hours
+  - input event hours
   - input return hours
   - system auto-calculates blocking window
 - Robust booking checks:
@@ -89,8 +89,8 @@ This is a strong starter and business-logic scaffold, not a finished production 
   - service job cannot be opened for equipment already in an active booking
   - return QC is required before a booking can be marked returned
 - Added Linux deployment helpers:
-  - `deploy/linux/kps-backend.service`
-  - `deploy/nginx/kps.conf`
+  - `deploy/linux/e365-backend.service`
+  - `deploy/nginx/e365.conf`
   - `deploy/linux/deploy_backend.sh`
   - `deploy/linux/deploy_frontend.sh`
 
@@ -200,13 +200,13 @@ For a straightforward non-Docker deployment:
 
 
 ## v7.3.1 UI clarity hotfix
-- Added explicit labels and clearer placeholders for all numeric shoot-booking inputs.
-- Added a blocking-logic guide card explaining setup days, travel hours, shoot hours, and return hours.
+- Added explicit labels and clearer placeholders for all numeric event-booking inputs.
+- Added a blocking-logic guide card explaining setup days, travel hours, event hours, and return hours.
 
 
 ## v7.3.2 UI/help + audit hotfix
-- Removed accidental literal `\n` from Shoot Booking form
-- Added inline info hints (`i`) with hover help and examples across Shoot Booking inputs
+- Removed accidental literal `\n` from Event Booking form
+- Added inline info hints (`i`) with hover help and examples across Event Booking inputs
 - Expanded right-side guidance so each booking field is explained
 - Audit page now shows fallback existing seeded/system data when audit log rows are still empty
 
@@ -227,7 +227,7 @@ For a straightforward non-Docker deployment:
 - Added accessory rule summary and backend validation for mandatory accessories
 - Added Job Card & Challan PDF generation on confirmed booking
 - Added generic bulk upload in Additions for inventory, clients, crew, vendors, and warehouses
-- Inventory bulk upload preserves UNIQUE NUMBER nomenclature from the uploaded KPS workbook where available
+- Inventory bulk upload preserves UNIQUE NUMBER nomenclature from the uploaded E365 workbook where available
 
 
 ## v8.1 dummy-data + auth handling patch
@@ -324,7 +324,7 @@ For a straightforward non-Docker deployment:
 - PAN field on Client, Vendor, and Crew forms
 - Blood group dropdown + emergency contact on crew
 - Booking page 4-tab header: New Booking / Modify Booking / Planned Booking / All Bookings
-- Modify Shoot modal: pre-populated with all existing dates, equipment, accessories, and crew
+- Modify Event modal: pre-populated with all existing dates, equipment, accessories, and crew
 - Country code dropdown on every phone field across the project (100+ countries, India default)
 
 

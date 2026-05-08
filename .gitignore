@@ -19,7 +19,7 @@ env/
 # Databases / local state
 *.sqlite3
 *.db
-kps_erp_v4.db
+e365_erp_v4.db
 tally_connector.sqlite3
 
 # Vite cache

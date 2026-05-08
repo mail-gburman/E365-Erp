@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-TARGET="${1:-/Users/gauravburman/Desktop/KPS/kps_erp_enterprise_v8_9_10}"
+TARGET="${1:-/Users/gauravburman/Desktop/E365/e365_erp_enterprise_v8_9_10}"
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 mkdir -p "$TARGET/backend/app/integrations"

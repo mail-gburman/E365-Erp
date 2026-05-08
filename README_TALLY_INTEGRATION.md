@@ -1,4 +1,4 @@
-# KPS ERP TallyPrime Integration
+# E365 ERP TallyPrime Integration
 
 ## Architecture
 
@@ -35,7 +35,7 @@ ERP_BASE_URL=https://your-cloud-erp.example.com
 CONNECTOR_TOKEN=paste-token-from-erp-registration
 TALLY_HOST=127.0.0.1
 TALLY_PORT=9000
-TALLY_COMPANY_NAME=KPS PRODUCTIONS AND SERVICES LLP
+TALLY_COMPANY_NAME=E365 PRODUCTIONS AND SERVICES LLP
 TALLY_MODE=hybrid
 TALLY_EXPORT_FOLDER=exports
 ```

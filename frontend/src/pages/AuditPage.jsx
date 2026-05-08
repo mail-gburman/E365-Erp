@@ -3,6 +3,8 @@ import Card from "../components/Card";
 import AutocompleteInput from "../components/AutocompleteInput";
 import Pagination, { usePagination } from "../components/Pagination";
 import { auditApi, forceDownloadAuthorized } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 function renderReadableDetails(details) {
   if (!details || details === "-") return <span>-</span>;
@@ -21,6 +23,9 @@ function renderReadableDetails(details) {
 }
 
 export default function AuditPage() {
+  const bookingProfile = getBookingProfile(getBookingType());
+  const supportsServiceJobs = Boolean(bookingProfile.features.serviceJobs);
+  const supportsReturns = Boolean(bookingProfile.features.returns);
   const [filters, setFilters] = useState({ range_key: "7d", category: "all", start_date: "", end_date: "", username: "", action: "" });
   const [rows, setRows] = useState([]);
   const [message, setMessage] = useState("");
@@ -31,6 +36,14 @@ export default function AuditPage() {
 
   const load = () => auditApi.query(filters).then(setRows).catch(err => setMessage(String(err.message || err)));
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!supportsServiceJobs && filters.category === "services") {
+      setFilters((prev) => ({ ...prev, category: "all" }));
+      setSubSearch("");
+      setSubEntity("");
+      setSubAction("");
+    }
+  }, [filters.category, supportsServiceJobs]);
 
   const filteredRows = useMemo(() => {
     let data = rows;
@@ -105,11 +118,11 @@ export default function AuditPage() {
   }
 
   const categoryHints = {
-    bookings: "Search by client, project, destination, booking ID, equipment...",
-    equipment: "Search by asset code, equipment name, serial number...",
+    bookings: `Search by client, project, destination, booking ID${supportsReturns ? ", returns" : ""}...`,
+    equipment: `Search by code, ${bookingProfile.resourceLabel.toLowerCase()} name, serial / reference number...`,
     manpower: "Search by crew name, employee code, role...",
-    services: "Search by job number, vendor, equipment name...",
-    papers: "Search by paper number, reference name, gate pass...",
+    services: `Search by job number, vendor, ${bookingProfile.resourceLabel.toLowerCase()} name...`,
+    papers: `Search by paper number, reference name, ${bookingProfile.documents.gatePass.toLowerCase()}...`,
     users: "Search by username or user action...",
     additions: "Search by name, code, entity added...",
     documents: "Search by document name...",
@@ -129,11 +142,11 @@ export default function AuditPage() {
             </select>
             <select value={filters.category} onChange={e => { setFilters({ ...filters, category: e.target.value }); setSubSearch(""); setSubEntity(""); setSubAction(""); }}>
               <option value="all">All activity</option>
-              <option value="bookings">Bookings / QC / Returns</option>
-              <option value="equipment">Equipment / Inventory</option>
+              <option value="bookings">{supportsReturns ? "Bookings / QC / Returns" : "Bookings / Activity"}</option>
+              <option value="equipment">{bookingProfile.resourceLabel} / Registry</option>
               <option value="manpower">Manpower / Crew</option>
-              <option value="services">Service Jobs</option>
-              <option value="papers">Papers / Gate Passes</option>
+              {supportsServiceJobs && <option value="services">Service Jobs</option>}
+              <option value="papers">Papers / {bookingProfile.documents.gatePass}</option>
               <option value="additions">All New Additions</option>
               <option value="users">Users</option>
               <option value="documents">Documents</option>

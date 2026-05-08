@@ -3,7 +3,7 @@ import React, { useMemo, useState } from "react";
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const TYPE_META = {
   travel_day: { label: "Travel Day", color: "#fb7185" },
-  shoot_date: { label: "Shoot Day", color: "#4ade80" },
+  shoot_date: { label: "Event Day", color: "#4ade80" },
   end_day: { label: "End Day", color: "#f87171" },
   setup_date: { label: "Setup Day", color: "#f59e0b" },
   technical_date: { label: "Technical Day", color: "#38bdf8" },

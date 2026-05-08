@@ -9,7 +9,7 @@ def main():
     cfg = Config()
     if not cfg.connector_token:
         raise SystemExit("CONNECTOR_TOKEN is required. Register a connector from the ERP first.")
-    print("KPS Tally Connector")
+    print("E365 Tally Connector")
     print(f"ERP: {cfg.erp_base_url}")
     print(f"Tally: {cfg.tally_url}")
     print(f"Mode: {cfg.mode}")

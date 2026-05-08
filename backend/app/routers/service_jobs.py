@@ -14,7 +14,7 @@ from ..codegen import next_service_job_number
 from ..audit import audit
 
 router = APIRouter(prefix="/service-jobs", tags=["Service Jobs"])
-UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads"))
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/tmp/e365_uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -43,13 +43,26 @@ def _attachment_payload(att):
     }
 
 
+def _service_jobs_enabled(current_user):
+    return getattr(getattr(current_user, "company", None), "booking_type", "equipment") in {"equipment", "venue", "decor"}
+
+
+def _reject_if_not_service_profile(current_user):
+    if not _service_jobs_enabled(current_user):
+        raise HTTPException(status_code=400, detail="Service jobs are not used for this company's booking type.")
+
+
 @router.get("/", response_model=list[schemas.ServiceJobRead], dependencies=[Depends(require_permission("services","view"))])
-def list_service_jobs(db: Session = Depends(get_db)):
+def list_service_jobs(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not _service_jobs_enabled(current_user):
+        return []
     return db.query(models.ServiceJob).order_by(models.ServiceJob.id.desc()).all()
 
 
 @router.get("/details", dependencies=[Depends(require_permission("services","view"))])
-def list_service_job_details(db: Session = Depends(get_db)):
+def list_service_job_details(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not _service_jobs_enabled(current_user):
+        return []
     rows = db.query(models.ServiceJob).order_by(models.ServiceJob.id.desc()).all()
     return [{
         "id": r.id,
@@ -85,6 +98,7 @@ def list_service_job_details(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=schemas.ServiceJobRead, dependencies=[Depends(require_permission("services","add"))])
 def create_service_job(payload: schemas.ServiceJobCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _reject_if_not_service_profile(current_user)
     inv = db.query(models.InventoryItem).filter(models.InventoryItem.id == payload.inventory_item_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Inventory item not found.")
@@ -255,7 +269,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
     expected_ret_str = item.expected_return_date.strftime("%d/%m/%Y") if getattr(item, "expected_return_date", None) else "-"
     actual_ret_str = item.actual_return_date.strftime("%d/%m/%Y") if getattr(item, "actual_return_date", None) else "-"
     pdf = make_branded_pdf(
-        "Kaleidoscope Productions - Service Outbound Paper",
+        "E365 Event ERP - Service Outbound Paper",
         "Equipment servicing movement document",
         [
             f"Job Number: {item.job_number}",
@@ -269,7 +283,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
             f"Alternate Contact: {item.alternate_contact_name or '-'}",
             f"Alternate Mobile: {item.alternate_contact_mobile or '-'}",
             f"Email: {item.contact_email or '-'}",
-            f"Pickup Address: {item.pickup_address or 'KPS Kolkata Office'}",
+            f"Pickup Address: {item.pickup_address or 'E365 Kolkata Office'}",
             f"Delivery Address: {_coalesce(item.delivery_address, _vendor_address(vendor)) or '-'}",
             f"Sent Date: {sent_date_str}",
             f"Expected Return: {expected_ret_str}",
@@ -307,8 +321,8 @@ def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
     if item.attachments:
         item_desc += f", with {len(item.attachments)} damage photo(s) on record"
     vendor = item.vendor
-    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "KPS Inhouse Service")
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "Kaleidoscope Productions and Services LLP, Kolkata")
+    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "E365 Inhouse Service")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "E365 Event ERP, Kolkata")
     to_contact_parts = [
         _coalesce(item.contact_person_mobile, vendor.phone if vendor else None),
         item.contact_email,
@@ -334,10 +348,10 @@ def service_address_label_pdf(job_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code=404, detail="Service job not found.")
     vendor = item.vendor
-    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "KPS Inhouse Service")
+    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "E365 Inhouse Service")
     contact_name = item.contact_person_name or None
     to_name = vendor_name if not contact_name else f"{vendor_name}\nAttn: {contact_name}"
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "Kaleidoscope Productions and Services LLP, Kolkata")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "E365 Event ERP, Kolkata")
     to_contact_parts = [item.contact_person_mobile, item.alternate_contact_mobile, item.contact_email, vendor.phone if vendor else None]
     to_contact = " | ".join([str(x) for x in to_contact_parts if x])
     to_gstin = vendor.gst_number if vendor else None

@@ -1,4 +1,4 @@
-KPS ERP patch - Apr 20 2026
+E365 ERP patch - Apr 20 2026
 
 Fixed:
 1. Removed confusing Pending: 0 in Booking action row. It now only shows pending return/account count if there are actual unresolved items.

@@ -161,10 +161,10 @@ def _ensure_placeholder_document_file():
         return
     pdf = canvas.Canvas(str(ASSET_PLACEHOLDER), pagesize=A4)
     width, height = A4
-    pdf.setTitle("KPS Demo ID Document Placeholder")
-    pdf.setAuthor("KPS Productions and Services LLP")
+    pdf.setTitle("E365 Demo ID Document Placeholder")
+    pdf.setAuthor("E365 Productions and Services LLP")
     pdf.setFont("Helvetica-Bold", 20)
-    pdf.drawCentredString(width / 2, height - 90, "KPS DEMO ID DOCUMENT")
+    pdf.drawCentredString(width / 2, height - 90, "E365 DEMO ID DOCUMENT")
     pdf.setFont("Helvetica", 12)
     pdf.drawCentredString(width / 2, height - 118, "Placeholder file for client demonstrations")
     pdf.rect(90, 170, width - 180, height - 340)
@@ -203,9 +203,9 @@ def ensure_demo_data(db: Session):
 
     # User profiles for profile-menu demonstration
     for username, full_name, phone, email in [
-        ("admin", "Admin User", "+91-9000000001", "admin@kpsstudios.demo"),
-        ("operations", "Operations Lead", "+91-9000000002", "operations@kpsstudios.demo"),
-        ("store", "Store Controller", "+91-9000000003", "store@kpsstudios.demo"),
+        ("admin", "Admin User", "+91-9000000001", "admin@e365studios.demo"),
+        ("operations", "Operations Lead", "+91-9000000002", "operations@e365studios.demo"),
+        ("store", "Store Controller", "+91-9000000003", "store@e365studios.demo"),
     ]:
         user = _query_one(db, models.User, username=username)
         if user:
@@ -268,26 +268,26 @@ def ensure_demo_data(db: Session):
 
     # Kit parent items
     kit_eng = _ensure(
-        db, models.InventoryItem, {"asset_code": "KPS/KIT/ENG-01"},
+        db, models.InventoryItem, {"asset_code": "E365/KIT/ENG-01"},
         {
             "product_code": "PRD-900001", "name": "ENG Camera Kit", "category": "CAMERA KIT",
             "item_type": "kit", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
             "status": "available", "location_text": "Kolkata – Bay A",
             "service_status": "not_in_service", "warranty_expiry": date(2027, 6, 30),
-            "statutory_tag": "KPS/KIT/ENG-01",
+            "statutory_tag": "E365/KIT/ENG-01",
             "equipment_master_id": eqm_fx9.id if eqm_fx9 else None,
             "notes": "ENG Kit: FX9 body + V-mount battery + charger. Auto-expands in booking.", "is_demo": True,
         },
     )[0]
 
     bundle_stream = _ensure(
-        db, models.InventoryItem, {"asset_code": "KPS/BND/STREAM-01"},
+        db, models.InventoryItem, {"asset_code": "E365/BND/STREAM-01"},
         {
             "product_code": "PRD-900002", "name": "Corporate Streaming Bundle", "category": "STREAMING",
             "item_type": "bundle", "warehouse_id": warehouse_main.id, "owner_type": "inhouse",
             "status": "available", "location_text": "Kolkata – Bay B",
             "service_status": "not_in_service", "warranty_expiry": date(2027, 3, 31),
-            "statutory_tag": "KPS/BND/STREAM-01",
+            "statutory_tag": "E365/BND/STREAM-01",
             "equipment_master_id": eqm_halo.id if eqm_halo else None,
             "notes": "Streaming bundle: encoder + switcher + PTZ cam. Auto-expands in booking.", "is_demo": True,
         },
@@ -295,9 +295,9 @@ def ensure_demo_data(db: Session):
 
     # Consumables with qty_in_stock
     for asset_code, product_code, name, category, qty, notes in [
-        ("KPS/CON/GAFF-01", "PRD-900003", "Gaffer Tape (Box of 12)", "CONSUMABLE", 12, "Heavy-duty gaffer tape, black."),
-        ("KPS/CON/CF-01", "PRD-900010", "CFexpress Card Type B 512GB", "MEMORY CARD", 6, "CFexpress B cards for FX9 / FX6."),
-        ("KPS/CON/BATT-AA-01", "PRD-900011", "AA Batteries (Pack of 24)", "CONSUMABLE", 20, "For wireless mics and remotes."),
+        ("E365/CON/GAFF-01", "PRD-900003", "Gaffer Tape (Box of 12)", "CONSUMABLE", 12, "Heavy-duty gaffer tape, black."),
+        ("E365/CON/CF-01", "PRD-900010", "CFexpress Card Type B 512GB", "MEMORY CARD", 6, "CFexpress B cards for FX9 / FX6."),
+        ("E365/CON/BATT-AA-01", "PRD-900011", "AA Batteries (Pack of 24)", "CONSUMABLE", 20, "For wireless mics and remotes."),
     ]:
         _ensure(
             db, models.InventoryItem, {"asset_code": asset_code},
@@ -313,7 +313,7 @@ def ensure_demo_data(db: Session):
     # Third-party equipment WITH rental windows
     for asset_code, product_code, name, category, avail_from, avail_until, notes in [
         ("3P/LGT/ASTERA-01", "PRD-900004", "Astera Tube Light Set (8pcs)", "LIGHTING",
-         date(2026, 4, 20), date(2026, 5, 15), "Rented from Filmlite India for April–May shoots."),
+         date(2026, 4, 20), date(2026, 5, 15), "Rented from Filmlite India for April–May events."),
         ("3P/CAM/MOVI-01", "PRD-900005", "DJI Ronin 4D Gimbal Rental", "GIMBAL",
          date(2026, 4, 25), date(2026, 5, 10), "Rented from CineGear Mumbai. Available only Apr 25 – May 10."),
         ("3P/AUD/SENN-01", "PRD-900006", "Sennheiser MKH 8050 + Boom Rental", "AUDIO",
@@ -334,9 +334,9 @@ def ensure_demo_data(db: Session):
         )
 
     # Kit child items linked to kit_eng
-    cam_body = _query_one(db, models.InventoryItem, asset_code="KPS/CAM/FX9-03")
-    bat_vm = _query_one(db, models.InventoryItem, asset_code="KPS/BAT/VM-03")
-    charger = _query_one(db, models.InventoryItem, asset_code="KPS/CHR/02")
+    cam_body = _query_one(db, models.InventoryItem, asset_code="E365/CAM/FX9-03")
+    bat_vm = _query_one(db, models.InventoryItem, asset_code="E365/BAT/VM-03")
+    charger = _query_one(db, models.InventoryItem, asset_code="E365/CHR/02")
     if cam_body and not cam_body.parent_item_id:
         cam_body.parent_item_id = kit_eng.id
     if bat_vm and not bat_vm.parent_item_id:
@@ -501,14 +501,14 @@ def ensure_demo_data(db: Session):
     assets = {
         code: _query_one(db, models.InventoryItem, asset_code=code)
         for code in [
-            "KPS/CAM/FX9-03", "KPS/CAM/FX9-04", "KPS/CAM/HDC-01", "KPS/CAM/HDC-02",
-            "KPS/BAT/VM-03", "KPS/BAT/VM-04", "KPS/CHR/02", "KPS/CHR/03",
-            "KPS/TRI/S18-02", "KPS/WLS/BOLT-01", "KPS/COM/BP-01", "KPS/SSD/T7-01",
-            "KPS/PWR/EXT-01", "KPS/PWR/EXT-02", "KPS/AUD/XLR-02", "KPS/RPL/3P-01",
-            "KPS/CNV/FS-01", "KPS/STR/HELO-01", "3P/CAM/RED-01", "3P/CAM/ARRI-01",
-            "KPS/KIT/ENG-01", "KPS/BND/STREAM-01",
+            "E365/CAM/FX9-03", "E365/CAM/FX9-04", "E365/CAM/HDC-01", "E365/CAM/HDC-02",
+            "E365/BAT/VM-03", "E365/BAT/VM-04", "E365/CHR/02", "E365/CHR/03",
+            "E365/TRI/S18-02", "E365/WLS/BOLT-01", "E365/COM/BP-01", "E365/SSD/T7-01",
+            "E365/PWR/EXT-01", "E365/PWR/EXT-02", "E365/AUD/XLR-02", "E365/RPL/3P-01",
+            "E365/CNV/FS-01", "E365/STR/HELO-01", "3P/CAM/RED-01", "3P/CAM/ARRI-01",
+            "E365/KIT/ENG-01", "E365/BND/STREAM-01",
             "3P/LGT/ASTERA-01", "3P/CAM/MOVI-01", "3P/AUD/SENN-01",
-            "KPS/CON/GAFF-01", "KPS/CON/CF-01",
+            "E365/CON/GAFF-01", "E365/CON/CF-01",
         ]
     }
     crew = {
@@ -517,11 +517,11 @@ def ensure_demo_data(db: Session):
     }
 
     # Kit accessory rule
-    if assets["KPS/KIT/ENG-01"] and assets["KPS/BAT/VM-03"]:
+    if assets["E365/KIT/ENG-01"] and assets["E365/BAT/VM-03"]:
         _ensure(
             db,
             models.KitAccessoryRule,
-            {"parent_item_id": assets["KPS/KIT/ENG-01"].id, "accessory_item_id": assets["KPS/BAT/VM-03"].id},
+            {"parent_item_id": assets["E365/KIT/ENG-01"].id, "accessory_item_id": assets["E365/BAT/VM-03"].id},
             {"is_mandatory": True},
         )
 
@@ -540,7 +540,7 @@ def ensure_demo_data(db: Session):
             "status": "planned",
             "remarks": "Primary planned booking for launch show.",
             "transport_mode": "company_vehicle",
-            "awb_number": "KPS-DEMO-LAUNCH-01",
+            "awb_number": "E365-DEMO-LAUNCH-01",
             "contact_person_name": "Nisha Kapoor",
             "contact_person_mobile": "9810001001",
             "contact_person_aadhar": "XXXX-9001",
@@ -553,7 +553,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["KPS/CAM/FX9-03", "KPS/BAT/VM-03", "KPS/CHR/02", "KPS/TRI/S18-02", "KPS/SSD/T7-01", "KPS/KIT/ENG-01"]:
+    for asset_code in ["E365/CAM/FX9-03", "E365/BAT/VM-03", "E365/CHR/02", "E365/TRI/S18-02", "E365/SSD/T7-01", "E365/KIT/ENG-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, parent_booking.id, item.id)
@@ -580,7 +580,7 @@ def ensure_demo_data(db: Session):
             "status": "blocked",
             "remarks": "Supplementary add-on for extra power and wireless video.",
             "transport_mode": "company_vehicle",
-            "awb_number": "KPS-DEMO-LAUNCH-S1",
+            "awb_number": "E365-DEMO-LAUNCH-S1",
             "contact_person_name": "Mukul Jain",
             "contact_person_mobile": "9810001003",
             "contact_person_aadhar": "XXXX-9003",
@@ -590,7 +590,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["KPS/WLS/BOLT-01", "KPS/PWR/EXT-01"]:
+    for asset_code in ["E365/WLS/BOLT-01", "E365/PWR/EXT-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, supplementary_booking.id, item.id)
@@ -618,12 +618,12 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["KPS/CAM/HDC-01", "KPS/CAM/HDC-02", "KPS/BAT/VM-04", "KPS/CHR/03", "KPS/COM/BP-01", "KPS/BND/STREAM-01", "3P/LGT/ASTERA-01"]:
+    for asset_code in ["E365/CAM/HDC-01", "E365/CAM/HDC-02", "E365/BAT/VM-04", "E365/CHR/03", "E365/COM/BP-01", "E365/BND/STREAM-01", "3P/LGT/ASTERA-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, dispatched_booking.id, item.id)
             item.status = "on_shoot"
-            _ensure_custody(db, dispatched_booking.id, item.id, None, "gate_out", "KPS Store", "Jio Convention Centre, Mumbai", "Mumbai Transit", "Demo dispatched gate out")
+            _ensure_custody(db, dispatched_booking.id, item.id, None, "gate_out", "E365 Store", "Jio Convention Centre, Mumbai", "Mumbai Transit", "Demo dispatched gate out")
     for crew_code in ["EMP-00011", "EMP-00014", "EMP-90001"]:
         person = crew[crew_code]
         if person:
@@ -631,15 +631,15 @@ def ensure_demo_data(db: Session):
             person.status = "blocked"
             _ensure_custody(db, dispatched_booking.id, None, person.id, "handover", "Office", "Jio Convention Centre, Mumbai", "Mumbai Transit", "Demo dispatched crew handover")
     _ensure(db, models.GatePass, {"gate_pass_number": "GATE-90002"}, {"booking_id": dispatched_booking.id, "pass_type": "gate_out", "approved_by": "Operations Lead", "status": "issued", "remarks": "Demo dispatched gate out"})
-    if assets["KPS/COM/BP-01"]:
+    if assets["E365/COM/BP-01"]:
         _ensure(
             db,
             models.PartialReturn,
-            {"booking_id": dispatched_booking.id, "inventory_item_id": assets["KPS/COM/BP-01"].id},
+            {"booking_id": dispatched_booking.id, "inventory_item_id": assets["E365/COM/BP-01"].id},
             {"returned_by": "Store Runner", "condition_status": "good", "notes": "Returned early after comms desk wrap."},
         )
-        assets["KPS/COM/BP-01"].status = "available"
-        _ensure_custody(db, dispatched_booking.id, assets["KPS/COM/BP-01"].id, None, "partial_return", "Jio Convention Centre, Mumbai", "Store", "Mumbai Transit", "Demo partial return")
+        assets["E365/COM/BP-01"].status = "available"
+        _ensure_custody(db, dispatched_booking.id, assets["E365/COM/BP-01"].id, None, "partial_return", "Jio Convention Centre, Mumbai", "Store", "Mumbai Transit", "Demo partial return")
 
     returned_booking, _ = _ensure(
         db,
@@ -665,7 +665,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["3P/CAM/RED-01", "KPS/AUD/XLR-02", "KPS/RPL/3P-01", "KPS/CNV/FS-01", "KPS/STR/HELO-01"]:
+    for asset_code in ["3P/CAM/RED-01", "E365/AUD/XLR-02", "E365/RPL/3P-01", "E365/CNV/FS-01", "E365/STR/HELO-01"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, returned_booking.id, item.id)
@@ -686,7 +686,7 @@ def ensure_demo_data(db: Session):
         models.ServiceJob,
         {"job_number": "SRV-90001"},
         {
-            "inventory_item_id": assets["KPS/RPL/3P-01"].id if assets["KPS/RPL/3P-01"] else 1,
+            "inventory_item_id": assets["E365/RPL/3P-01"].id if assets["E365/RPL/3P-01"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 9),
@@ -699,12 +699,12 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    if assets["KPS/RPL/3P-01"]:
-        assets["KPS/RPL/3P-01"].service_status = "not_in_service"
+    if assets["E365/RPL/3P-01"]:
+        assets["E365/RPL/3P-01"].service_status = "not_in_service"
     _ensure(
         db,
         models.DamageLog,
-        {"booking_id": returned_booking.id, "inventory_item_id": assets["KPS/RPL/3P-01"].id if assets["KPS/RPL/3P-01"] else 1, "stage": "return"},
+        {"booking_id": returned_booking.id, "inventory_item_id": assets["E365/RPL/3P-01"].id if assets["E365/RPL/3P-01"] else 1, "stage": "return"},
         {
             "damage_description": "Playback feed flicker observed during return QC.",
             "severity": "minor",
@@ -736,7 +736,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for asset_code in ["3P/CAM/ARRI-01", "KPS/PWR/EXT-02"]:
+    for asset_code in ["3P/CAM/ARRI-01", "E365/PWR/EXT-02"]:
         item = assets[asset_code]
         if item:
             _ensure_booking_equipment(db, cancelled_booking.id, item.id)
@@ -757,7 +757,7 @@ def ensure_demo_data(db: Session):
         models.ServiceJob,
         {"job_number": "SRV-90002"},
         {
-            "inventory_item_id": assets["KPS/CNV/FS-01"].id if assets["KPS/CNV/FS-01"] else 1,
+            "inventory_item_id": assets["E365/CNV/FS-01"].id if assets["E365/CNV/FS-01"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 14),
@@ -775,7 +775,7 @@ def ensure_demo_data(db: Session):
         models.ServiceJob,
         {"job_number": "SRV-90003"},
         {
-            "inventory_item_id": assets["KPS/STR/HELO-01"].id if assets["KPS/STR/HELO-01"] else 1,
+            "inventory_item_id": assets["E365/STR/HELO-01"].id if assets["E365/STR/HELO-01"] else 1,
             "vendor_id": vendor_service.id,
             "vendor_name": vendor_service.name,
             "sent_date": date(2026, 4, 16),
@@ -790,7 +790,7 @@ def ensure_demo_data(db: Session):
     )
 
     for paper_number, values in [
-        ("PAP-90001", {"paper_type": "Shoot Dispatch", "reference_name": projects["Demo Planned Brand Launch"].title, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Operations Lead", "issue_status": "ready", "related_booking_id": parent_booking.id, "related_service_job_id": None, "remarks": "Parent booking dispatch papers", "signature_name": "Operations Lead"}),
+        ("PAP-90001", {"paper_type": "Event Dispatch", "reference_name": projects["Demo Planned Brand Launch"].title, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Operations Lead", "issue_status": "ready", "related_booking_id": parent_booking.id, "related_service_job_id": None, "remarks": "Parent booking dispatch papers", "signature_name": "Operations Lead"}),
         ("PAP-90002", {"paper_type": "Supplementary Challan", "reference_name": _SUPP_JC_ID, "destination": "JW Marriott Ballroom, Kolkata", "issued_by": "Store Controller", "issue_status": "issued", "related_booking_id": supplementary_booking.id, "related_service_job_id": None, "remarks": "Supplementary power and wireless add-on", "signature_name": "Store Controller"}),
         ("PAP-90003", {"paper_type": "Service Declaration", "reference_name": "SRV-90002", "destination": vendor_service.city or "Kolkata", "issued_by": "Store Controller", "issue_status": "draft", "related_booking_id": None, "related_service_job_id": _query_one(db, models.ServiceJob, job_number="SRV-90002").id, "remarks": "Sent with converter unit", "signature_name": "Store Controller"}),
     ]:
@@ -823,7 +823,7 @@ def ensure_demo_data(db: Session):
 
     # Statutory documents for download/demo
     _ensure_document(db, "client", demo_client_a.id, "Client GST Copy", "admin", "Demo statutory client document")
-    _ensure_document(db, "inventory", assets["KPS/CAM/HDC-01"].id if assets["KPS/CAM/HDC-01"] else 1, "Equipment Insurance Copy", "store", "Demo inventory document")
+    _ensure_document(db, "inventory", assets["E365/CAM/HDC-01"].id if assets["E365/CAM/HDC-01"] else 1, "Equipment Insurance Copy", "store", "Demo inventory document")
     _ensure_document(db, "crew", demo_crew.id, "Freelancer ID Proof", "operations", "Demo crew document")
     _ensure_document(db, "vendor", vendor_service.id, "Vendor Service Agreement", "admin", "Demo vendor compliance document")
     for demo_booking in [parent_booking, supplementary_booking, dispatched_booking, returned_booking, cancelled_booking]:
@@ -853,14 +853,14 @@ def ensure_demo_data(db: Session):
             "booking_code": "BK-90005",
             "project_id": kit_demo_project.id, "destination": "Eco Park, Kolkata",
             "status": "planned", "remarks": "ENG Kit booked — auto-expands to FX9 body + battery + charger.",
-            "transport_mode": "company_vehicle", "awb_number": "KPS-DEMO-KIT-01",
+            "transport_mode": "company_vehicle", "awb_number": "E365-DEMO-KIT-01",
             "contact_person_name": "Reema Dutt", "contact_person_mobile": "9820002001",
             "call_time": datetime(2026, 5, 5, 7, 0), "packup_time": datetime(2026, 5, 5, 21, 0),
             "is_demo": True,
         },
     )
     # Add kit parent + its children to booking (demonstrating auto-expansion)
-    for code in ["KPS/KIT/ENG-01", "KPS/CAM/FX9-03", "KPS/BAT/VM-03", "KPS/CHR/02"]:
+    for code in ["E365/KIT/ENG-01", "E365/CAM/FX9-03", "E365/BAT/VM-03", "E365/CHR/02"]:
         item = assets.get(code)
         if item:
             _ensure_booking_equipment(db, kit_booking.id, item.id)
@@ -897,7 +897,7 @@ def ensure_demo_data(db: Session):
             "is_demo": True,
         },
     )
-    for code in ["KPS/CAM/FX9-04", "3P/LGT/ASTERA-01", "3P/AUD/SENN-01"]:
+    for code in ["E365/CAM/FX9-04", "3P/LGT/ASTERA-01", "3P/AUD/SENN-01"]:
         item = assets.get(code)
         if item:
             _ensure_booking_equipment(db, tp_booking.id, item.id)
@@ -915,16 +915,16 @@ def ensure_demo_data(db: Session):
     db.commit()  # commit kit + third-party bookings
 
     # ── Demo: Consumable usage ──
-    if assets.get("KPS/CON/GAFF-01"):
-        _ensure_booking_equipment(db, returned_booking.id, assets["KPS/CON/GAFF-01"].id)
-    if assets.get("KPS/CON/CF-01"):
-        _ensure_booking_equipment(db, dispatched_booking.id, assets["KPS/CON/CF-01"].id)
+    if assets.get("E365/CON/GAFF-01"):
+        _ensure_booking_equipment(db, returned_booking.id, assets["E365/CON/GAFF-01"].id)
+    if assets.get("E365/CON/CF-01"):
+        _ensure_booking_equipment(db, dispatched_booking.id, assets["E365/CON/CF-01"].id)
 
     # Statutory documents for new items
     if assets.get("3P/LGT/ASTERA-01"):
         _ensure_document(db, "inventory", assets["3P/LGT/ASTERA-01"].id, "Vendor Rental Agreement", "store", "Demo 3rd-party rental agreement — Astera lights")
-    if assets.get("KPS/KIT/ENG-01"):
-        _ensure_document(db, "inventory", assets["KPS/KIT/ENG-01"].id, "Kit Asset Register", "store", "Demo ENG Kit statutory registration")
+    if assets.get("E365/KIT/ENG-01"):
+        _ensure_document(db, "inventory", assets["E365/KIT/ENG-01"].id, "Kit Asset Register", "store", "Demo ENG Kit statutory registration")
 
     audit(db, "admin", "seed", "demo_data", details={
         "message": "Demo dataset ensured for client presentation",

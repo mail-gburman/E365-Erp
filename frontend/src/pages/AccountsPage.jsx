@@ -3,7 +3,8 @@ import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, forceDownloadAuthorized, viewAuthorized } from "../api";
-import { getRole } from "../auth";
+import { getBookingType, getRole } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 const blankForm = {
   billing_mode: "line_item",
@@ -45,6 +46,8 @@ function LedgerSection({ title, meta, defaultOpen = false, children }) {
 
 export default function AccountsPage() {
   const role = getRole();
+  const bookingProfile = getBookingProfile(getBookingType());
+  const supportsServiceJobs = Boolean(bookingProfile.features.serviceJobs);
   const [activeSection, setActiveSection] = useState("overview");
   const [bookings, setBookings] = useState([]);
   const [selectedBookingId, setSelectedBookingId] = useState("");
@@ -88,13 +91,13 @@ export default function AccountsPage() {
   const billedBookings = useMemo(() => bookings.filter(booking => booking.invoice), [bookings]);
   const searchedBilledBookings = useSearch(billedBookings, invoiceSearch);
   const pgInvoices = usePagination(searchedBilledBookings, 10);
-  const inboundBills = useMemo(() => ledger ? [...(ledger.vendor_bills || []).map(row => ({ ...row, type: "Vendor" })), ...(ledger.service_bills || []).map(row => ({ ...row, type: "Service" }))] : [], [ledger]);
+  const inboundBills = useMemo(() => ledger ? [...(ledger.vendor_bills || []).map(row => ({ ...row, type: "Vendor" })), ...(supportsServiceJobs ? (ledger.service_bills || []).map(row => ({ ...row, type: "Service" })) : [])] : [], [ledger, supportsServiceJobs]);
   const searchedInboundBills = useSearch(inboundBills, inboundSearch);
   const pgInboundBills = usePagination(searchedInboundBills, 10);
   const ledgerReceivables = useSearch(ledger?.client_receivables || [], ledgerSearch);
   const ledgerManpower = useSearch(ledger?.manpower_payouts || [], ledgerSearch);
   const ledgerVendors = useSearch(ledger?.vendor_bills || [], ledgerSearch);
-  const ledgerServices = useSearch(ledger?.service_bills || [], ledgerSearch);
+  const ledgerServices = useSearch(supportsServiceJobs ? (ledger?.service_bills || []) : [], ledgerSearch);
   const pgLedgerReceivables = usePagination(ledgerReceivables, 10);
   const pgLedgerManpower = usePagination(ledgerManpower, 10);
   const pgLedgerVendors = usePagination(ledgerVendors, 10);
@@ -112,13 +115,13 @@ export default function AccountsPage() {
     const receivables = ledger.client_receivables || [];
     const manpower = ledger.manpower_payouts || [];
     const vendors = ledger.vendor_bills || [];
-    const services = ledger.service_bills || [];
+    const services = supportsServiceJobs ? (ledger.service_bills || []) : [];
     const dueReceivables = receivables.filter(row => Number(row.amount_due || 0) > 0);
     const committedReceivables = [...dueReceivables].sort((a, b) => String(a.payment_committed_date || "9999-99-99").localeCompare(String(b.payment_committed_date || "9999-99-99")));
     const payoutPending = manpower.filter(row => Number(row.balance_due || 0) > 0);
     const vendorPending = vendors.filter(row => Number(row.due_amount || 0) > 0);
     const servicePending = services.filter(row => Number(row.due_amount || 0) > 0);
-    const outboundDue = Number(ledger.summary?.manpower_due || 0) + Number(ledger.summary?.vendor_due || 0) + Number(ledger.summary?.service_due || 0);
+    const outboundDue = Number(ledger.summary?.manpower_due || 0) + Number(ledger.summary?.vendor_due || 0) + (supportsServiceJobs ? Number(ledger.summary?.service_due || 0) : 0);
     return [
       {
         title: "Inbound Receivables / Part Payments",
@@ -170,13 +173,13 @@ export default function AccountsPage() {
           { Reference: "Client received", Party: "Inbound", Amount: `INR ${money(ledger.summary?.client_received)}`, Date: "-", Details: "Cash already received" },
           { Reference: "Manpower due", Party: "Outbound", Amount: `INR ${money(ledger.summary?.manpower_due)}`, Date: "-", Details: "Internal crew payouts pending" },
           { Reference: "Vendor due", Party: "Outbound", Amount: `INR ${money(ledger.summary?.vendor_due)}`, Date: "-", Details: "Vendor procurement bills pending" },
-          { Reference: "Service due", Party: "Outbound", Amount: `INR ${money(ledger.summary?.service_due)}`, Date: "-", Details: "Repair/service bills pending" },
+          ...(supportsServiceJobs ? [{ Reference: "Service due", Party: "Outbound", Amount: `INR ${money(ledger.summary?.service_due)}`, Date: "-", Details: "Repair/service bills pending" }] : []),
         ],
       },
       {
         title: "Unbilled Bookings",
         value: `${bookings.filter(booking => !booking.invoice).length}`,
-        subtitle: "Shoots still waiting for invoice creation",
+        subtitle: "Events still waiting for invoice creation",
         cta: "Go to Booking Billing",
         section: "billing",
         rows: bookings.filter(booking => !booking.invoice).map(booking => ({
@@ -188,7 +191,7 @@ export default function AccountsPage() {
         })),
       },
     ];
-  }, [ledger, bookings]);
+  }, [ledger, bookings, supportsServiceJobs]);
 
   const totals = useMemo(() => {
     const lineSubtotal = form.billing_mode === "package" ? Number(form.package_amount || 0) : totalLineItems(lineItems);
@@ -466,7 +469,7 @@ export default function AccountsPage() {
 
   return (
     <div className="page">
-      <h1 className="pageTitle">Accounts & Shoot Billing</h1>
+      <h1 className="pageTitle">Accounts & Event Billing</h1>
       <div className="sectionJumpBar">
         <button className={activeSection === "overview" ? "activeSectionTab" : ""} type="button" onClick={() => setActiveSection("overview")}>Overview</button>
         <button className={activeSection === "billing" ? "activeSectionTab" : ""} type="button" onClick={() => setActiveSection("billing")}>Booking Billing</button>
@@ -647,10 +650,10 @@ export default function AccountsPage() {
 
       {activeSection === "billing" ? <>
       <div className="grid2" id="accounts-billable">
-        <Card title="Billable Shoots">
+        <Card title="Billable Events">
           <div className="listToolbar">
-            <SearchBar value={billingSearch} onChange={value => { setBillingSearch(value); pgBookings.setPage(1); }} suggestions={buildSuggestions(bookings)} placeholder="Search billable shoots by job card, invoice, project, client, status..." />
-            <span className="helperText">{billingBookings.length} shoot(s)</span>
+            <SearchBar value={billingSearch} onChange={value => { setBillingSearch(value); pgBookings.setPage(1); }} suggestions={buildSuggestions(bookings)} placeholder="Search billable events by job card, invoice, project, client, status..." />
+            <span className="helperText">{billingBookings.length} event(s)</span>
           </div>
           <div className="tableWrap">
             <table>
@@ -685,7 +688,7 @@ export default function AccountsPage() {
 
         <Card title="Billing Business Logic">
           <ul className="alertList">
-            <li>Travel, setup, technical, shoot, off, packup/end, and return days are counted separately from the booking calendar.</li>
+            <li>Travel, setup, technical, event, off, packup/end, and return days are counted separately from the booking calendar.</li>
             <li>Line item mode bills days, equipment, manpower, and logistics separately. Package mode bills one package amount but still tracks manpower payout and margin.</li>
             <li>First bill can be created by Accounts/Admin permission. Any modification after creation is admin-only.</li>
             <li>Operational edits to bookings and core master records are now admin-only after creation.</li>
@@ -697,10 +700,10 @@ export default function AccountsPage() {
       <Card title={estimate ? `Billing: ${estimate.job_card_id} - ${estimate.project_title}` : "Billing Workspace"}>
         {!estimate ? (
           <div className="accountsWorkspace">
-            <div className="helperText">Select any billable shoot above or below to calculate or review billing.</div>
+            <div className="helperText">Select any billable event above or below to calculate or review billing.</div>
             <div className="listToolbar">
               <SearchBar value={workspaceSearch} onChange={value => { setWorkspaceSearch(value); pgWorkspaceBookings.setPage(1); }} suggestions={buildSuggestions(bookings)} placeholder="Search workspace by job card, project, client, invoice..." />
-              <span className="helperText">{workspaceBookings.length} shoot(s)</span>
+              <span className="helperText">{workspaceBookings.length} event(s)</span>
             </div>
             <div className="tableWrap">
               <table>
@@ -882,11 +885,11 @@ export default function AccountsPage() {
               <div><span>Client Amount Due</span><strong>INR {money(ledger.summary?.client_due)}</strong></div>
               <div><span>Manpower Due</span><strong>INR {money(ledger.summary?.manpower_due)}</strong></div>
               <div><span>Vendor Due</span><strong>INR {money(ledger.summary?.vendor_due)}</strong></div>
-              <div><span>Service Due</span><strong>INR {money(ledger.summary?.service_due)}</strong></div>
+              {supportsServiceJobs && <div><span>Service Due</span><strong>INR {money(ledger.summary?.service_due)}</strong></div>}
               <div><span>Net Cash Position</span><strong>INR {money(ledger.summary?.net_cash_position)}</strong></div>
             </div>
             <div className="listToolbar">
-              <SearchBar value={ledgerSearch} onChange={value => { setLedgerSearch(value); pgLedgerReceivables.setPage(1); pgLedgerManpower.setPage(1); pgLedgerVendors.setPage(1); pgLedgerServices.setPage(1); }} suggestions={buildSuggestions([...(ledger.client_receivables || []), ...(ledger.manpower_payouts || []), ...(ledger.vendor_bills || []), ...(ledger.service_bills || [])])} placeholder="Search ledger by invoice, job card, client, vendor, role, amount, due date..." />
+              <SearchBar value={ledgerSearch} onChange={value => { setLedgerSearch(value); pgLedgerReceivables.setPage(1); pgLedgerManpower.setPage(1); pgLedgerVendors.setPage(1); pgLedgerServices.setPage(1); }} suggestions={buildSuggestions([...(ledger.client_receivables || []), ...(ledger.manpower_payouts || []), ...(ledger.vendor_bills || []), ...(supportsServiceJobs ? (ledger.service_bills || []) : [])])} placeholder="Search ledger by invoice, job card, client, vendor, role, amount, due date..." />
               <button className="primaryBtn compactBtn" type="button" onClick={openBarter}>Vendor-as-Client Barter</button>
             </div>
 
@@ -964,7 +967,7 @@ export default function AccountsPage() {
               <Pagination total={pgLedgerVendors.total} page={pgLedgerVendors.page} pageSize={pgLedgerVendors.pageSize} onPageChange={pgLedgerVendors.setPage} onPageSizeChange={pgLedgerVendors.setPageSize} />
             </LedgerSection>
 
-            <LedgerSection title="Service Bills" meta={`${ledgerServices.length} entries · Due INR ${money(ledger.summary?.service_due)}`}>
+            {supportsServiceJobs && <LedgerSection title="Service Bills" meta={`${ledgerServices.length} entries · Due INR ${money(ledger.summary?.service_due)}`}>
               <div className="tableWrap">
                 <table>
                   <thead><tr><th>Reference</th><th>Vendor</th><th>Status</th><th>Bill</th><th>Paid</th><th>Due</th><th>Mode / Details</th><th>Actions</th></tr></thead>
@@ -980,7 +983,7 @@ export default function AccountsPage() {
                 </table>
               </div>
               <Pagination total={pgLedgerServices.total} page={pgLedgerServices.page} pageSize={pgLedgerServices.pageSize} onPageChange={pgLedgerServices.setPage} onPageSizeChange={pgLedgerServices.setPageSize} />
-            </LedgerSection>
+            </LedgerSection>}
           </div>
         )}
       </Card>

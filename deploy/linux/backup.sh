@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source /opt/kps_erp/.env
-mkdir -p /opt/kps_erp/backups
+source /opt/e365_erp/.env
+mkdir -p /opt/e365_erp/backups
 STAMP=$(date +%Y%m%d_%H%M%S)
-pg_dump -Fc "$DATABASE_URL" > "/opt/kps_erp/backups/kps_${STAMP}.dump"
-find /opt/kps_erp/backups -type f -name 'kps_*.dump' -mtime +14 -delete
-echo "Backup created: /opt/kps_erp/backups/kps_${STAMP}.dump"
+pg_dump -Fc "$DATABASE_URL" > "/opt/e365_erp/backups/e365_${STAMP}.dump"
+find /opt/e365_erp/backups -type f -name 'e365_*.dump' -mtime +14 -delete
+echo "Backup created: /opt/e365_erp/backups/e365_${STAMP}.dump"

@@ -8,7 +8,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env:
-      LIVE_APP_DIR: /opt/kps_erp/kps-erp-v8_9_10
+      LIVE_APP_DIR: /opt/e365_erp/e365-erp-v8_9_10
       REPO_SLUG: ${{ github.repository }}
       GH_TOKEN: ${{ github.token }}
 
@@ -101,7 +101,7 @@ jobs:
               exit 1
             fi
             cd "$APP_DIR"
-            sudo systemctl restart kps-backend
+            sudo systemctl restart e365-backend
             sleep 3
-            sudo systemctl is-active kps-backend >/dev/null || (sudo journalctl -u kps-backend --no-pager -n 50 && exit 1)
+            sudo systemctl is-active e365-backend >/dev/null || (sudo journalctl -u e365-backend --no-pager -n 50 && exit 1)
             sudo systemctl reload nginx

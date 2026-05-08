@@ -8,6 +8,8 @@ import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar"
 import DatePicker from "../components/DatePicker";
 import { CountryCodeSelect } from "../components/PhoneInput";
 import { api, downloadAuthorized } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile, getEnabledDateTypes } from "../bookingProfiles";
 
 const blankProject = { title:"", show_type:"Reality Show", client_id:"", venue:"", origin_warehouse_id:"", shoot_start:"", shoot_end:"", status:"planned", notes:"", dates:[] };
 const blankContact = { name:"", mobile:"", aadhar:"" };
@@ -112,7 +114,7 @@ function formatProjectDates(project) {
   if (project.shoot_start) entries.push(`Project Start: ${displayDateOnly(project.shoot_start)}`);
   if (project.shoot_end) entries.push(`Project End: ${displayDateOnly(project.shoot_end)}`);
   if (project.setup_date) entries.push(`Setup Day: ${project.setup_date}`);
-  if (project.expected_start_date) entries.push(`Shoot Day: ${project.expected_start_date}`);
+  if (project.expected_start_date) entries.push(`Event Day: ${project.expected_start_date}`);
   if (project.expected_end_date) entries.push(`End Day: ${project.expected_end_date}`);
   if (project.off_days) entries.push(`Off Days: ${project.off_days}`);
   return entries.join(" | ") || "-";
@@ -337,7 +339,7 @@ function SearchModal({ open, onClose, title, resourceType, onConfirmItems, avail
 }
 
 /* ───────── CONFIRM BOOKING MODAL ───────── */
-function ConfirmBookingModal({ open, onClose, onConfirm, project, destination, equipment, accessories, crew, requiredInfo, referenceId, contacts }) {
+function ConfirmBookingModal({ open, onClose, onConfirm, project, destination, equipment, accessories, crew, requiredInfo, referenceId, contacts, resourceLabel = "Equipment", supportsAccessories = true }) {
   if (!open) return null;
   const missingMandatory = (requiredInfo.required_codes || []).filter(code => {
     return !accessories.find(a => (a.label || "").toLowerCase().includes(code.toLowerCase()));
@@ -349,9 +351,9 @@ function ConfirmBookingModal({ open, onClose, onConfirm, project, destination, e
         <p className="helperText">Review all selected resources before creating the booking.</p>
         <div className="confirmSection"><h3>Project: {project || "-"}</h3><h3>Destination: {destination || "-"}</h3>{referenceId ? <h4>Reference ID: {referenceId}</h4> : null}</div>
         {contacts?.length > 0 && (<div className="confirmSection"><h4>Contacts</h4><div className="confirmItemList">{contacts.map((contact, index) => (<div key={`${contact.name}-${index}`} className="confirmItem"><span>{contact.name}{contact.mobile ? ` · ${contact.mobile}` : ""}{contact.aadhar ? ` · ${contact.aadhar}` : ""}</span></div>))}</div></div>)}
-        {equipment.length > 0 && (<div className="confirmSection"><h4>Main Equipment ({equipment.length})</h4><div className="confirmItemList">{equipment.map(e => (<div key={e.id} className="confirmItem"><span>{e.label}</span>{e.owner_type === "third_party" && <span className="badge badgeThirdParty">3rd Party</span>}</div>))}</div></div>)}
-        {accessories.length > 0 && (<div className="confirmSection"><h4>Accessories ({accessories.length})</h4><div className="confirmItemList">{accessories.map(e => (<div key={e.id} className="confirmItem"><span>{e.label}</span></div>))}</div></div>)}
-        {requiredInfo.required_codes?.length > 0 && (<div className="confirmSection"><h4>Mandatory Accessory Check</h4>{missingMandatory.length > 0 ? <p style={{color:"#fca5a5"}}>Missing mandatory: {missingMandatory.join(", ")}</p> : <p style={{color:"#86efac"}}>All mandatory accessories included.</p>}</div>)}
+        {equipment.length > 0 && (<div className="confirmSection"><h4>Main {resourceLabel} ({equipment.length})</h4><div className="confirmItemList">{equipment.map(e => (<div key={e.id} className="confirmItem"><span>{e.label}</span>{e.owner_type === "third_party" && <span className="badge badgeThirdParty">3rd Party</span>}</div>))}</div></div>)}
+        {supportsAccessories && accessories.length > 0 && (<div className="confirmSection"><h4>Accessories ({accessories.length})</h4><div className="confirmItemList">{accessories.map(e => (<div key={e.id} className="confirmItem"><span>{e.label}</span></div>))}</div></div>)}
+        {supportsAccessories && requiredInfo.required_codes?.length > 0 && (<div className="confirmSection"><h4>Mandatory Accessory Check</h4>{missingMandatory.length > 0 ? <p style={{color:"#fca5a5"}}>Missing mandatory: {missingMandatory.join(", ")}</p> : <p style={{color:"#86efac"}}>All mandatory accessories included.</p>}</div>)}
         {crew.length > 0 && (<div className="confirmSection"><h4>Manpower ({crew.length})</h4><div className="confirmItemList">{crew.map(c => (<div key={c.id} className="confirmItem"><span>{c.label}</span>{c.manpower_type && c.manpower_type !== "inhouse" && <span className="badge badgeExternal">{c.manpower_type}</span>}</div>))}</div></div>)}
         <div className="modalFooter">
           <button className="ghostBtn" type="button" onClick={onClose}>Go Back & Edit</button>
@@ -594,7 +596,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
       alternate_contact_name: "",
       alternate_contact_mobile: "",
       contact_email: "",
-      pickup_address: "KPS Kolkata Office",
+      pickup_address: "E365 Kolkata Office",
       delivery_address: "",
       package_count: 1,
       declared_value: "",
@@ -629,14 +631,14 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
         service_scope: undefined,
         inventory_item_id: Number(current.id),
         vendor_id: isInhouse ? null : (form.vendor_id ? Number(form.vendor_id) : null),
-        vendor_name: isInhouse ? "KPS Inhouse Service" : form.vendor_name,
+        vendor_name: isInhouse ? "E365 Inhouse Service" : form.vendor_name,
         expected_return_date: form.expected_return_date || null,
         actual_return_date: null,
         package_count: Number(form.package_count || 1),
         declared_value: form.declared_value === "" ? null : Number(form.declared_value),
         transport_mode: isInhouse ? "inhouse" : form.transport_mode,
-        pickup_address: form.pickup_address || "KPS Kolkata Office",
-        delivery_address: isInhouse ? "KPS Inhouse Service Desk" : form.delivery_address,
+        pickup_address: form.pickup_address || "E365 Kolkata Office",
+        delivery_address: isInhouse ? "E365 Inhouse Service Desk" : form.delivery_address,
         awb_number: !isInhouse && form.transport_mode === "courier" ? form.awb_number : null,
         courier_partner: !isInhouse && form.transport_mode === "courier" ? form.courier_partner : null,
         source_booking_id: current.booking_id,
@@ -676,7 +678,7 @@ function ReturnServiceRoutingModal({ open, issues, vendors, onClose, onSaved }) 
             <option value="inhouse">Inhouse Service</option>
             <option value="vendor">Vendor / External Service</option>
           </select>
-          {isInhouse ? <input value="KPS Inhouse Service" disabled /> : <>
+          {isInhouse ? <input value="E365 Inhouse Service" disabled /> : <>
             <select value={form.vendor_id || ""} onChange={e => {
               const vid = e.target.value;
               const vendorObj = (vendors || []).find(v => String(v.id) === vid);
@@ -860,7 +862,7 @@ function ProjectDetailModal({ project, clientName, onClose, onCreateBooking }) {
   });
   const labelMap = {
     travel_day:"Travel Day", setup_date:"Setup Date", technical_date:"Technical / Recce",
-    shoot_date:"Shoot Date", end_day:"End Day", return_day:"Return Day", off_day:"Off Day",
+    shoot_date:"Event Date", end_day:"End Day", return_day:"Return Day", off_day:"Off Day",
   };
   return (
     <div className="modalOverlay" onClick={onClose}>
@@ -877,8 +879,8 @@ function ProjectDetailModal({ project, clientName, onClose, onCreateBooking }) {
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 24px", marginBottom:16, fontSize:13 }}>
           {clientName && <div><span style={{color:"var(--muted)"}}>Client</span><br/><strong>{clientName}</strong></div>}
           <div><span style={{color:"var(--muted)"}}>Venue</span><br/><strong>{project.venue || "—"}</strong></div>
-          {project.shoot_start && <div><span style={{color:"var(--muted)"}}>Shoot Start</span><br/>{project.shoot_start?.slice(0,10)}</div>}
-          {project.shoot_end && <div><span style={{color:"var(--muted)"}}>Shoot End</span><br/>{project.shoot_end?.slice(0,10)}</div>}
+          {project.shoot_start && <div><span style={{color:"var(--muted)"}}>Event Start</span><br/>{project.shoot_start?.slice(0,10)}</div>}
+          {project.shoot_end && <div><span style={{color:"var(--muted)"}}>Event End</span><br/>{project.shoot_end?.slice(0,10)}</div>}
         </div>
 
         {dateRows.length > 0 && (
@@ -1018,7 +1020,7 @@ function CreateSupplementaryModal({ open, onClose, parentBooking, onCreated, dow
   );
 }
 
-function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower, supplementaryBookings = [], onDownloadChildJobCard, onDownloadChildChallan }) {
+function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispatch, onComplete, onDamage, onPartialReturn, onCancel, onDownloadJobCard, onDownloadChallan, onDownloadManpower, supplementaryBookings = [], onDownloadChildJobCard, onDownloadChildChallan, supportsReturns = true, supportsConditionQc = true }) {
   const equipCount = (booking?.equipment || []).length;
   const accCount = (booking?.accessories || []).length;
   const crewCount = (booking?.crew || []).length;
@@ -1192,15 +1194,15 @@ function BookingDetailModal({ booking, onClose, onEdit, onSupplementary, onDispa
             <button className="ghostBtn compactBtn" onClick={onDownloadJobCard}>⬇ Job Card</button>
             <button className="ghostBtn compactBtn" onClick={onDownloadChallan}>⬇ Challan</button>
             <button className="ghostBtn compactBtn" onClick={onDownloadManpower}>⬇ Manpower</button>
-            <button className="ghostBtn" onClick={() => { onPartialReturn(); onClose(); }}>Partial Return</button>
-            <button className="primaryBtn" onClick={() => { onComplete(); onClose(); }}>Complete Booking</button>
-            <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>
+            {supportsReturns && <button className="ghostBtn" onClick={() => { onPartialReturn(); onClose(); }}>Partial Return</button>}
+            <button className="primaryBtn" onClick={() => { onComplete(); onClose(); }}>{supportsReturns ? "Complete Booking" : "Close Booking"}</button>
+            {supportsConditionQc && <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>}
           </>}
 
           {/* Returned */}
           {isReturned && <>
             <button className="ghostBtn compactBtn" onClick={onDownloadJobCard}>⬇ Job Card</button>
-            <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>
+            {supportsConditionQc && <button className="ghostBtn" onClick={() => { onDamage(); onClose(); }}>Damage / Missing</button>}
           </>}
 
           {isCancelled && documentsReady(booking) && <>
@@ -1247,6 +1249,14 @@ function SelectedBlock({ title, items, onAddMore, onRemove, badgeField, badgeVal
 
 /* ═════════ MAIN BOOKINGS PAGE ═════════ */
 export default function BookingsPage() {
+  const bookingType = getBookingType();
+  const bookingProfile = getBookingProfile(bookingType);
+  const supportsAccessories = Boolean(bookingProfile.features.accessories);
+  const supportsReturns = Boolean(bookingProfile.features.returns);
+  const supportsServiceJobs = Boolean(bookingProfile.features.serviceJobs);
+  const supportsConditionQc = Boolean(bookingProfile.features.conditionQc);
+  const supportsWarehouse = bookingProfile.features.warehouse !== false;
+  const bookingDateTypes = getEnabledDateTypes(bookingType);
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -1315,7 +1325,7 @@ export default function BookingsPage() {
   const [viewDetailBooking, setViewDetailBooking] = useState(null);
   const [viewProjectModal, setViewProjectModal] = useState(null);
   const [supplementaryTarget, setSupplementaryTarget] = useState(null);
-  const [plannedShootsRaw, setPlannedShootsRaw] = useState([]);
+  const [plannedEventsRaw, setPlannedEventsRaw] = useState([]);
   const [plannedSelected, setPlannedSelected] = useState([]);
   const [confirmAction, setConfirmAction] = useState(null);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
@@ -1352,7 +1362,7 @@ export default function BookingsPage() {
   const load = () => {
     api.projects().then((x)=>{ 
       setProjects(x); 
-      setPlannedShootsRaw(x.filter(p => p.status === "planned"));
+      setPlannedEventsRaw(x.filter(p => p.status === "planned"));
     });
     api.clients().then(setClients);
     api.warehouses().then(setWarehouses);
@@ -1363,9 +1373,9 @@ export default function BookingsPage() {
   };
   useEffect(() => { load(); }, []);
   useEffect(() => {
-    if (equipmentSelected.length) api.requiredAccessories(equipmentSelected.map(x => x.id)).then(setRequiredInfo);
+    if (supportsAccessories && equipmentSelected.length) api.requiredAccessories(equipmentSelected.map(x => x.id)).then(setRequiredInfo);
     else setRequiredInfo({ required_codes: [], optional_codes: [], required_matches: [], optional_matches: [] });
-  }, [equipmentSelected]);
+  }, [equipmentSelected, supportsAccessories]);
 
   const activeBookingsByProject = useMemo(() => {
     return bookingDetails.reduce((acc, booking) => {
@@ -1380,7 +1390,7 @@ export default function BookingsPage() {
     return projects.reduce((acc, project) => {
       const projectBookings = activeBookingsByProject[project.id] || [];
       const equipment = projectBookings.flatMap((booking) => booking.equipment || []);
-      const accessories = projectBookings.flatMap((booking) => booking.accessories || []);
+      const accessories = supportsAccessories ? projectBookings.flatMap((booking) => booking.accessories || []) : [];
       const crew = projectBookings.flatMap((booking) => booking.crew || []);
       acc[project.id] = {
         bookingCount: projectBookings.length,
@@ -1395,7 +1405,7 @@ export default function BookingsPage() {
       };
       return acc;
     }, {});
-  }, [projects, activeBookingsByProject]);
+  }, [projects, activeBookingsByProject, supportsAccessories]);
 
   const availabilityWindow = useMemo(() => {
     const datedEntries = selectedDates.map((entry) => entry.date).filter(Boolean).sort();
@@ -1457,7 +1467,7 @@ export default function BookingsPage() {
     const bookableInventory = activeInventory.filter((item) => item.status !== "servicing" && item.service_status !== "in_service");
     const overall = {
       equipment: activeInventory.filter((item) => ["device", "kit", "bundle", "third_party_equipment"].includes(item.item_type)).length,
-      accessories: activeInventory.filter((item) => item.item_type === "accessory").length,
+      accessories: supportsAccessories ? activeInventory.filter((item) => item.item_type === "accessory").length : 0,
       manpower: crew.filter((person) => !["inactive", "cancelled"].includes(person.status)).length,
       mode: "overall",
     };
@@ -1476,11 +1486,11 @@ export default function BookingsPage() {
     const blockedCrewIds = new Set(activeBookings.filter(overlapsWindow).flatMap((booking) => (booking.crew || []).map((member) => member.id)));
     return {
       equipment: bookableInventory.filter((item) => ["device", "kit", "bundle", "third_party_equipment"].includes(item.item_type) && !blockedInventoryIds.has(item.id)).length,
-      accessories: bookableInventory.filter((item) => item.item_type === "accessory" && !blockedInventoryIds.has(item.id)).length,
+      accessories: supportsAccessories ? bookableInventory.filter((item) => item.item_type === "accessory" && !blockedInventoryIds.has(item.id)).length : 0,
       manpower: crew.filter((person) => !["inactive", "cancelled"].includes(person.status) && !blockedCrewIds.has(person.id)).length,
       mode: "selected_dates",
     };
-  }, [inventory, crew, availabilityWindow, bookingDetails, projects]);
+  }, [inventory, crew, availabilityWindow, bookingDetails, projects, supportsAccessories]);
 
   useEffect(() => {
     if (projectMode !== "new") return;
@@ -1605,8 +1615,8 @@ export default function BookingsPage() {
       return;
     }
     if (!destination.trim()) { setMessage("Destination is required."); return; }
-    if (!equipmentSelected.length && !accessorySelected.length && !crewSelected.length) {
-      setMessage("Add at least one equipment, accessory, or crew member."); return;
+    if (!equipmentSelected.length && !(supportsAccessories && accessorySelected.length) && !crewSelected.length) {
+      setMessage(`Add at least one ${bookingProfile.resourceLabel.toLowerCase()}${supportsAccessories ? ", accessory" : ""}, or crew member.`); return;
     }
     setConfirmModal(true);
   }
@@ -1623,7 +1633,7 @@ export default function BookingsPage() {
         destination,
         status: bookingStatus,
         equipment_ids: equipmentSelected.map(x => x.id),
-        accessory_ids: accessorySelected.map(x => x.id),
+        accessory_ids: supportsAccessories ? accessorySelected.map(x => x.id) : [],
         crew_ids: crewSelected.map(x => x.id),
         remarks,
         parent_booking_id: parentBookingId ? Number(parentBookingId) : null,
@@ -1664,7 +1674,7 @@ export default function BookingsPage() {
         const children = inventory.filter(i => String(i.parent_item_id) === String(item.id));
         for (const child of children) {
           const withLabel = { ...child, label: `${child.asset_code || child.id} · ${child.name}` };
-          if (child.item_type === "accessory") kitChildren.push(withLabel);
+          if (supportsAccessories && child.item_type === "accessory") kitChildren.push(withLabel);
           else expanded.push(withLabel);
         }
       }
@@ -1675,7 +1685,7 @@ export default function BookingsPage() {
       return [...prev, ...expanded.filter(x => !existing.has(x.id))];
     });
     // 3. Auto-add kit-child accessories
-    if (kitChildren.length) {
+    if (supportsAccessories && kitChildren.length) {
       setAccessorySelected(prev => {
         const existing = new Set(prev.map(x => x.id));
         return [...prev, ...kitChildren.filter(x => !existing.has(x.id))];
@@ -1683,7 +1693,7 @@ export default function BookingsPage() {
     }
     // 4. Fetch mandatory accessories from equipment master rules
     const allEquipmentIds = [...equipmentSelected.map(x => x.id), ...expanded.map(x => x.id)];
-    if (allEquipmentIds.length) {
+    if (supportsAccessories && allEquipmentIds.length) {
       try {
         const reqInfo = await api.requiredAccessories(allEquipmentIds);
         const mandatoryItems = (reqInfo.required_matches || []).map(i => ({
@@ -1813,7 +1823,7 @@ export default function BookingsPage() {
       for (const id of ids) {
         await api.updateProject(id, { status: "confirmed" });
       }
-      setMessage(`${ids.length} shoot(s) confirmed.`);
+      setMessage(`${ids.length} event(s) confirmed.`);
       setPlannedSelected([]);
       load();
     } catch (e) { setMessage(String(e.message || e)); }
@@ -1824,7 +1834,7 @@ export default function BookingsPage() {
       for (const id of ids) {
         await api.updateProject(id, { status: "cancelled" });
       }
-      setMessage(`${ids.length} shoot(s) cancelled.`);
+      setMessage(`${ids.length} event(s) cancelled.`);
       setPlannedSelected([]);
       load();
     } catch (e) { setMessage(String(e.message || e)); }
@@ -1832,9 +1842,9 @@ export default function BookingsPage() {
 
   function requestConfirmPlanned(ids) {
     setConfirmAction({
-      title: "Confirm Planned Shoots",
-      message: `Reconfirm confirmation for ${ids.length} planned shoot${ids.length > 1 ? "s" : ""}. Equipment conflicts will be checked before final confirmation.`,
-      confirmLabel: "Confirm Shoots",
+      title: "Confirm Planned Events",
+      message: `Reconfirm confirmation for ${ids.length} planned event${ids.length > 1 ? "s" : ""}. ${bookingProfile.resourceLabel} conflicts will be checked before final confirmation.`,
+      confirmLabel: "Confirm Events",
       tone: "primary",
       onConfirm: async () => {
         setConfirmAction(null);
@@ -1845,9 +1855,9 @@ export default function BookingsPage() {
 
   function requestCancelPlanned(ids) {
     setConfirmAction({
-      title: "Cancel Planned Shoots",
-      message: `Reconfirm cancellation for ${ids.length} planned shoot${ids.length > 1 ? "s" : ""}. This will stop further booking on those projects.`,
-      confirmLabel: "Cancel Shoots",
+      title: "Cancel Planned Events",
+      message: `Reconfirm cancellation for ${ids.length} planned event${ids.length > 1 ? "s" : ""}. This will stop further booking on those projects.`,
+      confirmLabel: "Cancel Events",
       tone: "danger",
       onConfirm: async () => {
         setConfirmAction(null);
@@ -1876,7 +1886,7 @@ export default function BookingsPage() {
       ...item,
       label: `${item.asset_code || item.id} · ${item.name || "Equipment"}`,
     }));
-    const oldAccessories = oldEquipment.filter((item) => item.item_type === "accessory");
+    const oldAccessories = supportsAccessories ? oldEquipment.filter((item) => item.item_type === "accessory") : [];
     const oldMainEquipment = oldEquipment.filter((item) => item.item_type !== "accessory");
     const oldCrew = (b.crew || []).map((item) => ({
       ...item,
@@ -1899,7 +1909,7 @@ export default function BookingsPage() {
     setEquipmentSelected(oldMainEquipment);
     setAccessorySelected(oldAccessories);
     setCrewSelected(oldCrew);
-    setMessage(`Pre-filled from ${displayJobCardOrBooking(b)}: ${oldMainEquipment.length} equipment, ${oldAccessories.length} accessories, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
+    setMessage(`Pre-filled from ${displayJobCardOrBooking(b)}: ${oldMainEquipment.length} ${bookingProfile.resourcePlural.toLowerCase()}${supportsAccessories ? `, ${oldAccessories.length} accessories` : ""}, ${oldCrew.length} manpower. Modify items before creating supplementary job card.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -1917,7 +1927,7 @@ export default function BookingsPage() {
     setViewProjectModal(null);
     setBookingTab("new");
     window.scrollTo({ top: 0, behavior: "smooth" });
-    setMessage(`Project "${project.title}" pre-selected with client, destination, and dates. Add equipment and manpower to complete booking.`);
+    setMessage(`Project "${project.title}" pre-selected with client, destination, and dates. Add ${bookingProfile.resourcePlural.toLowerCase()} and manpower to complete booking.`);
   }
 
   function computePrefill(pid) {
@@ -1936,7 +1946,7 @@ export default function BookingsPage() {
         seenEq.add(i.id);
         eq.push({ ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` });
       }
-      for (const i of (booking.accessories || [])) {
+      for (const i of (supportsAccessories ? (booking.accessories || []) : [])) {
         if (seenEq.has(i.id)) continue;
         seenEq.add(i.id);
         acc.push({ ...i, label: `${i.asset_code || i.id} · ${i.name || "Item"}` });
@@ -1956,7 +1966,7 @@ export default function BookingsPage() {
       ...item,
       label: item.label || `${item.asset_code || item.id} · ${item.name || "Equipment"}`,
     }));
-    const oldAccessories = (booking.accessories || []).map((item) => ({
+    const oldAccessories = (supportsAccessories ? (booking.accessories || []) : []).map((item) => ({
       ...item,
       label: item.label || `${item.asset_code || item.id} · ${item.name || "Accessory"}`,
     }));
@@ -1995,7 +2005,7 @@ export default function BookingsPage() {
     if (!prefillPreview) return;
     const { latest, allRelated, eq, acc, crew } = prefillPreview;
     setEquipmentSelected(eq);
-    setAccessorySelected(acc);
+    setAccessorySelected(supportsAccessories ? acc : []);
     setCrewSelected(crew);
     setDestination(latest.destination || "");
     setTransportMode(latest.transport_mode || "");
@@ -2014,7 +2024,7 @@ export default function BookingsPage() {
     setSelectedDates((latest.dates || []).filter((row) => row.date && row.type));
     setTemplateBookingId(String(latest.id));
     const supCount = allRelated.length - 1;
-      setMessage(`Pre-filled from ${displayJobCardOrBooking(latest)}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} equipment, ${acc.length} accessories, ${crew.length} manpower.`);
+      setMessage(`Pre-filled from ${displayJobCardOrBooking(latest)}${supCount ? ` + ${supCount} supplementary` : ""}: ${eq.length} ${bookingProfile.resourcePlural.toLowerCase()}${supportsAccessories ? `, ${acc.length} accessories` : ""}, ${crew.length} manpower.`);
     setPrefillPreview(null);
   }
 
@@ -2030,7 +2040,7 @@ export default function BookingsPage() {
     setModifyShootBooking(b);
     setModifyDates((b.dates || []).filter((row) => row.date && row.type));
     setModifyEquipment((b.equipment || []).map(normalizeInventory));
-    setModifyAccessories((b.accessories || []).map(normalizeInventory));
+    setModifyAccessories(supportsAccessories ? (b.accessories || []).map(normalizeInventory) : []);
     setModifyCrew((b.crew || []).map(normalizeCrew));
     setModifyNotes("");
     setModifyResult(null);
@@ -2092,7 +2102,7 @@ export default function BookingsPage() {
         removed_dates,
         notes: modifyNotes,
         equipment_ids: modifyEquipment.map(e => e.id),
-        accessory_ids: modifyAccessories.map(e => e.id),
+        accessory_ids: supportsAccessories ? modifyAccessories.map(e => e.id) : [],
         crew_ids: modifyCrew.map(c => c.id),
       });
       setModifyResult(result);
@@ -2139,14 +2149,14 @@ export default function BookingsPage() {
 
   // Planned tab: only projects that have NO confirmed/dispatched/returned booking yet.
   const ISSUED_STATUSES = ["confirmed","dispatched","returned"];
-  const plannedShoots = useMemo(() => {
-    return plannedShootsRaw.filter(p =>
+  const plannedEvents = useMemo(() => {
+    return plannedEventsRaw.filter(p =>
       !bookingDetails.some(b => b.project_id === p.id && ISSUED_STATUSES.includes(b.status))
     );
-  }, [plannedShootsRaw, bookingDetails]);
+  }, [plannedEventsRaw, bookingDetails]);
 
-  const filteredPlannedShoots = useSearch(plannedShoots, plannedSearch);
-  const plannedPg = usePagination(filteredPlannedShoots, 10);
+  const filteredPlannedEvents = useSearch(plannedEvents, plannedSearch);
+  const plannedPg = usePagination(filteredPlannedEvents, 10);
 
   return (
     <div className="page">
@@ -2166,13 +2176,13 @@ export default function BookingsPage() {
             <li><strong>One flow</strong>: Choose an existing project or create a new project and its first booking together.</li>
             <li><strong>Supplementary items</strong>: Pick a parent booking to issue a supplementary job card and challan linked to the original reference ID.</li>
             <li><strong>Multiple contacts</strong>: Add as many booking contacts as needed; the first one remains the primary contact on papers.</li>
-            <li><strong>Reconfirmation</strong>: Planned shoot status changes and booking edits now require one more confirmation popup before they are saved.</li>
+            <li><strong>Reconfirmation</strong>: Planned event status changes and booking edits now require one more confirmation popup before they are saved.</li>
           </ul>
         </Card>
 
         <Card title="Blocking Logic Guide">
           <ul className="alertList">
-            <li><strong>Project Dates</strong>: Tag explicit setup, technical, shoot, off, end, and return days in one calendar.</li>
+            <li><strong>Project Dates</strong>: Tag explicit setup, technical, event, off, end, and return days in one calendar.</li>
             <li><strong>Colored Calendar</strong>: A date can carry multiple tags, so setup and technical markers can live on the same day.</li>
             <li><strong>Mandatory Accessories</strong>: System checks before booking.</li>
             <li>After booking, a <strong>Job Card</strong> with unique ID is generated.</li>
@@ -2299,26 +2309,28 @@ export default function BookingsPage() {
             <select value={projectForm.show_type} onChange={e=>setProjectForm({...projectForm, show_type:e.target.value})}><option>Reality Show</option><option>TV Show</option><option>TV Serial</option><option>Sports</option><option>Event</option></select>
             <label className="fieldLabel">Venue / Location</label>
             <LocationAutocomplete value={projectForm.venue} onChange={v=>setProjectForm({...projectForm, venue:v})} extraSuggestions={[...new Set(projects.map(p => p.venue).filter(Boolean))]} placeholder="Search Indian location..." required={projectMode === "new"} />
-            <label className="fieldLabel">Dispatch Warehouse</label>
-            <select value={projectForm.origin_warehouse_id} onChange={e=>setProjectForm({...projectForm, origin_warehouse_id:e.target.value})}><option value="">Select Warehouse</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+            {supportsWarehouse && <>
+              <label className="fieldLabel">Dispatch Warehouse</label>
+              <select value={projectForm.origin_warehouse_id} onChange={e=>setProjectForm({...projectForm, origin_warehouse_id:e.target.value})}><option value="">Select Warehouse</option>{warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
+            </>}
             <label className="fieldLabel">Project Start</label>
             <input type="text" value={displayDateOnly(projectForm.shoot_start)} readOnly disabled required={projectMode === "new"} />
             <label className="fieldLabel">Project End</label>
             <input type="text" value={displayDateOnly(projectForm.shoot_end)} readOnly disabled />
-            <label className="fieldLabel">Shoot Status</label>
+            <label className="fieldLabel">Event Status</label>
             <select value={projectForm.status} onChange={e=>setProjectForm({...projectForm, status:e.target.value})}><option>planned</option><option>confirmed</option></select>
             <label className="fieldLabel full">Project Notes</label>
             <textarea className="full" placeholder="Project notes" value={projectForm.notes} onChange={e=>setProjectForm({...projectForm, notes:e.target.value})}></textarea>
             <div className="full">
               <label className="fieldLabel">Project Dates</label>
-              <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={['travel_day', 'setup_date', 'technical_date', 'shoot_date', 'off_day', 'end_day', 'return_day']} />
-              <p className="helperText" style={{ marginTop: 8 }}>Use Travel Day, Setup Day, Technical Day, Shoot Day, Off Day, End Day, and Return Day below. The top project window auto-runs from setup through return, while blocking still includes travel day.</p>
+              <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={bookingDateTypes} />
+              <p className="helperText" style={{ marginTop: 8 }}>Use Travel Day, Setup Day, Technical Day, Event Day, Off Day, End Day, and Return Day below. The top project window auto-runs from setup through return, while blocking still includes travel day.</p>
             </div>
 	            </>}
 	            {projectMode === "existing" && bookingProjectId ? (
 	              <div className="full">
 	                <label className="fieldLabel">Project / Template Dates</label>
-	                <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={['travel_day', 'setup_date', 'technical_date', 'shoot_date', 'off_day', 'end_day', 'return_day']} />
+	                <DatePicker selectedDates={selectedDates} onChange={setSelectedDates} dateTypes={bookingDateTypes} />
 	                <p className="helperText" style={{ marginTop: 8 }}>Dates are pre-filled from the selected project or job card template. They are highlighted here for review before booking.</p>
 	              </div>
 	            ) : null}
@@ -2371,12 +2383,12 @@ export default function BookingsPage() {
           ) : null}
 
           <div className="bookingResourceGrid">
-            <SelectedBlock title="Main Equipment" items={equipmentSelected} availableCount={availableCounts.equipment} availabilityMode={availableCounts.mode} onAddMore={() => openResourceModal("equipment")} onRemove={id => setEquipmentSelected(prev => prev.filter(x => x.id !== id))} badgeField="owner_type" badgeValues={["third_party"]} infoText="Main devices, kits, bundles, or third-party equipment from vendors." />
-            <SelectedBlock title="Accessories" items={accessorySelected} availableCount={availableCounts.accessories} availabilityMode={availableCounts.mode} onAddMore={() => openResourceModal("accessory")} onRemove={id => setAccessorySelected(prev => prev.filter(x => x.id !== id))} infoText="Batteries, chargers, cables, adapters." />
+            <SelectedBlock title={`Main ${bookingProfile.resourcePlural}`} items={equipmentSelected} availableCount={availableCounts.equipment} availabilityMode={availableCounts.mode} onAddMore={() => openResourceModal("equipment")} onRemove={id => setEquipmentSelected(prev => prev.filter(x => x.id !== id))} badgeField="owner_type" badgeValues={["third_party"]} infoText={`Primary ${bookingProfile.resourcePlural.toLowerCase()} for this booking type.`} />
+            {supportsAccessories && <SelectedBlock title="Accessories" items={accessorySelected} availableCount={availableCounts.accessories} availabilityMode={availableCounts.mode} onAddMore={() => openResourceModal("accessory")} onRemove={id => setAccessorySelected(prev => prev.filter(x => x.id !== id))} infoText="Batteries, chargers, cables, adapters, decor sub-items, or bundled add-ons." />}
             <SelectedBlock title="Manpower" items={crewSelected} availableCount={availableCounts.manpower} availabilityMode={availableCounts.mode} onAddMore={() => openResourceModal("crew")} onRemove={id => setCrewSelected(prev => prev.filter(x => x.id !== id))} badgeField="manpower_type" badgeValues={["external", "contractual", "freelance"]} infoText="Inhouse crew, contractual, freelance, or external vendor manpower." />
           </div>
 
-          {requiredInfo.required_codes.length > 0 && (
+          {supportsAccessories && requiredInfo.required_codes.length > 0 && (
             <div className="accessoryHint">
               <strong>Mandatory Accessories Required: </strong>
               {requiredInfo.required_codes.map(code => <span key={code} className="badge badgeMandatory">{code}</span>)}
@@ -2407,9 +2419,9 @@ export default function BookingsPage() {
 
             {modifyShootBooking && (<>
               <div className="full">
-                <label className="fieldLabel" style={{marginBottom:8,display:"block"}}>Shoot Dates — use Off Day to remove existing dates, add new Shoot Day dates</label>
+                <label className="fieldLabel" style={{marginBottom:8,display:"block"}}>Event Dates — use Off Day to remove existing dates, add new Event Day dates</label>
                 <DatePicker selectedDates={modifyDates} onChange={setModifyDates}
-                  dateTypes={["travel_day","setup_date","technical_date","shoot_date","off_day","end_day","return_day"]} />
+                  dateTypes={bookingDateTypes} />
               </div>
 
               <div className="full">
@@ -2456,7 +2468,7 @@ export default function BookingsPage() {
 
               <label className="fieldLabel full">Notes</label>
               <textarea className="full" rows={2} value={modifyNotes} onChange={e=>setModifyNotes(e.target.value)}
-                placeholder="e.g. Client removed 18th, added 20th as extra shoot day" />
+                placeholder="e.g. Client removed 18th, added 20th as extra event day" />
 
               {modifyResult && (
                 <div className="full" style={{background:modifyResult.conflicts?.length?"#fff3cd":"#d4edda",border:"1px solid",borderColor:modifyResult.conflicts?.length?"#ffc107":"#28a745",borderRadius:6,padding:"10px 14px",fontSize:13}}>
@@ -2480,19 +2492,19 @@ export default function BookingsPage() {
         </Card>
       )}
 
-      {/* ──── PLANNED SHOOTS MANAGEMENT ──── */}
+      {/* ──── PLANNED EVENTS MANAGEMENT ──── */}
       {bookingTab === "planned" && <Card title="Planned Bookings">
-        <p className="helperText">Select planned shoots to confirm or cancel in bulk. Ensure no equipment conflicts before confirming.</p>
+        <p className="helperText">Select planned events to confirm or cancel in bulk. Ensure no {bookingProfile.resourceLabel.toLowerCase()} conflicts before confirming.</p>
         <div className="listToolbar">
-          <SearchBar value={plannedSearch} onChange={value => { setPlannedSearch(value); plannedPg.setPage(1); }} suggestions={buildSuggestions(plannedShoots)} placeholder="Search planned shoots by project, date, equipment, crew..." />
-          <span className="helperText">{filteredPlannedShoots.length} planned shoot(s)</span>
+          <SearchBar value={plannedSearch} onChange={value => { setPlannedSearch(value); plannedPg.setPage(1); }} suggestions={buildSuggestions(plannedEvents)} placeholder={`Search planned events by project, date, ${bookingProfile.resourceLabel.toLowerCase()}, crew...`} />
+          <span className="helperText">{filteredPlannedEvents.length} planned event(s)</span>
         </div>
         <div className="tableWrap" style={{marginTop:12}}>
           <table>
             <thead><tr><th><input type="checkbox" onChange={e => {
               const checked = e.target.checked;
-              setPlannedSelected(checked ? filteredPlannedShoots.map(p => p.id) : []);
-            }} /></th><th>Booking ID</th><th>Project</th><th>Dates</th><th>Equipment</th><th>Accessories</th><th>Manpower</th><th>Actions</th></tr></thead>
+              setPlannedSelected(checked ? filteredPlannedEvents.map(p => p.id) : []);
+            }} /></th><th>Booking ID</th><th>Project</th><th>Dates</th><th>{bookingProfile.resourceLabel}</th>{supportsAccessories && <th>Accessories</th>}<th>Manpower</th><th>Actions</th></tr></thead>
             <tbody>
               {plannedPg.pageData.map(p => (
                 <tr key={p.id}>
@@ -2527,12 +2539,12 @@ export default function BookingsPage() {
                   <td style={{fontSize:12}}>
                     {projectSummaries[p.id]?.equipmentCount
                       ? pluralizeCount(projectSummaries[p.id].equipmentCount, "item")
-                      : (projectSummaries[p.id]?.bookingCount ? "No equipment linked" : "No linked booking yet")}
+                      : (projectSummaries[p.id]?.bookingCount ? `No ${bookingProfile.resourceLabel.toLowerCase()} linked` : "No linked booking yet")}
                     <div style={{color:"#999", marginTop:4}}>{projectSummaries[p.id]?.equipmentSummary || "-"}</div>
                   </td>
-                  <td>
+                  {supportsAccessories && <td>
                     {pluralizeCount(projectSummaries[p.id]?.accessoryCount || 0, "accessory")}
-                  </td>
+                  </td>}
                   <td>{pluralizeCount(projectSummaries[p.id]?.crewCount || 0, "member")}</td>
                   <td>
                     <div className="plannedShootActionGroup">
@@ -2557,7 +2569,7 @@ export default function BookingsPage() {
       {/* ──── BOOKINGS TABLE ──── */}
       {(bookingTab === "all" || bookingTab === "confirmed") && <Card title={bookingTab === "confirmed" ? "Confirmed Bookings" : "All Bookings"}>
         <div className="auditSubFilters" style={{marginBottom:10}}>
-          <SearchBar value={bookingSearch} onChange={value=>{setBookingSearch(value);bkPg.setPage(1);}} suggestions={buildSuggestions(bookingDetails)} placeholder="Search bookings by job card, project, destination, equipment, crew..." />
+          <SearchBar value={bookingSearch} onChange={value=>{setBookingSearch(value);bkPg.setPage(1);}} suggestions={buildSuggestions(bookingDetails)} placeholder={`Search bookings by job card, project, destination, ${bookingProfile.resourceLabel.toLowerCase()}, crew...`} />
           {bookingTab === "all" && (
             <div className="bookingTabBar bookingStatusTabs">
               {[["","All"],["planned","Planned"],["confirmed","Confirmed"]].map(([key,label]) => (
@@ -2569,7 +2581,7 @@ export default function BookingsPage() {
         </div>
         <div className="tableWrap">
           <table className="allBookingsTable">
-            <thead><tr><th>Booking ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>Equipment</th><th>Crew</th><th>Status</th><th>Damages</th><th>Downloadable Documents</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Booking ID</th><th>Project</th><th>Destination</th><th>Transport</th><th>{bookingProfile.resourceLabel}</th><th>Crew</th><th>Status</th>{supportsConditionQc && <th>Damages</th>}<th>Downloadable Documents</th><th>Actions</th></tr></thead>
             <tbody>
               {bkPg.pageData.map(b => {
                 const pendingReturnCount = getPendingReturnCount(b);
@@ -2595,7 +2607,7 @@ export default function BookingsPage() {
                     {childBookings.length ? <button type="button" className="supplementaryCountBadge" onClick={() => toggleBookingGroup(b.id)}>{isGroupExpanded ? "Hide" : "Show"} {childBookings.length} supplementary job card{childBookings.length > 1 ? "s" : ""}</button> : null}
                     {b.parent_booking_id ? <span className="badge badgeOptional" style={{marginLeft:4,fontSize:10}}>Supplementary</span> : null}
                     {b.parent_booking_id ? <div style={{fontSize:11,color:"#999"}}>Ref: {displayReferenceId(b, "—")}</div> : null}
-                    {b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
+                    {supportsReturns && b.status === "dispatched" && pendingReturnCount > 0 ? <div className="pendingReturnLine">Pending return: {pendingReturnCount}</div> : null}
                   </td>
                   <td>
                     <button type="button" className="ghostBtn" style={{padding:0,background:"none",border:"none",textAlign:"left",cursor:"pointer",color:"var(--accent)",fontWeight:600,fontSize:13,textDecoration:"underline"}}
@@ -2633,11 +2645,11 @@ export default function BookingsPage() {
                     <span className={`statusBadge status-${bookingStatusLabel}`}>{bookingStatusLabel}</span>
                     {b.cancellation_reason && <div style={{fontSize:11,color:"#fca5a5",marginTop:2}}>Reason: {b.cancellation_reason}</div>}
                   </td>
-                  <td>
+                  {supportsConditionQc && <td>
                     {(b.damages || []).length > 0 ? (
                       <div>{b.damages.map(d => <div key={d.id} style={{fontSize:11,marginBottom:2}}><span className={`badge ${d.severity === "critical" ? "badgeMandatory" : d.severity === "major" ? "badgeThirdParty" : "badgeOptional"}`}>{d.severity}</span> {d.description.slice(0,30)}</div>)}</div>
                     ) : <span style={{color:"#4ade80",fontSize:12}}>None</span>}
-                  </td>
+                  </td>}
                   <td className="pdfCell">
                     {documentsReady(b) ? (
                       <div className="documentDownloadCell">
@@ -2653,12 +2665,12 @@ export default function BookingsPage() {
                     <div className="actionButtonGroup">
                       {bookingStatusLabel === "planned" && <button className="primaryBtn compactBtn" onClick={()=>doConfirmBooking(b.id)}>Confirm</button>}
                       {b.status === "confirmed" && <button className="primaryBtn compactBtn" onClick={()=>doDispatch(b.id)}>Dispatch</button>}
-                      {b.status === "dispatched" && <button className="ghostBtn compactBtn" onClick={()=>{setPartialReturnBooking(b); setPartialReturnModal(true);}}>Partial Return</button>}
-                      {b.status === "dispatched" && <button className="primaryBtn compactBtn" onClick={()=>doCompleteBooking(b.id)}>Complete Booking</button>}
-                      {["dispatched", "returned"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage / Missing</button>}
+                      {supportsReturns && b.status === "dispatched" && <button className="ghostBtn compactBtn" onClick={()=>{setPartialReturnBooking(b); setPartialReturnModal(true);}}>Partial Return</button>}
+                      {b.status === "dispatched" && <button className="primaryBtn compactBtn" onClick={()=>doCompleteBooking(b.id)}>{supportsReturns ? "Complete Booking" : "Close Booking"}</button>}
+                      {supportsConditionQc && ["dispatched", "returned"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setDamageBooking(b);setDamageModal(true);}}>Damage / Missing</button>}
                       {! ["dispatched", "returned", "cancelled"].includes(b.status) && <button className="ghostBtn compactBtn" onClick={()=>{setEditBooking(b);setEditModal(true);}}>Edit</button>}
                       {b.status === "confirmed" && <button className="ghostBtn compactBtn" onClick={()=>setSupplementaryTarget(b)}>Supplementary</button>}
-                      {b.status === "confirmed" && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Shoot</button>}
+                      {b.status === "confirmed" && !b.parent_booking_id && <button className="ghostBtn compactBtn" onClick={()=>openModifyShoot(b)}>Modify Event</button>}
                       {b.status !== "returned" && b.status !== "cancelled" && <button className="dangerBtn compactBtn" onClick={()=>{setCancelBookingId(b.id);setCancelModal(true);}}>Cancel</button>}
                     </div>
                   </td>
@@ -2700,7 +2712,7 @@ export default function BookingsPage() {
                       {child.crew.length === 0 && "-"}
                     </td>
                     <td><span className={`statusBadge status-${childStatusLabel}`}>{childStatusLabel}</span></td>
-                    <td>{(child.damages || []).length > 0 ? <span className="badge badgeMandatory">{child.damages.length}</span> : <span style={{color:"#4ade80",fontSize:12}}>None</span>}</td>
+                    {supportsConditionQc && <td>{(child.damages || []).length > 0 ? <span className="badge badgeMandatory">{child.damages.length}</span> : <span style={{color:"#4ade80",fontSize:12}}>None</span>}</td>}
                     <td className="pdfCell">
                       {childDocsReady ? (
                         <div className="documentDownloadCell">
@@ -2760,6 +2772,8 @@ export default function BookingsPage() {
           supplementaryBookings={bookingDetails.filter(b => b.parent_booking_id === viewDetailBooking.id)}
           onDownloadChildJobCard={async (childId, childJobCardId) => { try { await downloadAuthorized(api.jobCardPdfUrl(childId), `jobcard_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
           onDownloadChildChallan={async (childId, childJobCardId) => { try { await downloadAuthorized(api.roadChallanPdfUrl(childId), `challan_${childJobCardId || childId}.pdf`); } catch(e) { setMessage(String(e.message||e)); } }}
+          supportsReturns={supportsReturns}
+          supportsConditionQc={supportsConditionQc}
         />
       )}
 
@@ -2773,16 +2787,16 @@ export default function BookingsPage() {
       />
 
       {/* ──── MODALS ──── */}
-      <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title="Search Equipment (Devices / Kits / 3rd Party)" resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
-      <SearchModal open={accModal} onClose={() => setAccModal(false)} title="Search Accessories" resourceType="accessory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addAccessories} />
+      <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (${bookingProfile.itemTypes.map(([, label]) => label.split(" - ")[0]).slice(0, 3).join(" / ")})`} resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
+      {supportsAccessories && <SearchModal open={accModal} onClose={() => setAccModal(false)} title="Search Accessories" resourceType="accessory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addAccessories} />}
       <SearchModal open={crewModal} onClose={() => setCrewModal(false)} title="Search Manpower" resourceType="crew" availabilityParams={availabilityWindow || undefined} onConfirmItems={addCrew} />
-      <SearchModal open={modifyEquipModal} onClose={() => setModifyEquipModal(false)} title="Search Equipment (Modify)" resourceType="inventory" availabilityParams={modifyWindow()} onConfirmItems={addModifyEquipment} />
-      <SearchModal open={modifyAccModal} onClose={() => setModifyAccModal(false)} title="Search Accessories (Modify)" resourceType="accessory" availabilityParams={modifyWindow()} onConfirmItems={addModifyAccessories} />
+      <SearchModal open={modifyEquipModal} onClose={() => setModifyEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (Modify)`} resourceType="inventory" availabilityParams={modifyWindow()} onConfirmItems={addModifyEquipment} />
+      {supportsAccessories && <SearchModal open={modifyAccModal} onClose={() => setModifyAccModal(false)} title="Search Accessories (Modify)" resourceType="accessory" availabilityParams={modifyWindow()} onConfirmItems={addModifyAccessories} />}
       <SearchModal open={modifyCrewModal} onClose={() => setModifyCrewModal(false)} title="Search Manpower (Modify)" resourceType="crew" availabilityParams={modifyWindow()} onConfirmItems={addModifyCrew} />
       <CancelReasonModal open={cancelModal} onClose={() => setCancelModal(false)} onConfirm={doCancel} />
-      <DamageLogModal open={damageModal} onClose={() => setDamageModal(false)} booking={damageBooking} onSave={load} />
-      <PartialReturnModal open={partialReturnModal} onClose={() => setPartialReturnModal(false)} booking={partialReturnBooking} onSave={load} onServiceRequired={openReturnServiceFlow} />
-      <ReturnServiceRoutingModal open={returnServiceIssues.length > 0} issues={returnServiceIssues} vendors={vendors} onClose={() => { setReturnServiceIssues([]); load(); }} onSaved={handleReturnServiceSaved} />
+      {supportsConditionQc && <DamageLogModal open={damageModal} onClose={() => setDamageModal(false)} booking={damageBooking} onSave={load} />}
+      {supportsReturns && <PartialReturnModal open={partialReturnModal} onClose={() => setPartialReturnModal(false)} booking={partialReturnBooking} onSave={load} onServiceRequired={openReturnServiceFlow} />}
+      {supportsServiceJobs && <ReturnServiceRoutingModal open={returnServiceIssues.length > 0} issues={returnServiceIssues} vendors={vendors} onClose={() => { setReturnServiceIssues([]); load(); }} onSaved={handleReturnServiceSaved} />}
       <EditBookingModal open={editModal} onClose={() => setEditModal(false)} booking={editBooking} project={projects.find((item) => item.id === editBooking?.project_id)} onConfirmSave={requestEditBooking} />
       <ConfirmActionModal
         open={!!confirmAction}
@@ -2795,7 +2809,7 @@ export default function BookingsPage() {
       />
 
       {/* ──── RETURN QC MODAL ──── */}
-      {returnQCModal && (
+      {supportsConditionQc && returnQCModal && (
         <div className="modalOverlay" onClick={() => setReturnQCModal(false)}>
           <div className="modalCard qcModal" onClick={e => e.stopPropagation()}>
             <div className="modalHeader"><h2>Return QC - Booking #{returnBookingId}</h2><button className="ghostBtn modalCloseBtn" onClick={() => setReturnQCModal(false)}>Close</button></div>
@@ -2821,7 +2835,7 @@ export default function BookingsPage() {
         </div>
       )}
 
-      <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={accessorySelected} crew={crewSelected} requiredInfo={requiredInfo} referenceId={parentBookingId ? displayReferenceId(bookingDetails.find(b => String(b.id) === String(parentBookingId))) : null} contacts={normalizedContacts()} />
+      <ConfirmBookingModal open={confirmModal} onClose={() => setConfirmModal(false)} onConfirm={submitBooking} project={selectedProjectTitle} destination={destination} equipment={equipmentSelected} accessories={supportsAccessories ? accessorySelected : []} crew={crewSelected} requiredInfo={supportsAccessories ? requiredInfo : { required_codes: [] }} referenceId={parentBookingId ? displayReferenceId(bookingDetails.find(b => String(b.id) === String(parentBookingId))) : null} contacts={normalizedContacts()} resourceLabel={bookingProfile.resourceLabel} supportsAccessories={supportsAccessories} />
       <QuickProjectModal open={quickProjectOpen} onClose={() => setQuickProjectOpen(false)} onSave={handleQuickProjectCreate} saving={quickProjectSaving} clientSuggestions={clientNameSuggestions} />
 
       {/* ── Prefill preview / confirmation modal ── */}

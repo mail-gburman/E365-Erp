@@ -14,7 +14,7 @@ from .. import models, schemas
 from ..audit import audit
 
 router = APIRouter(tags=["System"])
-UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads"))
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/tmp/e365_uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TALLY_CONNECTOR_DIR = REPO_ROOT / "tally_connector"

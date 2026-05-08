@@ -5,8 +5,10 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, downloadAuthorized } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
-const blankPaper = { paper_number:"", paper_type:"Shoot Dispatch", reference_name:"", destination:"", issued_by:"Store Admin", issue_status:"draft", related_booking_id:"", related_service_job_id:"", remarks:"" };
+const blankPaper = { paper_number:"", paper_type:"Event Dispatch", reference_name:"", destination:"", issued_by:"Store Admin", issue_status:"draft", related_booking_id:"", related_service_job_id:"", remarks:"" };
 const blankQc = { booking_id:"", checked_by:"Store QC", all_items_returned:true, damage_found:false, cleaning_required:false, remarks:"" };
 const blankPartial = { booking_id:"", inventory_item_ids:[], returned_by:"Store Team", condition_status:"good", notes:"" };
 
@@ -21,6 +23,20 @@ function summarizeEquipment(items = []) {
 }
 
 export default function OperationsPage() {
+  const bookingProfile = getBookingProfile(getBookingType());
+  const supportsReturns = Boolean(bookingProfile.features.returns);
+  const supportsServiceJobs = Boolean(bookingProfile.features.serviceJobs);
+  const supportsConditionQc = Boolean(bookingProfile.features.conditionQc);
+  const resourceLabel = bookingProfile.resourceLabel;
+  const paperTypeOptions = useMemo(() => [
+    "Event Dispatch",
+    supportsServiceJobs ? "Service Outbound" : null,
+    `${resourceLabel} ${bookingProfile.documents.gatePass}`,
+    bookingProfile.documents.manpower,
+    supportsReturns ? "Return Acknowledgement" : null,
+    supportsConditionQc ? bookingProfile.documents.damage : null,
+  ].filter(Boolean), [bookingProfile.documents.damage, bookingProfile.documents.gatePass, bookingProfile.documents.manpower, resourceLabel, supportsConditionQc, supportsReturns, supportsServiceJobs]);
+  const operationsTitle = ["Papers", supportsConditionQc ? bookingProfile.documents.damage : null, bookingProfile.documents.gatePass, "Chain of Custody"].filter(Boolean).join(" / ");
   const [papers, setPapers] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [bookingDetails, setBookingDetails] = useState([]);
@@ -41,17 +57,25 @@ export default function OperationsPage() {
   const [paperSearch, setPaperSearch] = useState("");
 
   const load = () => {
-    api.papers().then(setPapers);
-    api.bookings().then(setBookings);
-    api.bookingDetails().then(setBookingDetails);
-    api.serviceJobs().then(setServices);
-    api.qcList().then(setQcList);
-    api.gatePasses().then(setGatePasses);
-    api.gatePassDetails().then(setGatePassDetails);
-    api.partialReturns().then(setPartialReturns);
-    api.custody().then(setCustody);
+    api.papers().then(setPapers).catch((e) => setMessage(String(e.message || e)));
+    api.bookings().then(setBookings).catch((e) => setMessage(String(e.message || e)));
+    api.bookingDetails().then(setBookingDetails).catch((e) => setMessage(String(e.message || e)));
+    if (supportsServiceJobs) api.serviceJobs().then(setServices).catch((e) => setMessage(String(e.message || e)));
+    else setServices([]);
+    if (supportsConditionQc) api.qcList().then(setQcList).catch((e) => setMessage(String(e.message || e)));
+    else setQcList([]);
+    api.gatePasses().then(setGatePasses).catch((e) => setMessage(String(e.message || e)));
+    api.gatePassDetails().then(setGatePassDetails).catch((e) => setMessage(String(e.message || e)));
+    if (supportsReturns) api.partialReturns().then(setPartialReturns).catch((e) => setMessage(String(e.message || e)));
+    else setPartialReturns([]);
+    api.custody().then(setCustody).catch((e) => setMessage(String(e.message || e)));
   };
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!paperTypeOptions.includes(paperForm.paper_type)) {
+      setPaperForm((prev) => ({ ...prev, paper_type: paperTypeOptions[0] || "Event Dispatch" }));
+    }
+  }, [paperForm.paper_type, paperTypeOptions]);
 
   function toggleItem(id) {
     setPartialForm(f => ({
@@ -73,7 +97,7 @@ export default function OperationsPage() {
       await api.createPaper({
         ...paperForm,
         related_booking_id: paperForm.related_booking_id ? Number(paperForm.related_booking_id) : null,
-        related_service_job_id: paperForm.related_service_job_id ? Number(paperForm.related_service_job_id) : null,
+        related_service_job_id: supportsServiceJobs && paperForm.related_service_job_id ? Number(paperForm.related_service_job_id) : null,
       });
       setPaperForm(blankPaper);
       setMessage("Paper created.");
@@ -83,6 +107,7 @@ export default function OperationsPage() {
 
   async function saveQc(e) {
     e.preventDefault();
+    if (!supportsConditionQc) return;
     try {
       await api.createQC({ ...qcForm, booking_id: Number(qcForm.booking_id) });
       setQcForm(blankQc);
@@ -93,6 +118,7 @@ export default function OperationsPage() {
 
   async function savePartial(e) {
     e.preventDefault();
+    if (!supportsReturns) return;
     try {
       await api.createPartialReturn({ ...partialForm, booking_id: Number(partialForm.booking_id) });
       setPartialForm(blankPartial);
@@ -115,14 +141,16 @@ export default function OperationsPage() {
 
   return (
     <div className="page">
-      <h1 className="pageTitle">Papers / Return QC / Gate Passes / Chain of Custody</h1>
+      <h1 className="pageTitle">{operationsTitle}</h1>
       {message ? <div className="messageBar">{message} <button className="dismissBtn" onClick={()=>setMessage("")}>Dismiss</button></div> : null}
 
       <div className="grid2">
         <Card title="Create Branded Paper">
           <form className="formGrid" onSubmit={savePaper}>
             <input placeholder="Paper Number (optional auto)" value={paperForm.paper_number} onChange={e=>setPaperForm({...paperForm, paper_number:e.target.value})} />
-            <select value={paperForm.paper_type} onChange={e=>setPaperForm({...paperForm, paper_type:e.target.value})}><option>Shoot Dispatch</option><option>Service Outbound</option><option>Equipment Gate Pass</option><option>Crew Movement</option><option>Return Acknowledgement</option></select>
+            <select value={paperForm.paper_type} onChange={e=>setPaperForm({...paperForm, paper_type:e.target.value})}>
+              {paperTypeOptions.map((type) => <option key={type}>{type}</option>)}
+            </select>
             <AutocompleteInput value={paperForm.reference_name} onChange={v=>setPaperForm({...paperForm, reference_name:v})} suggestions={[...new Set(papers.map(p=>p.reference_name).filter(Boolean))]} placeholder="Reference Name" required />
             <LocationAutocomplete value={paperForm.destination} onChange={v=>setPaperForm({...paperForm, destination:v})} extraSuggestions={[...new Set([...papers.map(p=>p.destination), ...bookingDetails.map(b=>b.destination)].filter(Boolean))]} placeholder="Search Indian location..." required />
             <input placeholder="Issued By" value={paperForm.issued_by} onChange={e=>setPaperForm({...paperForm, issued_by:e.target.value})} />
@@ -131,16 +159,16 @@ export default function OperationsPage() {
               <option value="">Related Booking</option>
               {bookings.map(b => <option key={b.id} value={b.id}>Booking #{b.id}</option>)}
             </select>
-            <select value={paperForm.related_service_job_id} onChange={e=>setPaperForm({...paperForm, related_service_job_id:e.target.value})}>
+            {supportsServiceJobs && <select value={paperForm.related_service_job_id} onChange={e=>setPaperForm({...paperForm, related_service_job_id:e.target.value})}>
               <option value="">Related Service Job</option>
               {services.map(s => <option key={s.id} value={s.id}>{s.job_number}</option>)}
-            </select>
+            </select>}
             <textarea className="full" placeholder="Remarks" value={paperForm.remarks} onChange={e=>setPaperForm({...paperForm, remarks:e.target.value})}></textarea>
             <button className="full primaryBtn" type="submit">Save Paper</button>
           </form>
         </Card>
 
-        <Card title="Return QC Checklist">
+        {supportsConditionQc && <Card title="Return QC Checklist">
           <form className="formGrid" onSubmit={saveQc}>
             <select value={qcForm.booking_id} onChange={e=>setQcForm({...qcForm, booking_id:Number(e.target.value)})}>
               <option value="">Select Booking</option>
@@ -153,10 +181,10 @@ export default function OperationsPage() {
             <textarea className="full" placeholder="Remarks" value={qcForm.remarks} onChange={e=>setQcForm({...qcForm, remarks:e.target.value})}></textarea>
             <button className="full primaryBtn" type="submit">Save QC</button>
           </form>
-        </Card>
+        </Card>}
       </div>
 
-      <div className="grid2">
+      {supportsReturns && <div className="grid2">
         <Card title="Partial Return">
           <form onSubmit={savePartial}>
             <div className="formGrid">
@@ -209,10 +237,10 @@ export default function OperationsPage() {
           </div>
           <Pagination total={pgQc.total} page={pgQc.page} pageSize={pgQc.pageSize} onPageChange={pgQc.setPage} onPageSizeChange={pgQc.setPageSize} />
         </Card>
-      </div>
+      </div>}
 
       <div className="grid2">
-        <Card title="Partial Returns List">
+        {supportsReturns && <Card title="Partial Returns List">
           <div className="listToolbar">
             <SearchBar value={partialSearch} onChange={value => { setPartialSearch(value); pgPartial.setPage(1); }} suggestions={buildSuggestions(partialReturns)} placeholder="Search partial returns by booking, item, returned by, condition..." />
           </div>
@@ -232,15 +260,15 @@ export default function OperationsPage() {
             </table>
           </div>
           <Pagination total={pgPartial.total} page={pgPartial.page} pageSize={pgPartial.pageSize} onPageChange={pgPartial.setPage} onPageSizeChange={pgPartial.setPageSize} />
-        </Card>
+        </Card>}
 
-        <Card title="Gate Passes">
+        <Card title={`${bookingProfile.documents.gatePass} Records`}>
           <div className="listToolbar">
             <SearchBar value={gateSearch} onChange={value => { setGateSearch(value); pgGate.setPage(1); }} suggestions={buildSuggestions(gatePassDetails)} placeholder="Search gate pass by number, booking, project, destination, type..." />
           </div>
           <div className="tableWrap">
             <table>
-              <thead><tr><th>Gate Pass</th><th>Booking</th><th>Type</th><th>Approved By</th><th>Status</th><th>Download</th></tr></thead>
+              <thead><tr><th>{bookingProfile.documents.gatePass}</th><th>Booking</th><th>Type</th><th>Approved By</th><th>Status</th><th>Download</th></tr></thead>
               <tbody>
                 {pgGate.pageData.map(g => (
                   <tr key={g.id}>
@@ -249,7 +277,7 @@ export default function OperationsPage() {
                     <td>{g.pass_type}</td>
                     <td>{g.approved_by}</td>
                     <td>{g.status}</td>
-                    <td className="pdfCell"><button type="button" className="downloadBtn compactBtn" onClick={()=>doGatePassDownload(g.id, g.gate_pass_number)}>Gate Pass PDF</button></td>
+                    <td className="pdfCell"><button type="button" className="downloadBtn compactBtn" onClick={()=>doGatePassDownload(g.id, g.gate_pass_number)}>{bookingProfile.documents.gatePass} PDF</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -259,13 +287,13 @@ export default function OperationsPage() {
         </Card>
       </div>
 
-      <Card title="Detailed Gate Pass View">
+      <Card title={`Detailed ${bookingProfile.documents.gatePass} View`}>
         <div className="listToolbar">
-          <SearchBar value={gateSearch} onChange={value => { setGateSearch(value); pgGate.setPage(1); }} suggestions={buildSuggestions(gatePassDetails)} placeholder="Search detailed gate passes by project, destination, equipment, manpower..." />
+          <SearchBar value={gateSearch} onChange={value => { setGateSearch(value); pgGate.setPage(1); }} suggestions={buildSuggestions(gatePassDetails)} placeholder={`Search detailed ${bookingProfile.documents.gatePass.toLowerCase()} by project, destination, ${resourceLabel.toLowerCase()}, manpower...`} />
         </div>
         <div className="tableWrap">
           <table>
-            <thead><tr><th>Gate Pass</th><th>Project</th><th>Destination</th><th>Equipment</th><th>Manpower</th><th>Type</th><th>Download</th></tr></thead>
+            <thead><tr><th>{bookingProfile.documents.gatePass}</th><th>Project</th><th>Destination</th><th>{resourceLabel}</th><th>Manpower</th><th>Type</th><th>Download</th></tr></thead>
             <tbody>
               {pgGate.pageData.map(g => (
                 <tr key={g.id}>
@@ -275,7 +303,7 @@ export default function OperationsPage() {
                   <td>{summarizeEquipment(g.equipment_summary || g.equipment) || "-"}</td>
                   <td>{(g.manpower || []).map(x => x.name).join(", ") || "-"}</td>
                   <td>{g.pass_type}</td>
-                  <td className="pdfCell"><button type="button" className="downloadBtn compactBtn" onClick={()=>doGatePassDownload(g.id, g.gate_pass_number)}>Gate Pass PDF</button></td>
+                  <td className="pdfCell"><button type="button" className="downloadBtn compactBtn" onClick={()=>doGatePassDownload(g.id, g.gate_pass_number)}>{bookingProfile.documents.gatePass} PDF</button></td>
                 </tr>
               ))}
             </tbody>

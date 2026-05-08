@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import Card from "../components/Card";
 import { api, downloadAuthorized } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -9,7 +11,7 @@ const COLOR_MAP = {
   travel:    { bg: "rgba(251,113,133,.22)", border: "#fb7185", label: "Travel Day" },
   setup:     { bg: "rgba(251,191,36,.25)", border: "#fbbf24", label: "Setup Day" },
   technical: { bg: "rgba(56,189,248,.25)", border: "#38bdf8", label: "Technical Day" },
-  shoot:     { bg: "rgba(34,197,94,.25)",  border: "#4ade80", label: "Shoot Day" },
+  event:     { bg: "rgba(34,197,94,.25)",  border: "#4ade80", label: "Event Day" },
   off:       { bg: "rgba(156,163,175,.2)", border: "#9ca3af", label: "Off Day" },
   end:       { bg: "rgba(248,113,113,.22)", border: "#f87171", label: "End Day" },
   return:    { bg: "rgba(168,85,247,.25)", border: "#c084fc", label: "Return Day" },
@@ -96,16 +98,17 @@ function buildDaySummaryRows(events = []) {
   });
   return Array.from(grouped.values()).map((row) => ({
     ...row,
-    type: row.types[0] || "shoot",
+    type: row.types[0] || "event",
     typeLabel: row.types.map((type) => COLOR_MAP[type]?.label || type).join(", "),
     label: row.labels.join(" | "),
   }));
 }
 async function downloadDaySummaryPdf(dateStr) {
-  await downloadAuthorized(api.calendarDaySummaryPdfUrl(dateStr), `KPS_calendar_day_summary_${dateStr}.pdf`);
+  await downloadAuthorized(api.calendarDaySummaryPdfUrl(dateStr), `E365_calendar_day_summary_${dateStr}.pdf`);
 }
 
-function buildCalendarEvents(bookings, projects) {
+function buildCalendarEvents(bookings, projects, options = {}) {
+  const supportsReturns = options.supportsReturns !== false;
   const eventMap = new Map();
   function pushEvent(event) {
     const eventKey = [
@@ -178,21 +181,21 @@ function buildCalendarEvents(bookings, projects) {
     travelDates.forEach((d) => pushExplicit(d, "travel"));
     setupDates.forEach((d) => pushExplicit(d, "setup"));
     technicalDates.forEach((d) => pushExplicit(d, "technical"));
-    shootDates.forEach((d) => pushExplicit(d, "shoot"));
+    shootDates.forEach((d) => pushExplicit(d, "event"));
     endDates.forEach((d) => pushExplicit(d, "end"));
-    returnDates.forEach((d) => pushExplicit(d, "return"));
+    if (supportsReturns) returnDates.forEach((d) => pushExplicit(d, "return"));
     offDates.forEach((d) => pushExplicit(d, "off"));
 
     if (!setupDates.length && setupDate) {
       pushExplicit(setupDate, "setup");
     }
     if (!shootDates.length && shootStart) {
-      pushExplicit(shootStart, "shoot");
+      pushExplicit(shootStart, "event");
     }
     if (!endDates.length && expectedEnd) {
       pushExplicit(expectedEnd, "end");
     }
-    if (!returnDates.length && returnDay) {
+    if (supportsReturns && !returnDates.length && returnDay) {
       pushExplicit(returnDay, "return");
     }
     // Status overlay
@@ -224,7 +227,7 @@ function buildCalendarEvents(bookings, projects) {
 }
 
 function EventChip({ ev, onClick }) {
-  const c = COLOR_MAP[ev.type] || COLOR_MAP.shoot;
+  const c = COLOR_MAP[ev.type] || COLOR_MAP.event;
   return (
     <div
       className="calChip"
@@ -255,8 +258,8 @@ function DetailModal({ ev, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div className="detailCard"><div className="detailKey">Status</div><div className="detailVal"><span className={`statusBadge status-${b.status}`}>{b.status}</span></div></div>
             <div className="detailCard"><div className="detailKey">Destination</div><div className="detailVal">{b.destination}</div></div>
-            <div className="detailCard"><div className="detailKey">Shoot Start</div><div className="detailVal">{p.shoot_start}</div></div>
-            <div className="detailCard"><div className="detailKey">Shoot End</div><div className="detailVal">{p.shoot_end || "—"}</div></div>
+            <div className="detailCard"><div className="detailKey">Event Start</div><div className="detailVal">{p.shoot_start}</div></div>
+            <div className="detailCard"><div className="detailKey">Event End</div><div className="detailVal">{p.shoot_end || "—"}</div></div>
             <div className="detailCard"><div className="detailKey">Setup Date</div><div className="detailVal">{p.setup_date || "—"}</div></div>
             <div className="detailCard"><div className="detailKey">Off Days</div><div className="detailVal">{p.off_days ?? 0}</div></div>
             <div className="detailCard"><div className="detailKey">Transport</div><div className="detailVal">{b.transport_mode || "—"}</div></div>
@@ -290,7 +293,7 @@ function DaySummaryModal({ dateStr, events, onClose }) {
     travel: rows.filter((row) => row.type === "travel").length,
     setup: rows.filter((row) => row.type === "setup").length,
     technical: rows.filter((row) => row.type === "technical").length,
-    shoot: rows.filter((row) => row.type === "shoot").length,
+    event: rows.filter((row) => row.type === "event").length,
     end: rows.filter((row) => row.type === "end").length,
     return: rows.filter((row) => row.type === "return").length,
     supplementary: rows.filter((row) => row.type === "supplementary").length,
@@ -315,7 +318,7 @@ function DaySummaryModal({ dateStr, events, onClose }) {
           <div className="detailCard"><div className="detailKey">Travel Day</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.travel}</div></div>
           <div className="detailCard"><div className="detailKey">Setup Day</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.setup}</div></div>
           <div className="detailCard"><div className="detailKey">Technical Day</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.technical}</div></div>
-          <div className="detailCard"><div className="detailKey">Shoot</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.shoot}</div></div>
+          <div className="detailCard"><div className="detailKey">Event</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.event}</div></div>
           <div className="detailCard"><div className="detailKey">End Day</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.end}</div></div>
           <div className="detailCard"><div className="detailKey">Return Day</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.return}</div></div>
           <div className="detailCard"><div className="detailKey">Supplementary</div><div className="detailVal" style={{ fontSize: 22, fontWeight: 800 }}>{totals.supplementary}</div></div>
@@ -341,7 +344,7 @@ function DaySummaryModal({ dateStr, events, onClose }) {
                 <div className="detailCard"><div className="detailKey">Event Type</div><div className="detailVal">{row.typeLabel}</div></div>
                 <div className="detailCard"><div className="detailKey">Job Card</div><div className="detailVal">{row.jobCard}</div></div>
                 <div className="detailCard"><div className="detailKey">Destination</div><div className="detailVal">{row.destination}</div></div>
-                <div className="detailCard"><div className="detailKey">Shoot Window</div><div className="detailVal">{row.shootWindow}</div></div>
+                <div className="detailCard"><div className="detailKey">Event Window</div><div className="detailVal">{row.shootWindow}</div></div>
                 <div className="detailCard"><div className="detailKey">Block Window</div><div className="detailVal">{row.blockWindow}</div></div>
                 <div className="detailCard"><div className="detailKey">Setup Date</div><div className="detailVal">{row.setupDate}</div></div>
                 <div className="detailCard"><div className="detailKey">Transport</div><div className="detailVal">{row.transport}</div></div>
@@ -365,6 +368,8 @@ function DaySummaryModal({ dateStr, events, onClose }) {
 }
 
 export default function CalendarPage() {
+  const bookingProfile = getBookingProfile(getBookingType());
+  const supportsReturns = Boolean(bookingProfile.features.returns);
   const [bookings, setBookings] = useState([]);
   const [projects, setProjects] = useState([]);
   const today = new Date();
@@ -372,7 +377,7 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(today.getMonth());
   const [selectedEv, setSelectedEv] = useState(null);
   const [selectedDay, setSelectedDay] = useState(null);
-  const [visibleTypes, setVisibleTypes] = useState(() => Object.keys(COLOR_MAP));
+  const [visibleTypes, setVisibleTypes] = useState(() => Object.keys(COLOR_MAP).filter((type) => supportsReturns || type !== "return"));
   const [rangeStart, setRangeStart] = useState("");
   const [rangeEnd, setRangeEnd] = useState("");
   const [calSearch, setCalSearch] = useState("");
@@ -382,7 +387,7 @@ export default function CalendarPage() {
     api.projects().then(setProjects).catch(console.error);
   }, []);
 
-  const events = useMemo(() => buildCalendarEvents(bookings, projects), [bookings, projects]);
+  const events = useMemo(() => buildCalendarEvents(bookings, projects, { supportsReturns }), [bookings, projects, supportsReturns]);
 
   const days = daysInMonth(year, month);
   const start = startDay(year, month);
@@ -449,7 +454,7 @@ export default function CalendarPage() {
       {/* Legend / Filter */}
       <Card title="Filter by Event Type">
         {(() => {
-          const SHOOT_KEYS = ["travel", "setup", "technical", "shoot", "off", "end", "return"];
+          const EVENT_KEYS = ["travel", "setup", "technical", "event", "off", "end", ...(supportsReturns ? ["return"] : [])];
           const BOOKING_KEYS = ["planned", "confirmed", "blocked", "dispatched", "supplementary"];
           const renderGroup = (keys) => (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -478,9 +483,9 @@ export default function CalendarPage() {
             <>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 6 }}>
-                  Shoot Events
+                  Event Events
                 </div>
-                {renderGroup(SHOOT_KEYS)}
+                {renderGroup(EVENT_KEYS)}
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 6 }}>

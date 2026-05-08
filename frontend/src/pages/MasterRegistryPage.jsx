@@ -5,6 +5,8 @@ import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, systemApi } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 // Tab order matches AdditionsPage — equipment_master first, then inventory
 const TABS = [
@@ -51,6 +53,14 @@ function itemLabel(tab, item) {
 
 export default function MasterRegistryPage() {
   const navigate = useNavigate();
+  const bookingProfile = getBookingProfile(getBookingType());
+  const tabs = useMemo(() => TABS.filter((tab) => tab.key !== "warehouses" || bookingProfile.features.warehouse !== false).map((tab) => {
+    if (tab.key === "equipmentMaster") return { ...tab, label: bookingProfile.value === "equipment" ? tab.label : `${bookingProfile.resourceLabel} Master` };
+    if (tab.key === "inventory") return { ...tab, label: bookingProfile.registryLabel.replace(" Registry", "") };
+    if (tab.key === "vendors") return { ...tab, label: bookingProfile.vendorsLabel };
+    if (tab.key === "warehouses" && bookingProfile.value === "venue") return { ...tab, label: "Venue Clusters" };
+    return tab;
+  }), [bookingProfile]);
   const [warehouses, setWarehouses] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [clients, setClients] = useState([]);
@@ -94,7 +104,7 @@ export default function MasterRegistryPage() {
   // Fetch documents/images for selected item
   const loadDocs = useCallback(async (tab, itemId) => {
     if (!itemId) { setEntityDocs([]); return; }
-    const tabObj = TABS.find(t => t.key === tab);
+    const tabObj = tabs.find(t => t.key === tab);
     if (!tabObj) { setEntityDocs([]); return; }
     setDocsLoading(true);
     try {
@@ -102,27 +112,27 @@ export default function MasterRegistryPage() {
       setEntityDocs(Array.isArray(docs) ? docs : []);
     } catch { setEntityDocs([]); }
     setDocsLoading(false);
-  }, []);
+  }, [tabs]);
 
   useEffect(() => {
     loadDocs(masterTab, selectedItem?.id);
   }, [masterTab, selectedItem?.id, loadDocs]);
 
   function handleEdit(item) {
-    const tab = TABS.find(t => t.key === masterTab);
+    const tab = tabs.find(t => t.key === masterTab);
     navigate("/additions", { state: { editItem: item, editTab: tab?.addTab || masterTab } });
   }
 
   const images = entityDocs.filter(d => isImage(d.file_path));
   const otherDocs = entityDocs.filter(d => !isImage(d.file_path));
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8001";
 
   return (
     <div className="page">
-      <h1 className="pageTitle">Master Registry</h1>
-      <Card title="Equipment Master / Inventory / Crew / Clients / Vendors / Warehouses">
+      <h1 className="pageTitle">{bookingProfile.registryLabel}</h1>
+      <Card title={`${bookingProfile.registryLabel} / Crew / Clients / ${bookingProfile.vendorsLabel}`}>
         <div className="tabRow">
-          {TABS.map(t => (
+          {tabs.map(t => (
             <button key={t.key} type="button"
               className={masterTab === t.key ? "tabBtn activeTab" : "tabBtn"}
               onClick={() => { setMasterTab(t.key); setSelectedId(null); setMasterSearch(""); pg.setPage(1); }}>
@@ -209,7 +219,14 @@ export default function MasterRegistryPage() {
 
                 <div className="detailGrid">
                   {Object.entries(selectedItem)
-                    .filter(([k]) => !(HIDDEN_FIELDS[masterTab]?.has(k)))
+                    .filter(([k]) => {
+                      if (HIDDEN_FIELDS[masterTab]?.has(k)) return false;
+                      if (!bookingProfile.features.warehouse && ["warehouse_id", "location_text"].includes(k)) return false;
+                      if (!bookingProfile.features.warranty && ["warranty_expiry"].includes(k)) return false;
+                      if (!bookingProfile.features.maintenance && ["service_due", "service_status", "statutory_tag"].includes(k)) return false;
+                      if (!bookingProfile.features.accessories && ["equipment_master_id", "parent_item_id", "mandatory_accessory_codes", "optional_accessory_codes"].includes(k)) return false;
+                      return true;
+                    })
                     .map(([k, v]) => (
                       <div key={k} className="detailCard">
                         <div className="detailKey">{k}</div>

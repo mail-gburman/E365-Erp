@@ -35,7 +35,7 @@ export default function SystemPage() {
   const [tallyDemoStatus, setTallyDemoStatus] = useState(null);
   const [message, setMessage] = useState("");
   const [tallyForm, setTallyForm] = useState({
-    connector_name: "KPS Office Tally Connector",
+    connector_name: "E365 Office Tally Connector",
     machine_name: "Office Tally PC",
     tally_host: "127.0.0.1",
     tally_port: 9000,
@@ -44,7 +44,7 @@ export default function SystemPage() {
     odbc_enabled: false,
   });
   const [tallyRuntime, setTallyRuntime] = useState({
-    erp_base_url: "http://127.0.0.1:8000",
+    erp_base_url: "http://127.0.0.1:8001",
     connector_token: "",
     tally_host: "127.0.0.1",
     tally_port: 9000,

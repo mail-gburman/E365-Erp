@@ -1,7 +1,7 @@
 /**
  * Comprehensive Indian locations dataset — States, Cities, and Localities.
  * Covers all 28 states + 8 UTs with granular locality-level detail
- * for major cities and popular shoot/event locations.
+ * for major cities and popular event locations.
  */
 
 const INDIAN_LOCATIONS = {

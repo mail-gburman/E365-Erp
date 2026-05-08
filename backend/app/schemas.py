@@ -29,12 +29,16 @@ class TokenResponse(BaseModel):
     token_type: str
     role: str
     username: str
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
+    booking_type: Optional[str] = None
     permissions_json: Optional[str] = None
 
 class UserCreate(BaseModel):
     username: str
     password: str
     role: str
+    company_id: Optional[int] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -45,6 +49,7 @@ class UserCreate(BaseModel):
 class UserUpdate(BaseModel):
     password: Optional[str] = None
     role: Optional[str] = None
+    company_id: Optional[int] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -56,6 +61,8 @@ class UserAdminRead(BaseModel):
     id: int
     username: str
     role: str
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
@@ -85,10 +92,80 @@ class UserRead(BaseModel):
     id: int
     username: str
     role: str
+    company_id: Optional[int] = None
+    company_name: Optional[str] = None
     full_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     is_active: bool = True
+    class Config:
+        from_attributes = True
+
+
+class CompanyBase(BaseModel):
+    name: str
+    legal_name: Optional[str] = None
+    status: str = "active"
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    billing_address: Optional[str] = None
+    registered_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = "India"
+    theme_option: Optional[str] = "auto"
+    booking_type: Optional[str] = "equipment"
+    notes: Optional[str] = None
+
+
+class CompanyCreate(CompanyBase):
+    admin_username: str
+    admin_password: str
+    admin_full_name: Optional[str] = None
+    admin_email: Optional[str] = None
+    admin_phone: Optional[str] = None
+
+
+class CompanyUpdate(BaseModel):
+    name: Optional[str] = None
+    legal_name: Optional[str] = None
+    status: Optional[str] = None
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    website: Optional[str] = None
+    gst_number: Optional[str] = None
+    pan_number: Optional[str] = None
+    billing_address: Optional[str] = None
+    registered_address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    theme_option: Optional[str] = None
+    booking_type: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class CompanyRead(CompanyBase):
+    id: int
+    logo_path: Optional[str] = None
+    created_at: Optional[datetime] = None
+    class Config:
+        from_attributes = True
+
+
+class CompanyDocumentRead(BaseModel):
+    id: int
+    company_id: int
+    document_name: str
+    file_path: str
+    notes: Optional[str] = None
+    uploaded_by: str
+    created_at: Optional[datetime] = None
     class Config:
         from_attributes = True
 

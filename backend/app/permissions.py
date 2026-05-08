@@ -44,6 +44,8 @@ def _role(config: dict) -> dict:
 
 
 ROLE_DEFAULTS = {
+    "super_admin": _role({"*": _ALL_ACTIONS}),
+
     # ── admin: everything on ──────────────────────────────────────────────
     "admin": _role({"*": _ALL_ACTIONS}),
 
@@ -180,7 +182,7 @@ def resolved_permissions(user) -> dict:
 
 def require_permission(module: str, action: str):
     def dep(current_user=Depends(get_current_user)):
-        if current_user.role == "admin":
+        if current_user.role in {"admin", "super_admin"}:
             return current_user
         if not resolved_permissions(current_user).get(module, {}).get(action, False):
             raise HTTPException(
@@ -196,7 +198,7 @@ def _has_document_specific_permissions(perms: dict) -> bool:
 
 
 def has_document_permission(user, document_type: str, action: str) -> bool:
-    if user.role == "admin":
+    if user.role in {"admin", "super_admin"}:
         return True
     perms = resolved_permissions(user)
     document_key = DOCUMENT_PERMISSION_KEYS.get(document_type or "other", DOCUMENT_PERMISSION_KEYS["other"])

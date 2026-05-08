@@ -1,5 +1,5 @@
 import { getToken, clearSessionSync, getOrCreateDeviceId } from "./auth";
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8001";
 
 async function parse(res) {
   if (res.status === 401) {
@@ -234,6 +234,34 @@ export async function serverLogout() {
 }
 
 export const adminApi = {
+  companies: () => get("/admin/companies"),
+  createCompany: (p) => post("/admin/companies", p),
+  updateCompany: async (id, p) => {
+    const res = await fetch(`${API_BASE}/admin/companies/${id}`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) });
+    return parse(res);
+  },
+  companyProfile: () => get("/admin/company-profile"),
+  updateCompanyProfile: async (p) => {
+    const res = await fetch(`${API_BASE}/admin/company-profile`, { method: "PUT", headers: headers(false), body: JSON.stringify(p) });
+    return parse(res);
+  },
+  uploadCompanyLogo: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_BASE}/admin/company-profile/logo`, { method: "POST", headers: headers(true), body: fd });
+    return parse(res);
+  },
+  companyLogoUrl: () => `${API_BASE}/admin/company-profile/logo`,
+  companyDocuments: () => get("/admin/company-profile/documents"),
+  uploadCompanyDocument: async (documentName, file, notes = "") => {
+    const fd = new FormData();
+    fd.append("document_name", documentName);
+    fd.append("notes", notes || "");
+    fd.append("file", file);
+    const res = await fetch(`${API_BASE}/admin/company-profile/documents`, { method: "POST", headers: headers(true), body: fd });
+    return parse(res);
+  },
+  companyDocumentUrl: (id) => `${API_BASE}/admin/company-profile/documents/${id}/download`,
   users: () => get("/admin/users"),
   demoDatasetStatus: () => get("/admin/demo-dataset"),
   loadDemoDataset: () => post("/admin/demo-dataset/load", {}),
@@ -315,7 +343,7 @@ export const auditApi = {
 
 const activeDownloads = new Set();
 
-export async function viewAuthorized(url, title = "KPS PDF") {
+export async function viewAuthorized(url, title = "E365 PDF") {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken()}` } });
   if (res.status === 401) throw new Error("Session expired or token invalid. Please login again.");
   if (!res.ok) throw new Error(await res.text());
@@ -360,7 +388,7 @@ export async function downloadAuthorized(url, filename) {
     const a = document.createElement("a");
     let wrapper = null;
     if (isPdf) {
-      wrapper = URL.createObjectURL(new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${filename || "KPS PDF"}</title><style>html,body{margin:0;height:100%;background:#111;}iframe{border:0;width:100%;height:100%;}</style></head><body><iframe src="${obj}" title="${filename || "KPS PDF"}"></iframe></body></html>`], { type: "text/html" }));
+      wrapper = URL.createObjectURL(new Blob([`<!doctype html><html><head><meta charset="utf-8"><title>${filename || "E365 PDF"}</title><style>html,body{margin:0;height:100%;background:#111;}iframe{border:0;width:100%;height:100%;}</style></head><body><iframe src="${obj}" title="${filename || "E365 PDF"}"></iframe></body></html>`], { type: "text/html" }));
       a.href = wrapper;
       a.target = "_blank";
       a.rel = "noopener noreferrer";

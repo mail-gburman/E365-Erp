@@ -4,18 +4,18 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: kps_erp
-      POSTGRES_USER: kps_user
-      POSTGRES_PASSWORD: kps_password
+      POSTGRES_DB: e365_erp
+      POSTGRES_USER: e365_user
+      POSTGRES_PASSWORD: e365_password
     ports:
       - "5432:5432"
     volumes:
-      - kps_pgdata:/var/lib/postgresql/data
+      - e365_pgdata:/var/lib/postgresql/data
 
   backend:
     build: ./backend
     environment:
-      DATABASE_URL: postgresql+psycopg://kps_user:kps_password@db:5432/kps_erp
+      DATABASE_URL: postgresql+psycopg://e365_user:e365_password@db:5432/e365_erp
       JWT_SECRET: change_me_for_production
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
     depends_on:
@@ -31,4 +31,4 @@ services:
       - "5173:5173"
 
 volumes:
-  kps_pgdata:
+  e365_pgdata:

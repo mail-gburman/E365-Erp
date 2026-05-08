@@ -21,7 +21,7 @@ router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(
 ACTIVE_STATUSES = ["confirmed", "dispatched"]
 CREATE_BOOKING_STATUSES = {"planned", "confirmed"}
 
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/kps_uploads")
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/tmp/e365_uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def _required_optional_for_items(db: Session, equipment_ids: list[int]):
@@ -589,7 +589,7 @@ def _calendar_summary_rows_for_date(db: Session, target_day: date):
             add_row("technical", primary_booking, "Technical Day")
         if target_day in shoot_dates or (not shoot_dates and shoot_start == target_day):
             explicit_event_dates.add(target_day)
-            add_row("shoot", primary_booking, "Shoot Day")
+            add_row("event", primary_booking, "Event Day")
         if target_day in end_dates or (not end_dates and shoot_end == target_day):
             explicit_event_dates.add(target_day)
             add_row("end", primary_booking, "End Day")
@@ -614,7 +614,7 @@ def _calendar_summary_rows_for_date(db: Session, target_day: date):
                     if target_day not in explicit_event_dates:
                         add_row(booking.status, booking, booking.status.title())
 
-    type_order = {"travel": 0, "setup": 1, "technical": 2, "shoot": 3, "end": 4, "return": 5, "off": 6, "supplementary": 7, "planned": 8, "confirmed": 9, "blocked": 10, "dispatched": 11}
+    type_order = {"travel": 0, "setup": 1, "technical": 2, "event": 3, "end": 4, "return": 5, "off": 6, "supplementary": 7, "planned": 8, "confirmed": 9, "blocked": 10, "dispatched": 11}
     rows.sort(key=lambda row: (
         type_order.get(row["event_type"], 99),
         row["project_title"],
@@ -636,7 +636,7 @@ def calendar_day_summary_pdf(target_date: str = Query(...), db: Session = Depend
     return StreamingResponse(
         pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="KPS_calendar_day_summary_{parsed_date.isoformat()}.pdf"'},
+        headers={"Content-Disposition": f'inline; filename="E365_calendar_day_summary_{parsed_date.isoformat()}.pdf"'},
     )
 
 @router.get("/qc", response_model=list[schemas.ReturnQCRead])
@@ -1115,7 +1115,7 @@ def mark_returned(booking_id: int, db: Session = Depends(get_db)):
     for crew in booking.crew:
         if crew.crew_member:
             crew.crew_member.status = "available"
-            _log_custody(db, booking.id, None, crew.crew_member_id, "gate_in", from_person=booking.destination, to_person="Office", notes="Returned after shoot")
+            _log_custody(db, booking.id, None, crew.crew_member_id, "gate_in", from_person=booking.destination, to_person="Office", notes="Returned after event")
     db.add(models.GatePass(
         gate_pass_number=next_gate_pass_number(db),
         booking_id=booking.id,

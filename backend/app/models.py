@@ -1,8 +1,56 @@
 import json
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Date, DateTime, ForeignKey, Text, Boolean, Float
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import declared_attr, relationship
 from .database import Base
+
+
+class TenantMixin:
+    @declared_attr
+    def company_id(cls):
+        return Column(Integer, ForeignKey("companies.id"), index=True, nullable=True)
+
+    @declared_attr
+    def company(cls):
+        return relationship("Company")
+
+
+class Company(Base):
+    __tablename__ = "companies"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    name = Column(String, unique=True, index=True, nullable=False)
+    legal_name = Column(String, nullable=True)
+    status = Column(String, default="active", nullable=False)
+    contact_person = Column(String, nullable=True)
+    phone = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    website = Column(String, nullable=True)
+    gst_number = Column(String, nullable=True)
+    pan_number = Column(String, nullable=True)
+    billing_address = Column(Text, nullable=True)
+    registered_address = Column(Text, nullable=True)
+    city = Column(String, nullable=True)
+    state = Column(String, nullable=True)
+    country = Column(String, default="India")
+    logo_path = Column(String, nullable=True)
+    theme_option = Column(String, default="auto", nullable=False)
+    booking_type = Column(String, default="equipment", nullable=False)  # equipment / artist / venue / decor / catering / staffing
+    notes = Column(Text, nullable=True)
+
+
+class CompanyDocument(Base):
+    __tablename__ = "company_documents"
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    document_name = Column(String, nullable=False)
+    file_path = Column(String, nullable=False)
+    notes = Column(Text, nullable=True)
+    uploaded_by = Column(String, nullable=False)
+
+    company = relationship("Company")
+
 
 class User(Base):
     __tablename__ = "users"
@@ -13,11 +61,17 @@ class User(Base):
     full_name = Column(String, nullable=True)
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=True)
     permissions_json = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     max_sessions = Column(Integer, default=5, nullable=False)  # 0 = unlimited
 
+    company = relationship("Company")
     sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def company_name(self):
+        return self.company.name if self.company else None
 
 
 class RolePreset(Base):
@@ -52,7 +106,7 @@ class UserSession(Base):
 
     user = relationship("User", back_populates="sessions")
 
-class Warehouse(Base):
+class Warehouse(TenantMixin, Base):
     __tablename__ = "warehouses"
     id = Column(Integer, primary_key=True)
     code = Column(String, unique=True, index=True, nullable=False)
@@ -62,7 +116,7 @@ class Warehouse(Base):
     manager_name = Column(String, nullable=True)
     contact_no = Column(String, nullable=True)
 
-class Vendor(Base):
+class Vendor(TenantMixin, Base):
     __tablename__ = "vendors"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -77,7 +131,7 @@ class Vendor(Base):
     pan_number = Column(String, nullable=True)
     notes = Column(Text, nullable=True)
 
-class Client(Base):
+class Client(TenantMixin, Base):
     __tablename__ = "clients"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -92,7 +146,7 @@ class Client(Base):
 
     contacts = relationship("ClientContact", back_populates="client", cascade="all, delete-orphan")
 
-class ClientContact(Base):
+class ClientContact(TenantMixin, Base):
     __tablename__ = "client_contacts"
     id = Column(Integer, primary_key=True)
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
@@ -105,7 +159,7 @@ class ClientContact(Base):
 
     client = relationship("Client", back_populates="contacts")
 
-class InventoryItem(Base):
+class InventoryItem(TenantMixin, Base):
     __tablename__ = "inventory_items"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -141,7 +195,7 @@ class InventoryItem(Base):
     equipment_master = relationship("EquipmentMaster")
 
 
-class EquipmentMaster(Base):
+class EquipmentMaster(TenantMixin, Base):
     __tablename__ = "equipment_master"
     id = Column(Integer, primary_key=True)
     equipment_code = Column(String, unique=True, index=True, nullable=False)
@@ -154,7 +208,7 @@ class EquipmentMaster(Base):
     optional_accessory_codes = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
 
-class CrewMember(Base):
+class CrewMember(TenantMixin, Base):
     __tablename__ = "crew_members"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -194,7 +248,7 @@ class CrewMember(Base):
 
     vendor = relationship("Vendor")
 
-class ProjectEvent(Base):
+class ProjectEvent(TenantMixin, Base):
     __tablename__ = "project_events"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -204,7 +258,7 @@ class ProjectEvent(Base):
     venue = Column(String, nullable=False)
     origin_warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)
     shoot_start = Column(DateTime, nullable=True)
-    shoot_end = Column(DateTime, nullable=True)  # NEW: Shoot End datetime
+    shoot_end = Column(DateTime, nullable=True)  # NEW: Event End datetime
     setup_date = Column(Date, nullable=True)  # NEW: Setup Date / Technical check
     off_days = Column(Integer, default=0)  # NEW: Off Days
     expected_start_date = Column(Date, nullable=True)  # NEW: Expected dates
@@ -220,7 +274,7 @@ class ProjectEvent(Base):
     client = relationship("Client")
     dates = relationship("ProjectDate", back_populates="project", cascade="all, delete-orphan")
 
-class ProjectDate(Base):
+class ProjectDate(TenantMixin, Base):
     __tablename__ = "project_dates"
     id = Column(Integer, primary_key=True)
     project_id = Column(Integer, ForeignKey("project_events.id"), nullable=False)
@@ -229,7 +283,7 @@ class ProjectDate(Base):
 
     project = relationship("ProjectEvent", back_populates="dates")
 
-class EventBooking(Base):
+class EventBooking(TenantMixin, Base):
     __tablename__ = "event_bookings"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -277,7 +331,7 @@ class EventBooking(Base):
             }]
         return []
 
-class BookingEquipment(Base):
+class BookingEquipment(TenantMixin, Base):
     __tablename__ = "booking_equipment"
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer, ForeignKey("event_bookings.id"), nullable=False)
@@ -286,7 +340,7 @@ class BookingEquipment(Base):
     booking = relationship("EventBooking", back_populates="equipment")
     inventory_item = relationship("InventoryItem")
 
-class BookingCrew(Base):
+class BookingCrew(TenantMixin, Base):
     __tablename__ = "booking_crew"
     id = Column(Integer, primary_key=True)
     booking_id = Column(Integer, ForeignKey("event_bookings.id"), nullable=False)
@@ -295,7 +349,7 @@ class BookingCrew(Base):
     booking = relationship("EventBooking", back_populates="crew")
     crew_member = relationship("CrewMember")
 
-class AccountInvoice(Base):
+class AccountInvoice(TenantMixin, Base):
     __tablename__ = "account_invoices"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -331,7 +385,7 @@ class AccountInvoice(Base):
 
     booking = relationship("EventBooking")
 
-class AccountLedgerPayment(Base):
+class AccountLedgerPayment(TenantMixin, Base):
     __tablename__ = "account_ledger_payments"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -343,7 +397,7 @@ class AccountLedgerPayment(Base):
     details = Column(Text, nullable=True)
     created_by = Column(String, nullable=True)
 
-class TallyConnector(Base):
+class TallyConnector(TenantMixin, Base):
     __tablename__ = "tally_connectors"
     id = Column(Integer, primary_key=True)
     org_id = Column(String, default="default", index=True)
@@ -360,7 +414,7 @@ class TallyConnector(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
-class TallySyncJob(Base):
+class TallySyncJob(TenantMixin, Base):
     __tablename__ = "tally_sync_jobs"
     id = Column(Integer, primary_key=True)
     org_id = Column(String, default="default", index=True)
@@ -383,7 +437,7 @@ class TallySyncJob(Base):
 
     connector = relationship("TallyConnector")
 
-class TallyMapping(Base):
+class TallyMapping(TenantMixin, Base):
     __tablename__ = "tally_mappings"
     id = Column(Integer, primary_key=True)
     org_id = Column(String, default="default", index=True)
@@ -395,7 +449,7 @@ class TallyMapping(Base):
     is_active = Column(Boolean, default=True)
     metadata_json = Column(Text, nullable=True)
 
-class TallySyncResult(Base):
+class TallySyncResult(TenantMixin, Base):
     __tablename__ = "tally_sync_results"
     id = Column(Integer, primary_key=True)
     sync_job_id = Column(Integer, ForeignKey("tally_sync_jobs.id"), nullable=False)
@@ -413,7 +467,7 @@ class TallySyncResult(Base):
 
     sync_job = relationship("TallySyncJob")
 
-class ServiceJob(Base):
+class ServiceJob(TenantMixin, Base):
     __tablename__ = "service_jobs"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -456,7 +510,7 @@ class ServiceJob(Base):
     attachments = relationship("ServiceJobAttachment", back_populates="service_job", cascade="all, delete-orphan", order_by="ServiceJobAttachment.created_at.desc()")
 
 
-class ServiceJobAttachment(Base):
+class ServiceJobAttachment(TenantMixin, Base):
     __tablename__ = "service_job_attachments"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -468,7 +522,7 @@ class ServiceJobAttachment(Base):
 
     service_job = relationship("ServiceJob", back_populates="attachments")
 
-class OutboundPaper(Base):
+class OutboundPaper(TenantMixin, Base):
     __tablename__ = "outbound_papers"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -488,7 +542,7 @@ class OutboundPaper(Base):
     related_service_job = relationship("ServiceJob")
 
 
-class DamageLog(Base):
+class DamageLog(TenantMixin, Base):
     """NEW: Per-item damage logging with photo upload support."""
     __tablename__ = "damage_logs"
     id = Column(Integer, primary_key=True)
@@ -507,7 +561,7 @@ class DamageLog(Base):
     auto_service_job = relationship("ServiceJob", foreign_keys=[auto_service_job_id])
 
 
-class PartialReturn(Base):
+class PartialReturn(TenantMixin, Base):
     __tablename__ = "partial_returns"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -520,7 +574,7 @@ class PartialReturn(Base):
     booking = relationship("EventBooking")
     inventory_item = relationship("InventoryItem")
 
-class ChainOfCustody(Base):
+class ChainOfCustody(TenantMixin, Base):
     __tablename__ = "chain_of_custody"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -537,7 +591,7 @@ class ChainOfCustody(Base):
     inventory_item = relationship("InventoryItem")
     crew_member = relationship("CrewMember")
 
-class GatePass(Base):
+class GatePass(TenantMixin, Base):
     __tablename__ = "gate_passes"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -550,7 +604,7 @@ class GatePass(Base):
 
     booking = relationship("EventBooking")
 
-class ReturnQC(Base):
+class ReturnQC(TenantMixin, Base):
     __tablename__ = "return_qc"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -563,7 +617,7 @@ class ReturnQC(Base):
 
     booking = relationship("EventBooking")
 
-class ProcurementOrder(Base):
+class ProcurementOrder(TenantMixin, Base):
     __tablename__ = "procurement_orders"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -586,14 +640,14 @@ class ProcurementOrder(Base):
     vendor = relationship("Vendor")
 
 
-class KitAccessoryRule(Base):
+class KitAccessoryRule(TenantMixin, Base):
     __tablename__ = "kit_accessory_rules"
     id = Column(Integer, primary_key=True)
     parent_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
     accessory_item_id = Column(Integer, ForeignKey("inventory_items.id"), nullable=False)
     is_mandatory = Column(Boolean, default=True)
 
-class StatutoryDocument(Base):
+class StatutoryDocument(TenantMixin, Base):
     __tablename__ = "statutory_documents"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -605,7 +659,7 @@ class StatutoryDocument(Base):
     notes = Column(Text, nullable=True)
     is_demo = Column(Boolean, default=False)
 
-class AuditLog(Base):
+class AuditLog(TenantMixin, Base):
     __tablename__ = "audit_logs"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -616,7 +670,7 @@ class AuditLog(Base):
     details_json = Column(Text, nullable=True)
 
 
-class Quotation(Base):
+class Quotation(TenantMixin, Base):
     __tablename__ = "quotations"
     id = Column(Integer, primary_key=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -646,7 +700,7 @@ class Quotation(Base):
     items = relationship("QuotationItem", back_populates="quotation", cascade="all, delete-orphan", order_by="QuotationItem.id")
 
 
-class QuotationItem(Base):
+class QuotationItem(TenantMixin, Base):
     __tablename__ = "quotation_items"
     id = Column(Integer, primary_key=True)
     quotation_id = Column(Integer, ForeignKey("quotations.id"), nullable=False)

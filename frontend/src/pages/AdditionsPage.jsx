@@ -8,6 +8,8 @@ import LocationAutocomplete from "../components/LocationAutocomplete";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api, systemApi } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 import { validateStatutory } from "../utils/statutory";
 import PhoneInput, { CountryCodeSelect } from "../components/PhoneInput";
 
@@ -20,6 +22,75 @@ const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inho
 const BLOOD_GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
 const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID", "Others"];
 const blankIdProof = () => ({ key: `${Date.now()}-${Math.random().toString(16).slice(2)}`, type: "Aadhaar", number: "", description: "", front: null, back: null });
+const PROFILE_FIELDS_START = "--- Profile Fields ---";
+const PROFILE_FIELDS_END = "--- End Profile Fields ---";
+
+function profileFieldLabel(field) {
+  return typeof field === "string" ? field : field.label;
+}
+
+function profileFieldKey(field) {
+  return (typeof field === "string" ? field : (field.key || field.label)).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function readProfileFields(notes = "") {
+  const text = String(notes || "");
+  const start = text.indexOf(PROFILE_FIELDS_START);
+  const end = text.indexOf(PROFILE_FIELDS_END);
+  if (start < 0 || end < start) return {};
+  return text.slice(start + PROFILE_FIELDS_START.length, end).split("\n").reduce((acc, line) => {
+    const idx = line.indexOf(":");
+    if (idx > -1) acc[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+    return acc;
+  }, {});
+}
+
+function writeProfileField(notes = "", field, value, fields = []) {
+  const label = profileFieldLabel(field);
+  const text = String(notes || "");
+  const start = text.indexOf(PROFILE_FIELDS_START);
+  const end = text.indexOf(PROFILE_FIELDS_END);
+  const before = start >= 0 ? text.slice(0, start).trimEnd() : text.trimEnd();
+  const after = start >= 0 && end >= start ? text.slice(end + PROFILE_FIELDS_END.length).trimStart() : "";
+  const current = readProfileFields(text);
+  current[label] = value;
+  const labels = fields.map(profileFieldLabel);
+  const lines = labels
+    .map((fieldLabel) => [fieldLabel, current[fieldLabel] || ""])
+    .filter(([, fieldValue]) => String(fieldValue || "").trim())
+    .map(([fieldLabel, fieldValue]) => `${fieldLabel}: ${fieldValue}`);
+  const block = lines.length ? `${PROFILE_FIELDS_START}\n${lines.join("\n")}\n${PROFILE_FIELDS_END}` : "";
+  return [before, block, after].filter(Boolean).join("\n\n");
+}
+
+function ProfileNotesFields({ title, fields = [], notes, onNotesChange }) {
+  if (!fields.length) return null;
+  const values = readProfileFields(notes);
+  return (
+    <div className="full profileFieldPanel">
+      <strong>{title}</strong>
+      <p className="helperText">Profile-specific fields for this company type. Saved inside Notes and visible in registry/details.</p>
+      <div className="profileFieldGrid">
+        {fields.map((field) => {
+          const label = profileFieldLabel(field);
+          const key = profileFieldKey(field);
+          const value = values[label] || "";
+          const common = {
+            value,
+            onChange: (e) => onNotesChange(writeProfileField(notes, field, e.target.value, fields)),
+            placeholder: label,
+          };
+          return (
+            <div className="fieldPair" key={key}>
+              <label className="fieldLabel">{label}</label>
+              {field.type === "textarea" ? <textarea {...common} /> : <input {...common} />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function StatutoryField({ type, value, onChange, placeholder }) {
   const [verifying, setVerifying] = useState(false);
@@ -381,6 +452,13 @@ export default function AdditionsPage() {
 
   const [addTab, setAddTab] = useState("equipment_master"); // sub-menu tab — equipment_master first
   const [masterTab, setMasterTab] = useState("equipmentMaster");
+  const bookingProfile = getBookingProfile(getBookingType());
+  const supportsMaintenance = Boolean(bookingProfile.features.maintenance);
+  const supportsWarranty = Boolean(bookingProfile.features.warranty);
+  const supportsAccessories = Boolean(bookingProfile.features.accessories);
+  const supportsWarehouse = bookingProfile.features.warehouse !== false;
+  const supportsConsumableStock = bookingProfile.features.consumableStock !== false;
+  const supportsHardwareDetails = ["equipment", "decor"].includes(bookingProfile.value);
   const [selectedId, setSelectedId] = useState(null);
   const [masterSearch, setMasterSearch] = useState("");
   const filteredInventoryQuick = useSearch(inventory, inventoryQuickSearch);
@@ -507,11 +585,19 @@ export default function AdditionsPage() {
 
   async function saveEquipmentMaster(e){ e.preventDefault(); try {
     if (isEditing) {
-      await api.updateEquipmentMaster(editId, equipmentMasterForm);
+      await api.updateEquipmentMaster(editId, {
+        ...equipmentMasterForm,
+        mandatory_accessory_codes: supportsAccessories ? equipmentMasterForm.mandatory_accessory_codes : "",
+        optional_accessory_codes: supportsAccessories ? equipmentMasterForm.optional_accessory_codes : "",
+      });
       if (equipMasterImageFiles.length) { await uploadImages("equipment_master", editId, equipMasterImageFiles); setEquipMasterImageFiles([]); }
       setMessage("Equipment master updated."); clearEdit();
     } else {
-      const created = await api.createEquipmentMaster(equipmentMasterForm);
+      const created = await api.createEquipmentMaster({
+        ...equipmentMasterForm,
+        mandatory_accessory_codes: supportsAccessories ? equipmentMasterForm.mandatory_accessory_codes : "",
+        optional_accessory_codes: supportsAccessories ? equipmentMasterForm.optional_accessory_codes : "",
+      });
       if (equipMasterImageFiles.length) { await uploadImages("equipment_master", created.id, equipMasterImageFiles); setEquipMasterImageFiles([]); }
       setEquipmentMasterForm(blankEquipmentMaster); setMessage("Equipment master added.");
     }
@@ -520,16 +606,16 @@ export default function AdditionsPage() {
     e.preventDefault();
     const payload = {
       ...inventoryForm,
-      parent_item_id: inventoryForm.parent_item_id ? Number(inventoryForm.parent_item_id) : null,
-      warehouse_id: inventoryForm.warehouse_id ? Number(inventoryForm.warehouse_id) : null,
+      parent_item_id: supportsAccessories && inventoryForm.parent_item_id ? Number(inventoryForm.parent_item_id) : null,
+      warehouse_id: supportsWarehouse && inventoryForm.warehouse_id ? Number(inventoryForm.warehouse_id) : null,
       vendor_id: inventoryForm.vendor_id ? Number(inventoryForm.vendor_id) : null,
-      equipment_master_id: inventoryForm.equipment_master_id ? Number(inventoryForm.equipment_master_id) : null,
-      warranty_expiry: inventoryForm.warranty_expiry || null,
-      service_due: inventoryForm.service_due || null,
+      equipment_master_id: supportsAccessories && inventoryForm.equipment_master_id ? Number(inventoryForm.equipment_master_id) : null,
+      warranty_expiry: supportsWarranty ? (inventoryForm.warranty_expiry || null) : null,
+      service_due: supportsMaintenance ? (inventoryForm.service_due || null) : null,
       vendor_available_from: inventoryForm.vendor_available_from || null,
       vendor_available_until: inventoryForm.vendor_available_until || null,
-      qty_in_stock: inventoryForm.qty_in_stock ? Number(inventoryForm.qty_in_stock) : null,
-      service_status: (inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable")
+      qty_in_stock: supportsConsumableStock && inventoryForm.qty_in_stock ? Number(inventoryForm.qty_in_stock) : null,
+      service_status: (supportsMaintenance && inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable")
         ? inventoryForm.service_status : "not_in_service",
     };
     try {
@@ -684,18 +770,18 @@ export default function AdditionsPage() {
   }, [masterData, selectedId]);
 
   const addTabs = [
-    { key: "equipment_master", label: "Equipment Master" },
-    { key: "inventory", label: "Inventory / Asset" },
+    { key: "equipment_master", label: bookingProfile.value === "equipment" ? "Equipment Master" : `${bookingProfile.resourceLabel} Master` },
+    { key: "inventory", label: bookingProfile.value === "equipment" ? "Inventory / Asset" : bookingProfile.registryLabel.replace(" Registry", "") },
     { key: "crew", label: "Crew / Manpower" },
     { key: "client", label: "Client" },
-    { key: "vendor", label: "Vendor" },
-    { key: "warehouse", label: "Warehouse" },
+    { key: "vendor", label: bookingProfile.vendorsLabel.replace("Vendors & ", "").replace(" & Procurement", "") },
+    ...(supportsWarehouse ? [{ key: "warehouse", label: bookingProfile.value === "venue" ? "Venue Cluster" : "Warehouse" }] : []),
     { key: "bulk", label: "Bulk Upload" },
   ];
 
   return (
     <div className="page additionsPage">
-      <h1 className="pageTitle">Additions</h1>
+      <h1 className="pageTitle">{bookingProfile.addLabel}</h1>
       {message ? <div className="messageBar">{message} <button className="dismissBtn" onClick={()=>setMessage("")}>Dismiss</button></div> : <div className="helperText">Use the sub-menu below to add individual entities, or use Bulk Upload for batch imports.</div>}
 
       {/* ──── SUB-MENU TABS ──── */}
@@ -706,10 +792,10 @@ export default function AdditionsPage() {
       </div>
 
       {/* ──── EQUIPMENT MASTER ──── */}
-      {addTab === "equipment_master" && <Card title="Equipment Master">
+      {addTab === "equipment_master" && <Card title={bookingProfile.value === "equipment" ? "Equipment Master" : `${bookingProfile.resourceLabel} Master`}>
           <form className="formGrid additionsDetailGrid" onSubmit={saveEquipmentMaster}>
             <div className="fieldPair">
-              <label className="fieldLabel">Equipment Code <InfoHint text="Master code for the equipment type. Can be auto-generated or follow your own nomenclature." /></label>
+              <label className="fieldLabel">{bookingProfile.resourceLabel} Code <InfoHint text="Master code for this bookable type. Can be auto-generated or follow your own nomenclature." /></label>
               <input placeholder="Equipment Code (optional auto)" value={equipmentMasterForm.equipment_code} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, equipment_code:e.target.value})} />
             </div>
             <div className="fieldPair">
@@ -723,57 +809,58 @@ export default function AdditionsPage() {
             <div className="fieldPair">
               <label className="fieldLabel">Item Type</label>
               <select value={equipmentMasterForm.item_type} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, item_type:e.target.value})}>
-                <option value="device">Device — standalone bookable unit (camera, lens, monitor)</option>
-                <option value="accessory">Accessory — travels with device (battery, charger, card)</option>
-                <option value="kit">Kit — named group that auto-expands in booking</option>
-                <option value="bundle">Bundle — pre-packaged multi-device set</option>
-                <option value="third_party_equipment">Third-Party — rented from vendor, not owned</option>
-                <option value="consumable">Consumable — stock item (tape, gel, gaffer)</option>
+                {bookingProfile.itemTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </div>
-            {["kit","bundle"].includes(equipmentMasterForm.item_type) && (
+            {supportsAccessories && ["kit","bundle"].includes(equipmentMasterForm.item_type) && (
               <p className="helperText full" style={{marginTop:0}}>For kits/bundles: add mandatory/optional accessory codes below so the system auto-validates or pre-selects accessories whenever this kit is booked.</p>
             )}
-            <div className="fieldPair">
+            {supportsHardwareDetails && <div className="fieldPair">
               <label className="fieldLabel">Brand</label>
               <input placeholder="Brand" value={equipmentMasterForm.brand} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, brand:e.target.value})} />
-            </div>
-            <div className="fieldPair">
+            </div>}
+            {supportsHardwareDetails && <div className="fieldPair">
               <label className="fieldLabel">Model No</label>
               <input placeholder="Model No" value={equipmentMasterForm.model_no} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, model_no:e.target.value})} />
-            </div>
-            <div className="fieldPair full">
+            </div>}
+            {supportsAccessories && <div className="fieldPair full">
               <label className="fieldLabel">Mandatory Accessory Codes <InfoHint text="Comma-separated accessory equipment master codes required whenever this equipment is booked. Example: EQM-01010, EQM-01011." /></label>
               <input placeholder="Mandatory Accessory Codes (comma separated)" value={equipmentMasterForm.mandatory_accessory_codes} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, mandatory_accessory_codes:e.target.value})} />
-            </div>
-            <div className="fieldPair full">
+            </div>}
+            {supportsAccessories && <div className="fieldPair full">
               <label className="fieldLabel">Optional Accessory Codes <InfoHint text="Comma-separated accessory equipment master codes suggested but not compulsory." /></label>
               <input placeholder="Optional Accessory Codes (comma separated)" value={equipmentMasterForm.optional_accessory_codes} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, optional_accessory_codes:e.target.value})} />
-            </div>
+            </div>}
+            <ProfileNotesFields
+              title={`${bookingProfile.label} Master Fields`}
+              fields={bookingProfile.extraFields?.master || []}
+              notes={equipmentMasterForm.notes}
+              onNotesChange={(notes) => setEquipmentMasterForm({ ...equipmentMasterForm, notes })}
+            />
             <div className="fieldPair full">
               <label className="fieldLabel">Notes</label>
               <textarea placeholder="Notes" value={equipmentMasterForm.notes} onChange={e=>setEquipmentMasterForm({...equipmentMasterForm, notes:e.target.value})}></textarea>
             </div>
             <div className="fieldPair full">
-              <label className="fieldLabel">Equipment Photos <span className="helperText" style={{fontWeight:400}}>(optional, multiple)</span></label>
+              <label className="fieldLabel">{bookingProfile.resourceLabel} Photos <span className="helperText" style={{fontWeight:400}}>(optional, multiple)</span></label>
               <input type="file" accept="image/*" multiple onChange={e => setEquipMasterImageFiles(Array.from(e.target.files))} />
               <span className="helperText">{equipMasterImageFiles.length ? `${equipMasterImageFiles.length} image(s) selected` : "No images selected."}</span>
             </div>
-            <button className="full primaryBtn" type="submit">{isEditing ? "Update Equipment Master" : "Save Equipment Master"}</button>
+            <button className="full primaryBtn" type="submit">{isEditing ? `Update ${bookingProfile.resourceLabel} Master` : `Save ${bookingProfile.resourceLabel} Master`}</button>
           </form>
         </Card>}
 
       {/* ──── INVENTORY / ASSET ──── */}
-      {addTab === "inventory" && <Card title="Inventory / Asset">
+      {addTab === "inventory" && <Card title={bookingProfile.value === "equipment" ? "Inventory / Asset" : bookingProfile.registryLabel.replace(" Registry", "")}>
           <form className="formGrid additionsDetailGrid" onSubmit={saveInventory}>
 
             {/* ── Identity ── */}
             <div className="fieldPair">
-              <label className="fieldLabel">Asset Code <InfoHint text="Your internal tag (e.g. KPS/CAM/FX9-01). Leave blank to auto-generate." /></label>
+              <label className="fieldLabel">{bookingProfile.resourceLabel} Code <InfoHint text="Your internal tag/code. Leave blank to auto-generate." /></label>
               <input placeholder="Asset Code (optional auto)" value={inventoryForm.asset_code} onChange={e=>setInventoryForm({...inventoryForm, asset_code:e.target.value})} />
             </div>
             <div className="fieldPair">
-              <label className="fieldLabel">Serial Number <InfoHint text="Manufacturer serial number printed on the device. Leave blank for accessories or consumables without a serial." /></label>
+              <label className="fieldLabel">Serial Number <InfoHint text="Identifier for this resource. For non-equipment types this can be contract, license, batch, or document number." /></label>
               <input placeholder="Serial Number" value={inventoryForm.serial_number} onChange={e=>setInventoryForm({...inventoryForm, serial_number:e.target.value})} />
             </div>
             <div className="fieldPair">
@@ -789,17 +876,12 @@ export default function AdditionsPage() {
             <div className="fieldPair">
               <label className="fieldLabel">Item Type <InfoHint text="device = standalone bookable unit. accessory = always accompanies a device (battery, card, charger). kit = named collection of devices/accessories (e.g. ENG Camera Kit). bundle = pre-packaged multi-device set. third_party_equipment = rented from vendor — NOT a company asset. consumable = stock-depleted item (tape, gaffer tape, ink)." /></label>
               <select value={inventoryForm.item_type} onChange={e=>setInventoryForm({...inventoryForm, item_type:e.target.value, qty_in_stock: e.target.value === "consumable" ? (inventoryForm.qty_in_stock || "1") : inventoryForm.qty_in_stock, owner_type: e.target.value === "third_party_equipment" ? "third_party" : inventoryForm.owner_type})}>
-                <option value="device">Device — standalone bookable unit</option>
-                <option value="accessory">Accessory — travels with a device</option>
-                <option value="kit">Kit — named collection (auto-expands in booking)</option>
-                <option value="bundle">Bundle — pre-packaged multi-device set</option>
-                <option value="third_party_equipment">Third-Party Equipment — rented from vendor</option>
-                <option value="consumable">Consumable — stock-depleted item</option>
+                {bookingProfile.itemTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </div>
 
             {/* Consumable qty */}
-            {inventoryForm.item_type === "consumable" && <>
+            {supportsConsumableStock && inventoryForm.item_type === "consumable" && <>
               <div className="fieldPair">
                 <label className="fieldLabel">Quantity in Stock <InfoHint text="Current stock count. Reduces on each booking." /></label>
                 <input type="number" min="0" placeholder="e.g. 10" value={inventoryForm.qty_in_stock} onChange={e=>setInventoryForm({...inventoryForm, qty_in_stock:e.target.value})} />
@@ -807,13 +889,13 @@ export default function AdditionsPage() {
             </>}
 
             {/* Kit/Bundle parent */}
-            {["kit","bundle"].includes(inventoryForm.item_type) && <>
+            {supportsAccessories && ["kit","bundle"].includes(inventoryForm.item_type) && <>
               <label className="fieldLabel full">Child Items <InfoHint text="Add individual items and set this kit as their Parent Item. All children auto-added when kit is booked." /></label>
               <p className="helperText full" style={{marginTop:0}}>Save this kit first, then open each child item in Master Registry and set its Parent Item to this kit.</p>
             </>}
 
             {/* Accessory / device: link to parent kit */}
-            {["device","accessory"].includes(inventoryForm.item_type) && <>
+            {supportsAccessories && ["device","accessory"].includes(inventoryForm.item_type) && <>
               <div className="fieldPair">
                 <label className="fieldLabel">Part of Kit / Bundle <InfoHint text="Optional. Select the parent kit this item belongs to. It will auto-include in booking when the kit is selected." /></label>
                 <select value={inventoryForm.parent_item_id} onChange={e=>setInventoryForm({...inventoryForm, parent_item_id:e.target.value})}>
@@ -824,13 +906,13 @@ export default function AdditionsPage() {
             </>}
 
             {/* ── Equipment Master Link ── */}
-            <div className="fieldPair">
+            {supportsAccessories && <div className="fieldPair">
               <label className="fieldLabel">Link Equipment Master <InfoHint text="Attach to a master spec to inherit mandatory/optional accessory rules. Enables auto-accessory enforcement in booking." /></label>
               <select value={inventoryForm.equipment_master_id} onChange={e=>setInventoryForm({...inventoryForm, equipment_master_id:e.target.value})}>
                 <option value="">No master link</option>
                 {equipmentMaster.map(m => <option key={m.id} value={m.id}>{m.equipment_code} — {m.name}</option>)}
               </select>
-            </div>
+            </div>}
 
             {/* ── Ownership ── */}
             <div className="fieldPair">
@@ -861,17 +943,17 @@ export default function AdditionsPage() {
             </>}
 
             {/* ── Storage ── */}
-            <div className="fieldPair">
-              <label className="fieldLabel">Warehouse <InfoHint text="Home warehouse where this item is stored when not on shoot." /></label>
+            {supportsWarehouse && <div className="fieldPair">
+              <label className="fieldLabel">Warehouse <InfoHint text="Home warehouse where this item is stored when not on event." /></label>
               <select value={inventoryForm.warehouse_id} onChange={e=>setInventoryForm({...inventoryForm, warehouse_id:e.target.value})}>
                 <option value="">Select Warehouse</option>
                 {warehouses.map(w => <option key={w.id} value={w.id}>{w.name} — {w.city}</option>)}
               </select>
-            </div>
-            <div className="fieldPair">
+            </div>}
+            {supportsWarehouse && <div className="fieldPair">
               <label className="fieldLabel">Storage Location <InfoHint text="Specific city, shelf, or bay within the warehouse." /></label>
               <LocationAutocomplete value={inventoryForm.location_text} onChange={v=>setInventoryForm({...inventoryForm, location_text:v})} extraSuggestions={[...new Set(inventory.map(i=>i.location_text).filter(Boolean))]} placeholder="Location (Indian city/locality)" />
-            </div>
+            </div>}
 
             {/* ── Operational Status ── */}
             <div className="fieldPair">
@@ -884,7 +966,7 @@ export default function AdditionsPage() {
             </div>
 
             {/* ── Condition & Service ── (only for inhouse, not consumables) */}
-            {inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable" && <>
+            {supportsMaintenance && inventoryForm.owner_type === "inhouse" && inventoryForm.item_type !== "consumable" && <>
               <div className="fieldPair">
                 <label className="fieldLabel">Condition <InfoHint text="Current working condition. The service section sets 'In Service' when a job opens and 'Completely Damaged' when permanently retired. Use 'Needs Service' to flag for the service team." /></label>
                 <select value={inventoryForm.service_status} onChange={e=>setInventoryForm({...inventoryForm, service_status:e.target.value})}>
@@ -894,10 +976,10 @@ export default function AdditionsPage() {
                   <option value="completely_damaged">Completely Damaged / Decommissioned</option>
                 </select>
               </div>
-              <div className="fieldPair">
+              {supportsWarranty && <div className="fieldPair">
                 <label className="fieldLabel">Warranty Expiry <InfoHint text="Manufacturer warranty end date. System will warn when approaching expiry." /></label>
                 <input type="date" value={inventoryForm.warranty_expiry} onChange={e=>setInventoryForm({...inventoryForm, warranty_expiry:e.target.value})} />
-              </div>
+              </div>}
               <div className="fieldPair">
                 <label className="fieldLabel">Next Service Due <InfoHint text="Scheduled date for next preventive maintenance or calibration." /></label>
                 <input type="date" value={inventoryForm.service_due} onChange={e=>setInventoryForm({...inventoryForm, service_due:e.target.value})} />
@@ -908,17 +990,23 @@ export default function AdditionsPage() {
               </div>
             </>}
 
+            <ProfileNotesFields
+              title={`${bookingProfile.label} Fields`}
+              fields={bookingProfile.extraFields?.inventory || []}
+              notes={inventoryForm.notes}
+              onNotesChange={(notes) => setInventoryForm({ ...inventoryForm, notes })}
+            />
             <div className="fieldPair full">
               <label className="fieldLabel">Notes</label>
               <textarea placeholder="Notes (optional)" value={inventoryForm.notes} onChange={e=>setInventoryForm({...inventoryForm, notes:e.target.value})}></textarea>
             </div>
             <div className="fieldPair full">
-              <label className="fieldLabel">Asset Photos <span className="helperText" style={{fontWeight:400}}>(optional, multiple)</span></label>
+              <label className="fieldLabel">{bookingProfile.resourceLabel} Photos <span className="helperText" style={{fontWeight:400}}>(optional, multiple)</span></label>
               <input type="file" accept="image/*" multiple onChange={e => setInventoryImageFiles(Array.from(e.target.files))} />
               <span className="helperText">{inventoryImageFiles.length ? `${inventoryImageFiles.length} image(s) selected` : "No images selected."}</span>
             </div>
             {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType="inventory" files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
-            <button className="full primaryBtn" type="submit">{isEditing ? "Update Inventory Item" : "Save Inventory Item"}</button>
+            <button className="full primaryBtn" type="submit">{isEditing ? `Update ${bookingProfile.resourceLabel}` : `Save ${bookingProfile.resourceLabel}`}</button>
           </form>
           <div className="helperText" style={{marginTop:12}}>Quick View — see <strong>Master Registry</strong> for full details.</div>
           <div className="listToolbar" style={{marginTop:8}}>
@@ -971,6 +1059,12 @@ export default function AdditionsPage() {
             <input placeholder="Email" value={vendorForm.email} onChange={e=>setVendorForm({...vendorForm, email:e.target.value})} />
             <StatutoryField type="GST" value={vendorForm.gst_number} onChange={v=>setVendorForm({...vendorForm, gst_number:v})} placeholder="GST Number (15 chars)" />
             <StatutoryField type="PAN" value={vendorForm.pan_number || ""} onChange={v=>setVendorForm({...vendorForm, pan_number:v})} placeholder="PAN Number (AAAAA9999A)" />
+            <ProfileNotesFields
+              title={`${bookingProfile.vendorsLabel} Fields`}
+              fields={bookingProfile.extraFields?.vendor || []}
+              notes={vendorForm.notes}
+              onNotesChange={(notes) => setVendorForm({ ...vendorForm, notes })}
+            />
             <textarea className="full" placeholder="Notes" value={vendorForm.notes} onChange={e=>setVendorForm({...vendorForm, notes:e.target.value})}></textarea>
             <DocumentUploadFields entityType="vendor" files={entityDocFiles.vendor} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("vendor", key, file)} />
             <button className="primaryBtn full" type="submit">{isEditing ? "Update Vendor" : "Save Vendor"}</button>
@@ -998,6 +1092,12 @@ export default function AdditionsPage() {
               <input placeholder="Emergency Contact Name" value={crewForm.emergency_contact || ""} onChange={e=>setCrewForm({...crewForm, emergency_contact:e.target.value})} />
               <PhoneInput value={crewForm.emergency_contact_phone || ""} onChange={v=>setCrewForm({...crewForm, emergency_contact_phone:v})} placeholder="Emergency Contact Phone" />
             </div>
+            <ProfileNotesFields
+              title={`${bookingProfile.label} Crew / Team Fields`}
+              fields={bookingProfile.extraFields?.crew || []}
+              notes={crewForm.address}
+              onNotesChange={(address) => setCrewForm({ ...crewForm, address })}
+            />
             <div className="full documentUploadPanel">
               <strong>ID Proofs</strong>
               <p className="helperText">Add one or more ID proofs. At least one uploaded page is required.</p>

@@ -17,7 +17,7 @@ DAY_LABELS = {
     "travel_day": "Travel Day",
     "setup_date": "Setup Day",
     "technical_date": "Technical Day",
-    "shoot_date": "Shoot Day",
+    "shoot_date": "Event Day",
     "off_day": "Off Day",
     "end_day": "Packup / End Day",
     "return_day": "Return Day",

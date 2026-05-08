@@ -1,4 +1,4 @@
-KPS Studios ERP Demo Document
+E365 Event ERP ERP Demo Document
 
 This placeholder file is used for seeded statutory-document demo entries.
 It allows the Documents section to show downloadable records during client demonstrations.

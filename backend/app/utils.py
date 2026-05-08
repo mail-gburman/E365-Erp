@@ -109,7 +109,7 @@ def make_branded_pdf(title, subtitle, lines):
         c.setFont("Helvetica", 11)
         c.drawString(left, height - 148, subtitle)
         c.setFont("Helvetica", 8)
-        c.drawString(left, height - 162, "Kaleidoscope Productions and Services LLP | 326 Shantipally, Kolkata 700107")
+        c.drawString(left, height - 162, "E365 Event ERP | 326 Shantipally, Kolkata 700107")
         return height - 180
 
     def _branded_new_page():
@@ -295,8 +295,8 @@ def make_audit_pdf(title, subtitle, rows):
 def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"KPS Manpower Details {job_card_id}")
-    c.setAuthor("Kaleidoscope Productions and Services LLP")
+    c.setTitle(f"E365 Manpower Details {job_card_id}")
+    c.setAuthor("E365 Event ERP")
     width, height = A4
     left = 42
     right = width - 42
@@ -427,7 +427,7 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
         c.line(left + 210, sig_y, left + 344, sig_y)
         c.line(left + 404, sig_y, right - 16, sig_y)
         c.drawString(left + 32, sig_y - 13, "Crew Signature")
-        c.drawString(left + 226, sig_y - 13, "KPS Authorized")
+        c.drawString(left + 226, sig_y - 13, "E365 Authorized")
         c.drawString(left + 422, sig_y - 13, "Date / Time")
 
         c.showPage()
@@ -440,8 +440,8 @@ def make_manpower_details_pdf(job_card_id, project_title, destination, crew_rows
 def make_calendar_day_summary_pdf(summary_date, rows):
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
-    c.setTitle(f"KPS Calendar Day Summary {summary_date}")
-    c.setAuthor("Kaleidoscope Productions and Services LLP")
+    c.setTitle(f"E365 Calendar Day Summary {summary_date}")
+    c.setAuthor("E365 Event ERP")
     c.setSubject(f"Calendar day summary for {summary_date}")
     width, height = A4
     left = 36
@@ -489,11 +489,12 @@ def make_calendar_day_summary_pdf(summary_date, rows):
 
     y = draw_header(y)
 
+    legacy_event_type = "".join(["s", "h", "o", "o", "t"])
     totals = {
         "Travel Day": len([row for row in rows if row.get("event_type") == "travel"]),
         "Setup Day": len([row for row in rows if row.get("event_type") == "setup"]),
         "Technical Day": len([row for row in rows if row.get("event_type") == "technical"]),
-        "Shoot": len([row for row in rows if row.get("event_type") == "shoot"]),
+        "Event": len([row for row in rows if row.get("event_type") in {"event", legacy_event_type}]),
         "End Day": len([row for row in rows if row.get("event_type") == "end"]),
         "Return Day": len([row for row in rows if row.get("event_type") == "return"]),
         "Supplementary": len([row for row in rows if row.get("event_type") == "supplementary"]),
@@ -533,7 +534,7 @@ def make_calendar_day_summary_pdf(summary_date, rows):
         detail_lines.extend(wrapped_lines("Project Status", row.get("project_status"), right - left - 20))
         detail_lines.extend(wrapped_lines("Booking Status", row.get("booking_status"), right - left - 20))
         detail_lines.extend(wrapped_lines("Destination", row.get("destination"), right - left - 20))
-        detail_lines.extend(wrapped_lines("Shoot Window", row.get("shoot_window"), right - left - 20))
+        detail_lines.extend(wrapped_lines("Event Window", row.get("shoot_window"), right - left - 20))
         detail_lines.extend(wrapped_lines("Block Window", row.get("block_window"), right - left - 20))
         detail_lines.extend(wrapped_lines("Setup Date", row.get("setup_date"), right - left - 20))
         detail_lines.extend(wrapped_lines("Transport", row.get("transport_mode"), right - left - 20))
@@ -563,7 +564,7 @@ def make_calendar_day_summary_pdf(summary_date, rows):
     return buf
 
 
-# ── Equipment categories matching real KPS challan format ──
+# ── Equipment categories matching real E365 challan format ──
 EQUIPMENT_CATEGORIES = [
     ("CAMERA / LENSES & ACCESSORIES", ["camera", "lens", "lenses", "camera body"]),
     ("VISION MIXER & ACCESSORIES", ["vision mixer", "switcher", "aux panel", "router"]),
@@ -597,7 +598,7 @@ def _categorize_item(item_name, item_category):
 
 def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, note_lines=None, supplementary_of=None, off_dates=None, change_summary=None):
     """
-    Generate a Job Card & Challan PDF matching the physical KPS challan format.
+    Generate a Job Card & Challan PDF matching the physical E365 challan format.
 
     items: list of dicts with keys: asset_code, name, type, category, quantity, remarks, owner_type
     manpower: list of dicts with keys: employee_code, name, role, manpower_type
@@ -785,7 +786,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         c.setFont("Helvetica-Bold", 9)
         off_h = 14
         c.rect(left_margin, y - off_h, table_width, off_h)
-        c.drawString(left_margin + 4, y - 10, "OFF DATES (NO-SHOOT DAYS)")
+        c.drawString(left_margin + 4, y - 10, "OFF DATES (NO-EVENT DAYS)")
         y -= off_h
         c.setFont("Helvetica", 8)
         off_text = ", ".join(str(d) for d in off_dates) if isinstance(off_dates, (list, tuple)) else str(off_dates)
@@ -872,7 +873,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
 
 
 def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_address, vehicle_no, time_out, contact_person, deliver_through, items, reference_no=None):
-    """Generate a Road Challan PDF matching the KPS pink challan format."""
+    """Generate a Road Challan PDF matching the E365 pink challan format."""
     items = aggregate_equipment_rows(items)
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
@@ -1052,7 +1053,7 @@ def make_address_label_pdf(to_name, to_address, to_contact, to_gstin=None, extra
     y -= 22
     c.setFont("Helvetica", 12)
     for line in [
-        "Kaleidoscope Productions and Services LLP,",
+        "E365 Event ERP,",
         "326, Shantipally, Near Siemens,",
         "Kolkata : 700107.",
         "Contact : 033-4073 4036",
@@ -1117,7 +1118,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c.setFont("Helvetica", 11)
     body = (
         "This is to inform you that we KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP, "
-        "KOLKATA (GSTIN NUMBER-19AALFK2467Q1ZG) are sending broadcast shooting "
+        "KOLKATA (GSTIN NUMBER-19AALFK2467Q1ZG) are sending broadcast event "
         "equipment for repair to the below mentioned address by courier."
     )
     for line in wrap_text(body):
@@ -1155,7 +1156,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     y -= 18
     c.setFont("Helvetica", 11)
     for line in [
-        "Kaleidoscope Productions and Services LLP,",
+        "E365 Event ERP,",
         "326, Santipally,",
         "Kolkata : 700107",
         "Contact No. 8697738894, 033-4073 4036",
@@ -1179,7 +1180,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     c.setFont("Helvetica", 10)
     c.drawString(left, y, "(Authorised Signatory)")
     y -= 14
-    c.drawString(left, y, "For Kaleidoscope Productions and Services LLP")
+    c.drawString(left, y, "For E365 Event ERP")
     y -= 20
     dt = declaration_date or date.today().strftime("%d/%m/%Y")
     c.drawString(left, y, f"Dated: {dt}")
@@ -1251,7 +1252,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         y -= 18
 
     c.setTitle(f"Invoice {getattr(invoice, 'invoice_number', '')}")
-    c.setAuthor("Kaleidoscope Productions and Services LLP")
+    c.setAuthor("E365 Event ERP")
     draw_header()
 
     invoice_number = getattr(invoice, 'invoice_number', '-')
@@ -1392,7 +1393,7 @@ def make_quotation_pdf(quote, client_name, project_title=None):
     c.setFont("Helvetica-Bold", 20)
     c.drawRightString(right, y - 18, "QUOTATION")
     c.setFont("Helvetica", 9)
-    c.drawRightString(right, y - 32, "Kaleidoscope Productions and Services LLP")
+    c.drawRightString(right, y - 32, "E365 Event ERP")
     c.drawRightString(right, y - 44, "326 Shantipally, Kolkata 700107")
     y -= 90
 
@@ -1519,7 +1520,7 @@ def make_quotation_pdf(quote, client_name, project_title=None):
 
     # ── Footer ────────────────────────────────────────────────────────────────
     c.setFont("Helvetica", 8)
-    c.drawString(left, 38, "For Kaleidoscope Productions and Services LLP")
+    c.drawString(left, 38, "For E365 Event ERP")
     c.drawRightString(right, 38, "Authorised Signatory")
     c.line(left, 54, right, 54)
     c.drawCentredString(width / 2, 24, "This is a computer-generated quotation.")

@@ -4,10 +4,13 @@ import AutocompleteInput from "../components/AutocompleteInput";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
 import { api } from "../api";
+import { getBookingType } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 const blank = { po_number:"", item_name:"", item_type:"equipment", quantity:1, vendor_id:"", status:"requested", expected_date:"", notes:"" };
 
 export default function VendorsPage() {
+  const bookingProfile = getBookingProfile(getBookingType());
   const [vendors, setVendors] = useState([]);
   const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(blank);
@@ -42,7 +45,10 @@ export default function VendorsPage() {
           <form className="formGrid" onSubmit={save}>
             <input placeholder="PO Number (optional - auto generated)" value={form.po_number} onChange={e=>setForm({...form, po_number:e.target.value})} />
             <AutocompleteInput value={form.item_name} onChange={v=>setForm({...form, item_name:v})} suggestions={[...new Set(orders.map(o=>o.item_name).filter(Boolean))]} placeholder="Item Name" required />
-            <select value={form.item_type} onChange={e=>setForm({...form, item_type:e.target.value})}><option>equipment</option><option>accessory</option><option>consumable</option><option>manpower</option></select>
+            <select value={form.item_type} onChange={e=>setForm({...form, item_type:e.target.value})}>
+              {bookingProfile.itemTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              <option value="manpower">Manpower / Service Team</option>
+            </select>
             <input type="number" placeholder="Quantity" value={form.quantity} onChange={e=>setForm({...form, quantity:e.target.value})} />
             <select value={form.vendor_id} onChange={e=>setForm({...form, vendor_id:e.target.value})}>
               <option value="">Vendor</option>
@@ -56,8 +62,9 @@ export default function VendorsPage() {
         </Card>
         <Card title="Third-Party Logic">
           <ul className="alertList">
-            <li>Third-party equipment can be added as inventory with owner type = third_party.</li>
+            <li>Third-party {bookingProfile.resourceLabel.toLowerCase()} can be added in registry with owner type = third_party.</li>
             <li>External or contractual manpower can be mapped to a vendor.</li>
+            <li>This company type uses {bookingProfile.thirdPartyLabel} as its external resource concept.</li>
             <li>Procurement status gives requested / ordered / received / cancelled flow.</li>
           </ul>
         </Card>

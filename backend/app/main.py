@@ -8,13 +8,23 @@ from .env import load_env
 
 load_env()
 
-from .database import Base, engine, SessionLocal
+from .database import Base, clear_current_company_id, configure_tenant_scoping, engine, SessionLocal
 from . import models
 from .seed import seed_db
 from .routers import auth_router, masters, projects, bookings, service_jobs, papers, dashboard, admin_router, system_router, audit_router, accounts, tally
 from .routers import quotes as quotes_router
 
-app = FastAPI(title="KPS ERP Enterprise API", version="9.0.0")
+configure_tenant_scoping(models)
+
+app = FastAPI(title="E365 Event ERP API", version="9.1.0")
+
+@app.middleware("http")
+async def tenant_context_middleware(request: Request, call_next):
+    clear_current_company_id()
+    try:
+        return await call_next(request)
+    finally:
+        clear_current_company_id()
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -25,7 +35,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": f"Internal server error: {str(exc)}"},
     )
 
-_raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+_raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5175,http://127.0.0.1:5175,http://localhost:5173,http://127.0.0.1:5173")
 origins = [x.strip() for x in _raw_origins.split(",") if x.strip()]
 # Allow all vercel.app preview URLs automatically
 allow_origin_regex = r"https://.*\.vercel\.app"
@@ -158,6 +168,24 @@ def _migrate_event_bookings_identity_columns():
 
 # Migrate: add missing columns to existing tables that create_all won't touch
 _MIGRATIONS = [
+    ("users", "company_id", "INTEGER"),
+    ("companies", "legal_name", "VARCHAR"),
+    ("companies", "status", "VARCHAR DEFAULT 'active'"),
+    ("companies", "contact_person", "VARCHAR"),
+    ("companies", "phone", "VARCHAR"),
+    ("companies", "email", "VARCHAR"),
+    ("companies", "website", "VARCHAR"),
+    ("companies", "gst_number", "VARCHAR"),
+    ("companies", "pan_number", "VARCHAR"),
+    ("companies", "billing_address", "TEXT"),
+    ("companies", "registered_address", "TEXT"),
+    ("companies", "city", "VARCHAR"),
+    ("companies", "state", "VARCHAR"),
+    ("companies", "country", "VARCHAR"),
+    ("companies", "logo_path", "VARCHAR"),
+    ("companies", "theme_option", "VARCHAR DEFAULT 'auto'"),
+    ("companies", "booking_type", "VARCHAR DEFAULT 'equipment'"),
+    ("companies", "notes", "TEXT"),
     ("chain_of_custody", "created_at", "DATETIME"),
     ("statutory_documents", "created_at", "DATETIME"),
     ("event_bookings", "billing_amount", "FLOAT DEFAULT 0.0"),
@@ -236,6 +264,18 @@ _MIGRATIONS = [
     # 0008 — role presets timestamps
     ("role_presets", "updated_at", "DATETIME"),
 ]
+_TENANT_TABLES = [
+    "warehouses", "vendors", "clients", "client_contacts", "inventory_items",
+    "equipment_master", "crew_members", "project_events", "project_dates",
+    "event_bookings", "booking_equipment", "booking_crew", "account_invoices",
+    "account_ledger_payments", "tally_connectors", "tally_sync_jobs",
+    "tally_mappings", "tally_sync_results", "service_jobs",
+    "service_job_attachments", "outbound_papers", "damage_logs",
+    "partial_returns", "chain_of_custody", "gate_passes", "return_qc",
+    "procurement_orders", "kit_accessory_rules", "statutory_documents",
+    "audit_logs", "quotations", "quotation_items",
+]
+_MIGRATIONS.extend((table_name, "company_id", "INTEGER") for table_name in _TENANT_TABLES)
 with engine.connect() as conn:
     insp = inspect(engine)
     for table_name, col_name, col_type in _MIGRATIONS:
@@ -244,6 +284,34 @@ with engine.connect() as conn:
             if col_name not in existing_cols:
                 conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}"))
                 conn.commit()
+
+    insp = inspect(engine)
+    if "companies" in insp.get_table_names():
+        row = conn.execute(text("SELECT id FROM companies ORDER BY id ASC LIMIT 1")).first()
+        if not row:
+            conn.execute(text("""
+                INSERT INTO companies (created_at, name, legal_name, status, country)
+                VALUES (CURRENT_TIMESTAMP, 'E365 Demo Event Company', 'E365 Demo Event Company', 'active', 'India')
+            """))
+            conn.commit()
+            row = conn.execute(text("SELECT id FROM companies ORDER BY id ASC LIMIT 1")).first()
+        default_company_id = row[0] if row else None
+        if default_company_id:
+            for table_name in _TENANT_TABLES:
+                if table_name in insp.get_table_names():
+                    existing_cols = [c["name"] for c in insp.get_columns(table_name)]
+                    if "company_id" in existing_cols:
+                        conn.execute(text(f"UPDATE {table_name} SET company_id = :company_id WHERE company_id IS NULL"), {"company_id": default_company_id})
+            if "users" in insp.get_table_names():
+                conn.execute(text("UPDATE users SET company_id = :company_id WHERE company_id IS NULL AND role != 'super_admin'"), {"company_id": default_company_id})
+                conn.execute(text("""
+                    UPDATE users
+                    SET company_id = :company_id
+                    WHERE role != 'super_admin'
+                      AND company_id IS NOT NULL
+                      AND company_id NOT IN (SELECT id FROM companies)
+                """), {"company_id": default_company_id})
+            conn.commit()
 
 _migrate_event_bookings_identity_columns()
 
@@ -325,4 +393,4 @@ app.include_router(quotes_router.router)
 
 @app.get("/")
 def root():
-    return {"message": "KPS ERP Enterprise API running", "version": "8.9.9"}
+    return {"message": "E365 Event ERP API running", "version": "9.1.0"}

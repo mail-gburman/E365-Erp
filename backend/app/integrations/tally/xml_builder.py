@@ -48,8 +48,8 @@ def build_sales_voucher_xml(payload: dict, mapping: dict | None = None, company_
     total = _amount(payload.get("total_amount"))
     subtotal = _amount(payload.get("subtotal_amount"))
     tax_amount = float(payload.get("tax_amount") or 0)
-    invoice_no = payload.get("invoice_number") or payload.get("invoice_id") or "KPS-INVOICE"
-    narration = payload.get("notes") or f"KPS invoice {invoice_no} for {payload.get('project_title') or payload.get('job_card_id') or ''}"
+    invoice_no = payload.get("invoice_number") or payload.get("invoice_id") or "E365-INVOICE"
+    narration = payload.get("notes") or f"E365 invoice {invoice_no} for {payload.get('project_title') or payload.get('job_card_id') or ''}"
     ledger_entries = f"""
 <ALLLEDGERENTRIES.LIST>
 <LEDGERNAME>{_x(debtor_ledger)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>-{total}</AMOUNT>
@@ -84,7 +84,7 @@ def build_receipt_voucher_xml(payload: dict, mapping: dict | None = None, compan
     voucher_type = _ledger(mapping, "receipt", "Receipt")
     cash_or_bank = _ledger(mapping, "bank", "Bank Accounts") if (payload.get("payment_mode") or "").lower() not in {"cash"} else _ledger(mapping, "cash", "Cash")
     amount = _amount(payload.get("receipt_amount") or payload.get("amount_received"))
-    invoice_no = payload.get("invoice_number") or "KPS-RECEIPT"
+    invoice_no = payload.get("invoice_number") or "E365-RECEIPT"
     voucher = f"""
 <TALLYMESSAGE xmlns:UDF="TallyUDF">
 <VOUCHER VCHTYPE="{_x(voucher_type)}" ACTION="Create">

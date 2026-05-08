@@ -1,1 +1,1 @@
-"""Tally integration package for KPS ERP."""
+"""Tally integration package for E365 ERP."""

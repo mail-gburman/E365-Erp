@@ -26,7 +26,7 @@ def login(
     if not user:
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
-    token, jti, expires_at = create_access_token({"sub": user.username, "role": user.role})
+    token, jti, expires_at = create_access_token({"sub": user.username, "role": user.role, "company_id": user.company_id})
 
     # Parse client info
     ua_string = request.headers.get("user-agent", "")
@@ -80,6 +80,9 @@ def login(
         "token_type": "bearer",
         "role": user.role,
         "username": user.username,
+        "company_id": user.company_id,
+        "company_name": user.company.name if user.company else None,
+        "booking_type": user.company.booking_type if user.company else None,
         "permissions_json": user.permissions_json,
     }
 

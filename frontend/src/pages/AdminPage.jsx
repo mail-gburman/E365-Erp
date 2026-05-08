@@ -14,7 +14,7 @@ const PERMISSION_GROUPS = [
     title: "Dashboard & Reports",
     modules: [
       { key: "dashboard", label: "Dashboard", fields: ["Date filters", "Metric cards", "Click summaries", "Operational alerts"] },
-      { key: "calendar", label: "Calendar", fields: ["Travel day", "Setup day", "Technical day", "Shoot day", "Off day", "End day", "Return day", "Day summary PDF"] },
+      { key: "calendar", label: "Calendar", fields: ["Travel day", "Setup day", "Technical day", "Event day", "Off day", "End day", "Return day", "Day summary PDF"] },
       { key: "audit", label: "Audit & Exports", fields: ["Search textbox", "Entity filters", "Readable details", "PDF export", "ZIP export", "Reset audit"] },
     ],
   },
@@ -25,7 +25,7 @@ const PERMISSION_GROUPS = [
       { key: "bookings", label: "Bookings", fields: ["Job card", "Supplementary job card", "Destination", "Transport", "Contacts", "Call time", "Packup time", "Remarks"] },
       { key: "resources", label: "Booking Resources", fields: ["Main equipment", "Accessories", "Manpower", "Third-party items", "Availability checks", "Quantity changes"] },
       { key: "job_cards", label: "Job Cards & Challans", fields: ["Job card PDF", "Road challan PDF", "Supplementary reference", "Grouped item quantities"] },
-      { key: "planned_shoots", label: "Planned Shoots", fields: ["Confirm shoots", "Cancel shoots", "Bulk action", "Conflict check", "Status approval"] },
+      { key: "planned_shoots", label: "Planned Events", fields: ["Confirm events", "Cancel events", "Bulk action", "Conflict check", "Status approval"] },
     ],
   },
   {
@@ -55,7 +55,7 @@ const PERMISSION_GROUPS = [
     modules: [
       { key: "services", label: "Service Jobs", fields: ["Service ticket", "Assigned technician", "Costing", "Warranty claim"] },
       { key: "procurement", label: "Vendors & Procurement", fields: ["Purchase request", "Vendor quotes", "Approval", "Inbound stock"] },
-      { key: "accounts", label: "Accounts", fields: ["Billable shoots", "Package billing", "Day-wise billing", "Manpower payouts", "Margins", "Invoice approval"] },
+      { key: "accounts", label: "Accounts", fields: ["Billable events", "Package billing", "Day-wise billing", "Manpower payouts", "Margins", "Invoice approval"] },
     ],
   },
   {
@@ -72,7 +72,7 @@ const PERMISSION_GROUPS = [
 
 const MODULES = PERMISSION_GROUPS.flatMap(g => g.modules);
 const MODULE_KEYS = MODULES.flatMap(m => [m.key, ...m.fields.map(f => fieldKey(m.key, f))]);
-const ROLE_NAMES = ["admin", "producer", "operations", "store", "accounts", "qc", "viewer"];
+const ROLE_NAMES = ["admin", "producer", "operations", "store", "accounts", "qc", "viewer", "super_admin"];
 
 function fieldKey(moduleKey, field) {
   return `${moduleKey}.${field.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}`;
@@ -94,6 +94,7 @@ function buildPreset(config = {}) {
 
 // Built-in presets (frontend copy — matches backend ROLE_PRESETS)
 const BUILTIN_PRESETS = {
+  super_admin: allPerms(true),
   admin: allPerms(true),
   producer: buildPreset({ dashboard: ["view","export"], calendar: ["view","add","edit","export"], projects: ["view","add","edit","export","approve"], bookings: ["view","add","edit","export","approve"], resources: ["view","add","edit"], job_cards: ["view","add","edit","export"], planned_shoots: ["view","edit","approve"], clients: ["view","add","edit"], uploads: ["view","add","download","export"], audit: ["view","export"], profile: ["view","edit"] }),
   operations: buildPreset({ dashboard: ["view"], calendar: ["view","add","edit","export"], projects: ["view","add","edit"], bookings: ["view","add","edit","export"], resources: ["view","add","edit"], job_cards: ["view","add","edit","export"], planned_shoots: ["view","edit","approve"], masters: ["view"], equipment_master: ["view"], accessories_master: ["view"], warehouses: ["view"], clients: ["view","add","edit"], vendors: ["view"], manpower: ["view","add","edit"], dispatch: ["view","add","edit"], returns: ["view","add","edit"], damages: ["view","add","edit"], qc: ["view","add","edit"], papers: ["view","add","edit","export"], services: ["view","add","edit"], accounts: ["view"], uploads: ["view","add","download"], audit: ["view"], profile: ["view","edit"] }),
@@ -511,7 +512,7 @@ function PresetsTab() {
       {msg && (
         <div className="messageBar" style={{ marginBottom: 12 }}>
           {msg}
-          <button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button>
+          <button type="button" className="messageCloseBtn" onClick={() => setMsg("")}>✕</button>
         </div>
       )}
 
@@ -771,7 +772,7 @@ function UsersTab() {
 
   return (
     <div>
-      {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button></div>}
+      {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" className="messageCloseBtn" onClick={() => setMsg("")}>✕</button></div>}
 
       <Card title="Create New User">
         <form onSubmit={handleCreate}>
@@ -947,7 +948,7 @@ function ActivityTab() {
   });
   return (
     <div>
-      {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" style={{ float:"right",background:"none",border:"none",color:"#fff",cursor:"pointer" }} onClick={() => setMsg("")}>✕</button></div>}
+      {msg && <div className="messageBar" style={{ marginBottom: 12 }}>{msg}<button type="button" className="messageCloseBtn" onClick={() => setMsg("")}>✕</button></div>}
 
       <Card title="Active Sessions">
         {/* Info banner */}
@@ -1088,7 +1089,7 @@ const TABS = [
 export default function AdminPage() {
   const [tab, setTab] = useState("presets");
 
-  if (getRole() !== "admin") {
+  if (!["admin", "super_admin"].includes(getRole())) {
     return <div className="page"><div className="messageBar">Only admin can manage users.</div></div>;
   }
 

@@ -1,4 +1,4 @@
-KPS ERP real workflow patch - Apr 20 2026
+E365 ERP real workflow patch - Apr 20 2026
 
 Files changed:
 - backend/app/routers/accounts.py

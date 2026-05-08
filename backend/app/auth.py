@@ -6,7 +6,7 @@ from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from .database import get_db
+from .database import get_db, set_current_company_id
 from . import models
 from .env import load_env
 
@@ -122,6 +122,20 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.query(models.User).filter(models.User.username == username).first()
     if not user or not user.is_active:
         raise credentials_exception
+    if user.role == "super_admin":
+        set_current_company_id(None)
+    else:
+        if not user.company_id:
+            raise credentials_exception
+        company_exists = db.query(models.Company.id).filter(models.Company.id == user.company_id).first()
+        if not company_exists:
+            default_company = db.query(models.Company).order_by(models.Company.id.asc()).first()
+            if not default_company:
+                raise credentials_exception
+            user.company_id = default_company.id
+            db.commit()
+            db.refresh(user)
+        set_current_company_id(user.company_id)
 
     # If token carries a jti, validate it against the session store
     if jti:

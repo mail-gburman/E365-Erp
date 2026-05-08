@@ -22,7 +22,7 @@ Root `.env` is intentionally committed for this project.
 Current default:
 
 - `VITE_API_BASE_URL=/api`
-- `DATABASE_URL=sqlite:////tmp/kps_erp_enterprise.db`
+- `DATABASE_URL=sqlite:////tmp/e365_erp_enterprise.db`
 
 SQLite on Vercel is writable only in `/tmp` and is not durable. For real production data, replace `DATABASE_URL` with Postgres, for example:
 
