@@ -427,3 +427,303 @@ def seed_db(db: Session):
     db.add(models.OutboundPaper(paper_number="PAP-00002", paper_type="Equipment Gate Pass", reference_name="Bengal Utsav 2026 – Cultural Festival", destination="Salt Lake Stadium, Kolkata", issued_by="Operations", issue_status="draft", related_booking_id=b2.id, signature_name="Arindam Roy"))
 
     db.commit()
+
+    # ── BOOKING-TYPE DEMO COMPANIES ──
+    # Artist / Venue / Decor / Catering / Staffing – each pre-seeded with type-appropriate masters
+    _btype_defs = [
+        ("Creativo Artist Management", "Creativo Artist Management Pvt. Ltd.", "artist",   "artist",    "artist123",    "Mumbai",    "Maharashtra"),
+        ("VenueWorks India",           "VenueWorks India Pvt. Ltd.",           "venue",     "venue",     "venue123",     "New Delhi",  "Delhi"),
+        ("Blooms & Decor India",       "Blooms & Decor India Events",          "decor",     "decor",     "decor123",     "Jaipur",    "Rajasthan"),
+        ("Rasoi Events & Catering",    "Rasoi Events & Catering Services",     "catering",  "catering",  "catering123",  "New Delhi",  "Delhi"),
+        ("EventForce Staffing India",  "EventForce Staffing India Ltd.",       "staffing",  "staffing",  "staffing123",  "Bengaluru", "Karnataka"),
+    ]
+    btype_co = {}
+    for cname, legal, btype, uname, pwd, city, state in _btype_defs:
+        co = db.query(models.Company).filter(models.Company.name == cname).first()
+        if not co:
+            co = models.Company(name=cname, legal_name=legal, booking_type=btype, country="India", city=city, state=state, status="active", theme_option="auto")
+            db.add(co)
+            db.flush()
+        btype_co[btype] = co
+        if not db.query(models.User).filter(models.User.username == uname).first():
+            db.add(models.User(username=uname, password_hash=hash_password(pwd), role="admin", company_id=co.id, permissions_json=json.dumps(ROLE_DEFAULTS["admin"])))
+    db.commit()
+
+    def _add_wh(code, name, city, addr, mgr, phone, co_id):
+        wh = models.Warehouse(code=code, name=name, city=city, address=addr, manager_name=mgr, contact_no=phone, company_id=co_id)
+        db.add(wh); db.flush(); return wh
+
+    def _add_eqm(code, name, cat, itype, brand, model, co_id, mand="", opt=""):
+        db.add(models.EquipmentMaster(equipment_code=code, name=name, category=cat, item_type=itype, brand=brand, model_no=model, mandatory_accessory_codes=mand or None, optional_accessory_codes=opt or None, company_id=co_id))
+
+    def _add_inv(asset, name, cat, itype, wh_id, owner, co_id, loc, eqm_code=None, sn=None):
+        em = db.query(models.EquipmentMaster).filter(models.EquipmentMaster.equipment_code == eqm_code, models.EquipmentMaster.company_id == co_id).first() if eqm_code else None
+        db.add(models.InventoryItem(asset_code=asset, product_code=f"PRD-{asset}", name=name, category=cat, item_type=itype, warehouse_id=wh_id, owner_type=owner, status="available", location_text=loc, equipment_master_id=em.id if em else None, serial_number=sn, statutory_tag=asset, company_id=co_id))
+
+    def _add_crew(code, name, role, mtype, station, phone, co_id):
+        db.add(models.CrewMember(employee_code=code, full_name=name, role=role, manpower_type=mtype, home_station=station, phone=phone, status="available", company_id=co_id))
+
+    def _add_client(code, name, ind, addr, co_id):
+        db.add(models.Client(client_code=code, name=name, industry_type=ind, billing_address=addr, company_id=co_id))
+
+    # ── ARTIST COMPANY ──
+    ac = btype_co["artist"]
+    wh_a = _add_wh("WH-ART-MUM", "Creativo Mumbai Office", "Mumbai", "Andheri East, MIDC, Mumbai 400093", "Meera Kapoor", "9100000101", ac.id)
+    db.commit()
+
+    for args in [
+        ("ART-01001", "Hindustani Classical Vocalist Profile",    "VOCALIST",        "solo_artist",   "Classical",   "Khayal/Thumri"),
+        ("ART-01002", "Bollywood/Filmi Singer Profile",            "VOCALIST",        "solo_artist",   "Contemporary","Bollywood"),
+        ("ART-01003", "Sufi & Ghazal Artist Profile",              "VOCALIST",        "solo_artist",   "Sufi",        "Ghazal/Qawwali"),
+        ("ART-01004", "Jazz & Fusion Band (5-piece) Profile",      "BAND",            "group_artist",  "Live Band",   "5-Piece"),
+        ("ART-01005", "Bollywood Dance Troupe (10-pax) Profile",   "DANCE TROUPE",    "group_artist",  "Bollywood",   "10-Pax"),
+        ("ART-01006", "Bharatanatyam Solo Dancer Profile",         "DANCER",          "solo_artist",   "Classical",   "Bharatanatyam"),
+        ("ART-01007", "Stand-Up Comedian / MC Profile",            "ANCHOR/COMEDIAN", "solo_artist",   "Entertainment","Live Comedy"),
+        ("ART-01008", "Sufi Qawwali Group (6-pax) Profile",        "QAWWALI",         "group_artist",  "Sufi",        "6-Pax"),
+    ]:
+        _add_eqm(args[0], args[1], args[2], args[3], args[4], args[5], ac.id)
+    db.commit()
+
+    for args in [
+        ("ART/VOC/KV-01", "Kavya Mehra – Hindustani Classical Vocalist",    "VOCALIST",        "solo_artist",  wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01001"),
+        ("ART/VOC/RN-01", "Rohit Nandan – Bollywood/Filmi Singer",           "VOCALIST",        "solo_artist",  wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01002"),
+        ("ART/VOC/SF-01", "Sabeen Faridi – Sufi & Ghazal",                  "VOCALIST",        "solo_artist",  wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01003"),
+        ("ART/BND/MF-01", "Mumbai Fusion Project – Jazz Band (5-piece)",    "BAND",            "group_artist", wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01004"),
+        ("ART/DNC/AP-01", "Ananya Pillai – Bharatanatyam Solo",             "DANCER",          "solo_artist",  wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01006"),
+        ("ART/DNC/BT-01", "Bollywood Thumka Troupe (10-pax)",               "DANCE TROUPE",    "group_artist", wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01005"),
+        ("ART/CMC/SK-01", "Saurabh Khanna – Stand-Up & MC",                "ANCHOR/COMEDIAN", "solo_artist",  wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01007"),
+        ("ART/QAW/NZ-01", "Nizami Ensemble – Sufi Qawwali (6-pax)",         "QAWWALI",         "group_artist", wh_a.id, "inhouse", ac.id, "Mumbai Office", "ART-01008"),
+    ]:
+        _add_inv(*args)
+    db.commit()
+
+    for args in [
+        ("EMP-A0001", "Meera Kapoor",  "Artist Coordinator",    "inhouse",     "Mumbai", "9100000201", ac.id),
+        ("EMP-A0002", "Ankit Verma",   "Stage Manager",          "contractual", "Mumbai", "9100000202", ac.id),
+        ("EMP-A0003", "Deepa Nair",    "Booking Manager",        "inhouse",     "Mumbai", "9100000203", ac.id),
+        ("EMP-A0004", "Priya Sharma",  "Logistics Coordinator",  "inhouse",     "Delhi",  "9100000204", ac.id),
+        ("EMP-A0005", "Rajan Mehta",   "Artist Relations Mgr",   "inhouse",     "Mumbai", "9100000205", ac.id),
+    ]:
+        _add_crew(*args)
+
+    for args in [
+        ("CLI-A0001", "Shaadi Celebrations Mumbai",  "Wedding Events",  "Bandra West, Mumbai 400050",        ac.id),
+        ("CLI-A0002", "Filmy Nights India",           "Entertainment",   "Film City, Goregaon, Mumbai 400065", ac.id),
+        ("CLI-A0003", "Sangeet Kings, Delhi",         "Wedding Events",  "Connaught Place, New Delhi 110001",  ac.id),
+        ("CLI-A0004", "Gala Events Hyderabad",        "Corporate Events","HITEC City, Hyderabad 500081",       ac.id),
+        ("CLI-A0005", "Starlite Events Bangalore",    "Entertainment",   "Koramangala, Bengaluru 560034",      ac.id),
+    ]:
+        _add_client(*args)
+    db.commit()
+
+    # ── VENUE COMPANY ──
+    vc = btype_co["venue"]
+    wh_v = _add_wh("WH-VEN-DEL", "VenueWorks Delhi Office", "New Delhi", "Connaught Place, New Delhi 110001", "Sameer Rao", "9200000101", vc.id)
+    db.commit()
+
+    for args in [
+        ("VEN-01001", "Luxury Hotel Ballroom Profile (500 pax)",    "HOTEL BALLROOM", "indoor_venue",     "Luxury",      "500 pax"),
+        ("VEN-01002", "Premium Banquet Hall Profile (1000 pax)",    "BANQUET HALL",   "indoor_venue",     "Premium",     "1000 pax"),
+        ("VEN-01003", "Open Air Garden/Lawn Profile (2000 pax)",    "OUTDOOR LAWN",   "outdoor_venue",    "Premium",     "2000 pax"),
+        ("VEN-01004", "Rooftop Terrace Venue Profile (200 pax)",    "ROOFTOP",        "outdoor_venue",    "Boutique",    "200 pax"),
+        ("VEN-01005", "Convention Centre Hall Profile (3000 pax)",  "CONVENTION",     "indoor_venue",     "Large Format","3000 pax"),
+        ("VEN-01006", "Beach/Riverside Venue Profile (500 pax)",    "WATERFRONT",     "outdoor_venue",    "Premium",     "500 pax"),
+        ("VEN-01007", "Heritage Palace Venue Profile (300 pax)",    "HERITAGE",       "indoor_outdoor",   "Luxury",      "300 pax"),
+    ]:
+        _add_eqm(args[0], args[1], args[2], args[3], args[4], args[5], vc.id)
+    db.commit()
+
+    for args in [
+        ("VEN/HOT/TAJ-01", "The Grand Mahal Ballroom, Kolkata",       "HOTEL BALLROOM", "indoor_venue",   wh_v.id, "inhouse", vc.id, "Kolkata",      "VEN-01001"),
+        ("VEN/BNQ/ROY-01", "Royal Banquets & Events, Mumbai",         "BANQUET HALL",   "indoor_venue",   wh_v.id, "inhouse", vc.id, "Mumbai",       "VEN-01002"),
+        ("VEN/LAW/GRN-01", "Emerald Garden Estate, Pune",             "OUTDOOR LAWN",   "outdoor_venue",  wh_v.id, "inhouse", vc.id, "Pune",         "VEN-01003"),
+        ("VEN/RTP/SKY-01", "Skyline Rooftop, Bandra, Mumbai",         "ROOFTOP",        "outdoor_venue",  wh_v.id, "inhouse", vc.id, "Mumbai",       "VEN-01004"),
+        ("VEN/CNV/UNT-01", "Unity Convention Centre, Hyderabad",      "CONVENTION",     "indoor_venue",   wh_v.id, "inhouse", vc.id, "Hyderabad",    "VEN-01005"),
+        ("VEN/BCH/GOA-01", "Seaside Pavilion, Goa",                   "WATERFRONT",     "outdoor_venue",  wh_v.id, "inhouse", vc.id, "Goa",          "VEN-01006"),
+        ("VEN/HRT/RAJ-01", "Rajmahal Heritage Palace, Jaipur",        "HERITAGE",       "indoor_outdoor", wh_v.id, "inhouse", vc.id, "Jaipur",       "VEN-01007"),
+        ("VEN/HOT/ITC-01", "ITC Gardenia Grand Ballroom, Bengaluru",  "HOTEL BALLROOM", "indoor_venue",   wh_v.id, "inhouse", vc.id, "Bengaluru",    "VEN-01001"),
+    ]:
+        _add_inv(*args)
+    db.commit()
+
+    for args in [
+        ("EMP-V0001", "Sameer Rao",   "Venue Operations Mgr",    "inhouse",     "New Delhi", "9200000201", vc.id),
+        ("EMP-V0002", "Radha Iyer",   "Client Relations Exec",   "inhouse",     "Mumbai",    "9200000202", vc.id),
+        ("EMP-V0003", "Karan Sethi",  "Site Coordinator",        "contractual", "New Delhi", "9200000203", vc.id),
+        ("EMP-V0004", "Nisha Verma",  "Booking Executive",       "inhouse",     "New Delhi", "9200000204", vc.id),
+        ("EMP-V0005", "Aakash Sharma","Setup Supervisor",         "inhouse",     "Mumbai",    "9200000205", vc.id),
+    ]:
+        _add_crew(*args)
+
+    for args in [
+        ("CLI-V0001", "Mittal Wedding Group",          "Wedding Events",  "Lutyens Delhi, New Delhi 110011", vc.id),
+        ("CLI-V0002", "Corporate India Events",        "Corporate Events","BKC, Mumbai 400051",              vc.id),
+        ("CLI-V0003", "FICCI Events Mumbai",            "Industry Events", "Nariman Point, Mumbai 400021",    vc.id),
+        ("CLI-V0004", "Luxury Wedding Co., Delhi",     "Wedding Events",  "Vasant Vihar, New Delhi 110057",  vc.id),
+        ("CLI-V0005", "Grand Star Celebrations",       "Entertainment",   "Worli, Mumbai 400018",            vc.id),
+    ]:
+        _add_client(*args)
+    db.commit()
+
+    # ── DECOR COMPANY ──
+    dc = btype_co["decor"]
+    wh_d = _add_wh("WH-DEC-JAI", "Blooms & Decor Jaipur Warehouse", "Jaipur", "Sanganer Industrial Area, Jaipur 302029", "Preeti Malhotra", "9300000101", dc.id)
+    db.commit()
+
+    for args in [
+        ("DEC-01001", "Rajasthani Royal Mandap Setup",           "MANDAP",        "decor_package", "Traditional",   "Heritage"),
+        ("DEC-01002", "Contemporary Floral Bridal Arch",         "FLORAL",        "decor_package", "Floral",        "Contemporary"),
+        ("DEC-01003", "Luxury Stage Backdrop with Silk Draping", "STAGE DECOR",   "decor_package", "Premium",       "Zari/Silk"),
+        ("DEC-01004", "Crystal & Floral Table Centrepiece Set",  "TABLE DECOR",   "decor_package", "Crystal",       "Set of 10"),
+        ("DEC-01005", "Grand Entrance Gate & Pathway Decor",     "ENTRANCE",      "decor_package", "Floral",        "Grand Arch"),
+        ("DEC-01006", "Fairy Light Ceiling Canopy Setup",        "LIGHTING DECOR","decor_package", "Ambient",       "Per 1000sqft"),
+        ("DEC-01007", "Haldi/Mehendi Full Ceremony Decor",       "CEREMONY DECOR","decor_package", "Traditional",   "Full Set"),
+        ("DEC-01008", "Marigold & Mogra Bulk Floral Package",    "FLORAL BULK",   "decor_package", "Traditional",   "Per 100 pax"),
+    ]:
+        _add_eqm(args[0], args[1], args[2], args[3], args[4], args[5], dc.id)
+    db.commit()
+
+    for args in [
+        ("DEC/MND/RAJ-01", "Rajasthani Heritage Mandap Set #1",             "MANDAP",        "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01001"),
+        ("DEC/MND/RAJ-02", "Rajasthani Heritage Mandap Set #2",             "MANDAP",        "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01001"),
+        ("DEC/FLR/BRL-01", "Bridal Floral Arch – White & Blush Pink",       "FLORAL",        "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01002"),
+        ("DEC/FLR/BRL-02", "Bridal Floral Arch – Gold & Marigold",          "FLORAL",        "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01002"),
+        ("DEC/STG/GLD-01", "Gold Silk Drape Stage Backdrop Set #1",         "STAGE DECOR",   "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01003"),
+        ("DEC/STG/GLD-02", "Gold Silk Drape Stage Backdrop Set #2",         "STAGE DECOR",   "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01003"),
+        ("DEC/TBL/CRY-01", "Crystal Centrepiece Table Set (10 units) #1",   "TABLE DECOR",   "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01004"),
+        ("DEC/TBL/CRY-02", "Crystal Centrepiece Table Set (10 units) #2",   "TABLE DECOR",   "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01004"),
+        ("DEC/ENT/GTW-01", "Grand Floral Entrance Gateway #1",              "ENTRANCE",      "decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01005"),
+        ("DEC/LGT/CAN-01", "Fairy Light Canopy Setup (1000sqft) #1",        "LIGHTING DECOR","decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01006"),
+        ("DEC/LGT/CAN-02", "Fairy Light Canopy Setup (1000sqft) #2",        "LIGHTING DECOR","decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01006"),
+        ("DEC/HDM/HAL-01", "Haldi/Mehendi Ceremony Full Decor Set #1",      "CEREMONY DECOR","decor_package", wh_d.id, "inhouse", dc.id, "Jaipur Warehouse", "DEC-01007"),
+    ]:
+        _add_inv(*args)
+    db.commit()
+
+    for args in [
+        ("EMP-D0001", "Preeti Malhotra", "Lead Decorator",       "inhouse",     "Jaipur",  "9300000201", dc.id),
+        ("EMP-D0002", "Ashwin Kumar",    "Floral Designer",       "inhouse",     "Jaipur",  "9300000202", dc.id),
+        ("EMP-D0003", "Simran Kaur",     "Mandap Specialist",     "inhouse",     "Delhi",   "9300000203", dc.id),
+        ("EMP-D0004", "Rahul Joshi",     "Setup Supervisor",      "contractual", "Jaipur",  "9300000204", dc.id),
+        ("EMP-D0005", "Divya Nair",      "Design Coordinator",    "inhouse",     "Mumbai",  "9300000205", dc.id),
+    ]:
+        _add_crew(*args)
+
+    for args in [
+        ("CLI-D0001", "Mittal Wedding Planners",    "Wedding Events",  "South Delhi 110049",               dc.id),
+        ("CLI-D0002", "Celebration Kings Mumbai",   "Entertainment",   "Juhu, Mumbai 400049",              dc.id),
+        ("CLI-D0003", "Shagun Matrimonial Events",  "Wedding Events",  "Karol Bagh, New Delhi 110005",     dc.id),
+        ("CLI-D0004", "Grand Affairs Bangalore",    "Corporate Events","Indiranagar, Bengaluru 560038",     dc.id),
+        ("CLI-D0005", "Dulhan Events Delhi",        "Wedding Events",  "Lajpat Nagar, New Delhi 110024",   dc.id),
+    ]:
+        _add_client(*args)
+    db.commit()
+
+    # ── CATERING COMPANY ──
+    cc = btype_co["catering"]
+    wh_c = _add_wh("WH-CAT-DEL", "Rasoi Delhi Central Kitchen", "New Delhi", "Okhla Industrial Area Phase II, New Delhi 110020", "Chef Rajan Malhotra", "9400000101", cc.id)
+    db.commit()
+
+    for args in [
+        ("CAT-01001", "North Indian Veg Thali Package",         "VEG PACKAGE",     "catering_package", "North Indian",  "Per 100 pax"),
+        ("CAT-01002", "Mughlai Non-Veg Dawat Package",          "NON-VEG PACKAGE", "catering_package", "Mughlai",       "Per 100 pax"),
+        ("CAT-01003", "South Indian Sadhya Package",            "SOUTH INDIAN",    "catering_package", "South Indian",  "Per 100 pax"),
+        ("CAT-01004", "Rajasthani Dal Baati Churma Package",    "REGIONAL",        "catering_package", "Rajasthani",    "Per 50 pax"),
+        ("CAT-01005", "Live Chaat & Street Food Counter",       "LIVE COUNTER",    "catering_package", "Street Food",   "Per Counter"),
+        ("CAT-01006", "Live Tawa & BBQ Counter",                "LIVE COUNTER",    "catering_package", "Grill/Tawa",    "Per Counter"),
+        ("CAT-01007", "Pan-Indian Wedding Grand Package",       "WEDDING PACKAGE", "catering_package", "Multi-Cuisine", "Per 500 pax"),
+        ("CAT-01008", "Corporate High Tea & Snacks Package",    "CORPORATE",       "catering_package", "Continental/Indian","Per 100 pax"),
+    ]:
+        _add_eqm(args[0], args[1], args[2], args[3], args[4], args[5], cc.id)
+    db.commit()
+
+    for args in [
+        ("CAT/VEG/NI-01", "North Indian Veg Thali – Unit 1 (100 pax)",      "VEG PACKAGE",     "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01001"),
+        ("CAT/VEG/NI-02", "North Indian Veg Thali – Unit 2 (100 pax)",      "VEG PACKAGE",     "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01001"),
+        ("CAT/NVG/MG-01", "Mughlai Non-Veg Dawat – Unit 1 (100 pax)",       "NON-VEG PACKAGE", "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01002"),
+        ("CAT/NVG/MG-02", "Mughlai Non-Veg Dawat – Unit 2 (100 pax)",       "NON-VEG PACKAGE", "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01002"),
+        ("CAT/SI/SDY-01", "South Indian Sadhya – Unit 1 (100 pax)",         "SOUTH INDIAN",    "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01003"),
+        ("CAT/REG/RJ-01", "Rajasthani Thali – Unit 1 (50 pax)",             "REGIONAL",        "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01004"),
+        ("CAT/LIV/CHT-01","Live Chaat Counter #1",                          "LIVE COUNTER",    "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01005"),
+        ("CAT/LIV/CHT-02","Live Chaat Counter #2",                          "LIVE COUNTER",    "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01005"),
+        ("CAT/LIV/BBQ-01","Live Tawa/BBQ Counter #1",                       "LIVE COUNTER",    "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01006"),
+        ("CAT/WED/GRD-01","Grand Wedding Package – 500 pax Unit",           "WEDDING PACKAGE", "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01007"),
+        ("CAT/HTE/CRP-01","Corporate High Tea Package – Unit 1",            "CORPORATE",       "catering_package", wh_c.id, "inhouse", cc.id, "Delhi Central Kitchen", "CAT-01008"),
+    ]:
+        _add_inv(*args)
+    db.commit()
+
+    for args in [
+        ("EMP-C0001", "Chef Rajan Malhotra", "Executive Chef",            "inhouse",     "New Delhi", "9400000201", cc.id),
+        ("EMP-C0002", "Sushma Iyer",          "Catering Ops Manager",      "inhouse",     "New Delhi", "9400000202", cc.id),
+        ("EMP-C0003", "Arun Nair",            "F&B Supervisor",            "inhouse",     "Mumbai",    "9400000203", cc.id),
+        ("EMP-C0004", "Meena Pillai",         "Logistics Coordinator",     "inhouse",     "New Delhi", "9400000204", cc.id),
+        ("EMP-C0005", "Vikram Joshi",         "Quality Control Chef",      "contractual", "New Delhi", "9400000205", cc.id),
+    ]:
+        _add_crew(*args)
+
+    for args in [
+        ("CLI-C0001", "Shubh Mangal Wedding Co.",   "Wedding Events",  "South Extension, New Delhi 110049",  cc.id),
+        ("CLI-C0002", "Infosys Bangalore Events",   "Corporate Events","Electronics City, Bengaluru 560100", cc.id),
+        ("CLI-C0003", "Royal Banquets Delhi",        "Hospitality",     "Aerocity, New Delhi 110037",         cc.id),
+        ("CLI-C0004", "Sunshine Celebrations Kol",  "Entertainment",   "Park Street, Kolkata 700016",        cc.id),
+        ("CLI-C0005", "Taj Catering Division",       "Hospitality",     "Colaba, Mumbai 400001",              cc.id),
+    ]:
+        _add_client(*args)
+    db.commit()
+
+    # ── STAFFING COMPANY ──
+    sc = btype_co["staffing"]
+    wh_s = _add_wh("WH-STF-BLR", "EventForce Bengaluru HQ", "Bengaluru", "Indiranagar 100ft Road, Bengaluru 560038", "Sunita Kapoor", "9500000101", sc.id)
+    db.commit()
+
+    for args in [
+        ("STF-01001", "Senior Event Manager Profile",         "EVENT MANAGEMENT", "staff_role", "Management",    "Sr. Level"),
+        ("STF-01002", "Event Coordinator Profile",             "EVENT MANAGEMENT", "staff_role", "Coordination",  "Mid Level"),
+        ("STF-01003", "Security Supervisor Profile",           "SECURITY",         "staff_role", "Security",      "Supervisor"),
+        ("STF-01004", "Security Guard Profile",                "SECURITY",         "staff_role", "Security",      "Guard"),
+        ("STF-01005", "Hospitality Waiter/Waitress Profile",   "HOSPITALITY",      "staff_role", "Service",       "Floor Staff"),
+        ("STF-01006", "AV Technical Crew Profile",             "TECHNICAL",        "staff_role", "AV/Tech",       "Crew"),
+        ("STF-01007", "Valet / Parking Marshal Profile",       "GROUND OPS",       "staff_role", "Parking",       "Valet"),
+        ("STF-01008", "Registration / Help Desk Profile",      "FRONT DESK",       "staff_role", "Registration",  "Desk Staff"),
+        ("STF-01009", "Hostess / Host Profile",                "HOSPITALITY",      "staff_role", "Hosting",       "Host/Hostess"),
+        ("STF-01010", "Production Runner Profile",             "PRODUCTION",       "staff_role", "Production",    "Runner"),
+    ]:
+        _add_eqm(args[0], args[1], args[2], args[3], args[4], args[5], sc.id)
+    db.commit()
+
+    for args in [
+        ("STF/MGR/PM-01", "Priya Malhotra – Sr. Event Manager",      "EVENT MANAGEMENT", "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01001"),
+        ("STF/MGR/RS-01", "Rahul Sharma – Sr. Event Manager",         "EVENT MANAGEMENT", "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01001"),
+        ("STF/CRD/SG-01", "Sneha Gupta – Event Coordinator",          "EVENT MANAGEMENT", "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01002"),
+        ("STF/CRD/AK-01", "Amit Kumar – Event Coordinator",           "EVENT MANAGEMENT", "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01002"),
+        ("STF/SEC/VS-01", "Vikram Singh – Security Supervisor",        "SECURITY",         "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01003"),
+        ("STF/SEC/RG-01", "Ramesh Gupta – Security Guard",             "SECURITY",         "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01004"),
+        ("STF/SEC/RY-01", "Rajesh Yadav – Security Guard",             "SECURITY",         "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01004"),
+        ("STF/HSP/MV-01", "Meenal Varma – Hospitality Staff",          "HOSPITALITY",      "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01005"),
+        ("STF/HSP/MH-01", "Mahesh Verma – Hospitality Staff",          "HOSPITALITY",      "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01005"),
+        ("STF/TEC/AK-01", "Aman Kapoor – AV Technical Crew",           "TECHNICAL",        "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01006"),
+        ("STF/VLT/SS-01", "Sanjay Singh – Valet Marshal",              "GROUND OPS",       "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01007"),
+        ("STF/DES/KP-01", "Kavita Patel – Registration Desk",          "FRONT DESK",       "staff_role", wh_s.id, "inhouse", sc.id, "Bengaluru HQ", "STF-01008"),
+    ]:
+        _add_inv(*args)
+    db.commit()
+
+    for args in [
+        ("EMP-S0001", "Sunita Kapoor",  "Staffing Coordinator",  "inhouse",     "Bengaluru", "9500000201", sc.id),
+        ("EMP-S0002", "Mahesh Joshi",   "Field Supervisor",       "inhouse",     "Mumbai",    "9500000202", sc.id),
+        ("EMP-S0003", "Pooja Rao",      "Client Manager",         "inhouse",     "Bengaluru", "9500000203", sc.id),
+        ("EMP-S0004", "Arjun Singh",    "Operations Head",        "inhouse",     "Delhi",     "9500000204", sc.id),
+        ("EMP-S0005", "Neeraj Bhatt",   "Quality Manager",        "contractual", "Bengaluru", "9500000205", sc.id),
+    ]:
+        _add_crew(*args)
+
+    for args in [
+        ("CLI-S0001", "TCS Corporate Events",          "Corporate Events","Vikhroli, Mumbai 400079",          sc.id),
+        ("CLI-S0002", "Amazon India Events",            "Corporate Events","Bagmane Tech Park, Bengaluru 560093",sc.id),
+        ("CLI-S0003", "Wedlock Events Mumbai",          "Wedding Events",  "Bandra, Mumbai 400050",            sc.id),
+        ("CLI-S0004", "Prestige Hotels Events Div.",    "Hospitality",     "UB City, Bengaluru 560001",        sc.id),
+        ("CLI-S0005", "Bajaj Finserv Corporate Meets",  "Corporate Events","Viman Nagar, Pune 411014",         sc.id),
+    ]:
+        _add_client(*args)
+    db.commit()
