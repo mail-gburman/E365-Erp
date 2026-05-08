@@ -375,7 +375,7 @@ export default function Layout({ children }) {
           {!sidebarCollapsed && (
             <div className="sidebarProductMark">
               <img src="/eventory-logo-invert.png?v=1" alt="Eventory" className="sidebarProductLogo" />
-              <div className="brandPowered">Powered by CREATIVO / E365</div>
+              <div className="brandPowered">Powered by CREATVO STUDIOS / E365</div>
             </div>
           )}
         </div>

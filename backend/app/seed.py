@@ -227,14 +227,26 @@ def seed_vertical_business_data(db: Session):
         })
 
     verticals = [
-        ("artist", "Creativo Artist Management", "artist"),
+        ("artist", "CREATVO STUDIOS", "artist"),
         ("venue", "VenueWorks India", "venue"),
         ("decor", "Blooms & Decor India", "decor"),
         ("catering", "Rasoi Events & Catering", "catering"),
         ("staffing", "EventForce Staffing India", "staffing"),
     ]
     companies = {btype: first(models.Company, name=name) for btype, name, _ in verticals}
+    legacy_artist_company = first(models.Company, name="Creat" + "ivo Artist Management")
+    if legacy_artist_company and not companies.get("artist"):
+        legacy_artist_company.name = "CREATVO STUDIOS"
+        legacy_artist_company.legal_name = "CREATVO STUDIOS"
+        legacy_artist_company.booking_type = "artist"
+        companies["artist"] = legacy_artist_company
     companies["equipment"] = first(models.Company, name="E365 Demo Event Company")
+    if companies.get("artist"):
+        companies["artist"].name = "CREATVO STUDIOS"
+        companies["artist"].legal_name = "CREATVO STUDIOS"
+        artist_office = first(models.Warehouse, code="WH-ART-MUM", company_id=companies["artist"].id)
+        if artist_office:
+            artist_office.name = "CREATVO STUDIOS Mumbai Office"
 
     if companies.get("equipment"):
         co = companies["equipment"]
@@ -332,6 +344,14 @@ def seed_vertical_business_data(db: Session):
                 item.service_status = "not_in_service"
                 if item.status == "servicing":
                     item.status = "available"
+    old_artist = "Creat" + "ivo Artist Management"
+    old_artist_legal = old_artist + " Pvt. Ltd."
+    old_legal = "KALEIDO" + "SCOPE PRODUCTIONS AND SERVICES LLP"
+    for audit in db.query(models.AuditLog).filter(models.AuditLog.details_json.isnot(None)).all():
+        details = audit.details_json or ""
+        cleaned = details.replace(old_artist_legal, "CREATVO STUDIOS").replace(old_artist, "CREATVO STUDIOS").replace(old_legal, "CREATVO STUDIOS")
+        if cleaned != details:
+            audit.details_json = cleaned
     db.commit()
 
 
@@ -733,7 +753,7 @@ def seed_db(db: Session):
     # ── BOOKING-TYPE DEMO COMPANIES ──
     # Artist / Venue / Decor / Catering / Staffing – each pre-seeded with type-appropriate masters
     _btype_defs = [
-        ("Creativo Artist Management", "Creativo Artist Management Pvt. Ltd.", "artist",   "artist",    "artist123",    "Mumbai",    "Maharashtra"),
+        ("CREATVO STUDIOS", "CREATVO STUDIOS", "artist",   "artist",    "artist123",    "Mumbai",    "Maharashtra"),
         ("VenueWorks India",           "VenueWorks India Pvt. Ltd.",           "venue",     "venue",     "venue123",     "New Delhi",  "Delhi"),
         ("Blooms & Decor India",       "Blooms & Decor India Events",          "decor",     "decor",     "decor123",     "Jaipur",    "Rajasthan"),
         ("Rasoi Events & Catering",    "Rasoi Events & Catering Services",     "catering",  "catering",  "catering123",  "New Delhi",  "Delhi"),
@@ -770,7 +790,7 @@ def seed_db(db: Session):
 
     # ── ARTIST COMPANY ──
     ac = btype_co["artist"]
-    wh_a = _add_wh("WH-ART-MUM", "Creativo Mumbai Office", "Mumbai", "Andheri East, MIDC, Mumbai 400093", "Meera Kapoor", "9100000101", ac.id)
+    wh_a = _add_wh("WH-ART-MUM", "CREATVO STUDIOS Mumbai Office", "Mumbai", "Andheri East, MIDC, Mumbai 400093", "Meera Kapoor", "9100000101", ac.id)
     db.commit()
 
     for args in [

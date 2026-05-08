@@ -680,7 +680,7 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
     manpower = [{"name": x.crew_member.full_name} for x in booking.crew if booking and x.crew_member]
     pdf = make_job_card_pdf(
         "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
+        "CREATVO STUDIOS",
         [
             ("M/s", project_title),
             ("Programme", project_title),
@@ -750,7 +750,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
 
     pdf = make_job_card_pdf(
         "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP",
+        "CREATVO STUDIOS",
         meta,
         items,
         manpower,

@@ -7,8 +7,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "logo.png"
-COMPANY_LEGAL_NAME = "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP"
-COMPANY_ADDRESS_LINE = "326, Shantipally, Kolkata - 700107 | Tel: 033-4073 4036"
+COMPANY_LEGAL_NAME = "CREATVO STUDIOS"
+COMPANY_ADDRESS_LINE = "Eventory ERP | Powered by CREATVO STUDIOS / E365"
 
 def calc_block_window(shoot_start, setup_days, travel_hours, shoot_hours, return_hours):
     if any(x < 0 for x in [setup_days, travel_hours, shoot_hours, return_hours]):
@@ -1099,7 +1099,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
         c.drawImage(str(LOGO_PATH), left, y - 48, width=110, height=48,
                     preserveAspectRatio=True, mask="auto")
     c.setFont("Helvetica-Bold", 15)
-    c.drawRightString(right, y - 10, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+    c.drawRightString(right, y - 10, "CREATVO STUDIOS")
     c.setFont("Helvetica", 8.5)
     c.drawRightString(right, y - 24, "326, Shantipally, Kolkata – 700107")
     c.drawRightString(right, y - 36, "GSTIN: 19AALFK2467Q1ZG  |  Tel: 033-4073 4036  |  Mob: 8697738894")
@@ -1117,8 +1117,8 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     y -= 30
     c.setFont("Helvetica", 11)
     body = (
-        "This is to inform you that we KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP, "
-        "KOLKATA (GSTIN NUMBER-19AALFK2467Q1ZG) are sending broadcast event "
+        "This is to inform you that we CREATVO STUDIOS "
+        "are sending broadcast event "
         "equipment for repair to the below mentioned address by courier."
     )
     for line in wrap_text(body):
@@ -1242,7 +1242,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left, y - 24, width=110, height=40, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 16)
-        c.drawRightString(right, y, "KALEIDOSCOPE PRODUCTIONS AND SERVICES LLP")
+        c.drawRightString(right, y, "CREATVO STUDIOS")
         c.setFont("Helvetica-Bold", 12)
         c.drawRightString(right, y - 18, "TAX INVOICE")
         c.setFont("Helvetica", 8.5)
