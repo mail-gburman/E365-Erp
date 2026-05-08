@@ -16,8 +16,8 @@ import PhoneInput, { CountryCodeSelect } from "../components/PhoneInput";
 const blankWarehouse = { code:"", name:"", city:"", address:"", manager_name:"", contact_no:"" };
 const blankVendor = { vendor_code:"", name:"", vendor_type:"service", city:"", contact_person:"", phone:"", email:"", gst_number:"", pan_number:"", notes:"" };
 const blankClient = { name:"", industry_type:"", billing_address:"", gst_number:"", pan_number:"", notes:"", contacts:[{contact_name:"", designation:"", email:"", phone_country_code:"+91", phone_number:"", is_primary:true}] };
-const blankEquipmentMaster = { equipment_code:"", name:"", category:"Camera", item_type:"device", brand:"", model_no:"", mandatory_accessory_codes:"", optional_accessory_codes:"", notes:"" };
-const blankInventory = { asset_code:"", name:"", category:"Camera", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"", vendor_available_from:"", vendor_available_until:"", qty_in_stock:"" };
+const blankEquipmentMaster = { equipment_code:"", name:"", category:"", item_type:"device", brand:"", model_no:"", mandatory_accessory_codes:"", optional_accessory_codes:"", notes:"" };
+const blankInventory = { asset_code:"", name:"", category:"", item_type:"device", serial_number:"", parent_item_id:"", warehouse_id:"", owner_type:"inhouse", vendor_id:"", status:"available", location_text:"", warranty_expiry:"", service_due:"", service_status:"not_in_service", statutory_tag:"", notes:"", equipment_master_id:"", vendor_available_from:"", vendor_available_until:"", qty_in_stock:"" };
 const blankCrew = { employee_code:"", full_name:"", role:"", manpower_type:"inhouse", vendor_id:"", home_station:"", phone:"", address:"", aadhar_number:"", pan_number:"", blood_group:"", emergency_contact:"", emergency_contact_phone:"", id_proof_type:"Aadhaar", id_proof_number:"", status:"available" };
 const BLOOD_GROUPS = ["A+","A-","B+","B-","AB+","AB-","O+","O-"];
 const ID_PROOF_TYPES = ["Aadhaar", "PAN", "Passport", "Driving License", "Voter ID", "Others"];
@@ -69,21 +69,35 @@ function ProfileNotesFields({ title, fields = [], notes, onNotesChange }) {
   return (
     <div className="full profileFieldPanel">
       <strong>{title}</strong>
-      <p className="helperText">Profile-specific fields for this company type. Saved inside Notes and visible in registry/details.</p>
+      <p className="helperText">Profile-specific fields. Saved inside Notes and visible in registry details.</p>
       <div className="profileFieldGrid">
         {fields.map((field) => {
           const label = profileFieldLabel(field);
           const key = profileFieldKey(field);
           const value = values[label] || "";
-          const common = {
-            value,
-            onChange: (e) => onNotesChange(writeProfileField(notes, field, e.target.value, fields)),
-            placeholder: label,
-          };
+          const onChange = (e) => onNotesChange(writeProfileField(notes, field, e.target.value, fields));
+          const listId = `pf-dl-${key}`;
           return (
             <div className="fieldPair" key={key}>
               <label className="fieldLabel">{label}</label>
-              {field.type === "textarea" ? <textarea {...common} /> : <input {...common} />}
+              {field.type === "select" ? (
+                <select value={value} onChange={onChange}>
+                  {(field.options || []).map(o => <option key={o} value={o}>{o || `— select —`}</option>)}
+                </select>
+              ) : field.type === "datalist" ? (
+                <>
+                  <input value={value} onChange={onChange} placeholder={label} list={listId} />
+                  <datalist id={listId}>
+                    {(field.options || []).map(o => <option key={o} value={o} />)}
+                  </datalist>
+                </>
+              ) : field.type === "date" ? (
+                <input type="date" value={value} onChange={onChange} />
+              ) : field.type === "textarea" ? (
+                <textarea value={value} onChange={onChange} placeholder={label} />
+              ) : (
+                <input value={value} onChange={onChange} placeholder={label} />
+              )}
             </div>
           );
         })}
@@ -159,6 +173,41 @@ const documentSlots = {
     { key: "insurance", label: "Insurance Copy" },
     { key: "asset_register", label: "Asset Register / Ownership Proof" },
     { key: "calibration", label: "Calibration / Service Certificate" },
+  ],
+  inventory_artist: [
+    { key: "agreement", label: "Artist Agreement / Contract" },
+    { key: "rider", label: "Technical & Hospitality Rider" },
+    { key: "id_proof", label: "ID Proof / Passport Copy" },
+    { key: "bio", label: "Performance Bio / Portfolio" },
+    { key: "copyright", label: "Copyright / Music Licensing Certificate" },
+  ],
+  inventory_venue: [
+    { key: "agreement", label: "Venue Booking Agreement" },
+    { key: "noc", label: "Fire Safety / NOC Certificate" },
+    { key: "capacity", label: "Capacity & Infrastructure Certificate" },
+    { key: "layout", label: "Site Layout / Floor Plan" },
+    { key: "insurance", label: "Event Insurance Copy" },
+  ],
+  inventory_decor: [
+    { key: "quote", label: "Vendor Quote / Rate Card" },
+    { key: "condition", label: "Condition Inspection Report" },
+    { key: "design_brief", label: "Design Brief / Mood Board" },
+    { key: "ownership", label: "Ownership / Purchase Proof" },
+    { key: "insurance", label: "Insurance Copy (High-value items)" },
+  ],
+  inventory_catering: [
+    { key: "fssai", label: "FSSAI License" },
+    { key: "health", label: "Health / Hygiene Certificate" },
+    { key: "menu", label: "Menu & Rate Card" },
+    { key: "gst", label: "GST Certificate" },
+    { key: "food_safety", label: "Food Safety Compliance Certificate" },
+  ],
+  inventory_staffing: [
+    { key: "agreement", label: "Staff Agreement / Work Order" },
+    { key: "id_proof", label: "ID Proof Copy (Aadhaar / PAN)" },
+    { key: "police_verification", label: "Police Verification / Background Check" },
+    { key: "skill_cert", label: "Skill Certificate / Portfolio" },
+    { key: "deployment", label: "Deployment Authorization Letter" },
   ],
   warehouse: [
     { key: "lease", label: "Lease / Ownership Proof" },
@@ -804,7 +853,7 @@ export default function AdditionsPage() {
             </div>
             <div className="fieldPair">
               <label className="fieldLabel">Category</label>
-              <AutocompleteInput value={equipmentMasterForm.category} onChange={v=>setEquipmentMasterForm({...equipmentMasterForm, category:v})} suggestions={[...new Set(equipmentMaster.map(e=>e.category).filter(Boolean))]} placeholder="Category" />
+              <AutocompleteInput value={equipmentMasterForm.category} onChange={v=>setEquipmentMasterForm({...equipmentMasterForm, category:v})} suggestions={[...new Set([...(bookingProfile.defaultCategories || []), ...equipmentMaster.map(e=>e.category).filter(Boolean)])]} placeholder="Category" />
             </div>
             <div className="fieldPair">
               <label className="fieldLabel">Item Type</label>
@@ -868,8 +917,8 @@ export default function AdditionsPage() {
               <AutocompleteInput value={inventoryForm.name} onChange={v=>setInventoryForm({...inventoryForm, name:v})} suggestions={[...new Set(inventory.map(i=>i.name))]} placeholder="Name" required />
             </div>
             <div className="fieldPair">
-              <label className="fieldLabel">Category <InfoHint text="Group similar items — Camera, Lens, Battery, Audio, Lighting, etc." /></label>
-              <AutocompleteInput value={inventoryForm.category} onChange={v=>setInventoryForm({...inventoryForm, category:v})} suggestions={[...new Set(inventory.map(i=>i.category).filter(Boolean))]} placeholder="Category" />
+              <label className="fieldLabel">Category <InfoHint text="Group similar items by type or genre." /></label>
+              <AutocompleteInput value={inventoryForm.category} onChange={v=>setInventoryForm({...inventoryForm, category:v})} suggestions={[...new Set([...(bookingProfile.defaultCategories || []), ...inventory.map(i=>i.category).filter(Boolean)])]} placeholder="Category" />
             </div>
 
             {/* ── Classification ── */}
@@ -1005,7 +1054,7 @@ export default function AdditionsPage() {
               <input type="file" accept="image/*" multiple onChange={e => setInventoryImageFiles(Array.from(e.target.files))} />
               <span className="helperText">{inventoryImageFiles.length ? `${inventoryImageFiles.length} image(s) selected` : "No images selected."}</span>
             </div>
-            {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType="inventory" files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
+            {inventoryForm.owner_type === "inhouse" && <DocumentUploadFields entityType={`inventory_${bookingProfile.value}` in documentSlots ? `inventory_${bookingProfile.value}` : "inventory"} files={entityDocFiles.inventory} inputKey={entityDocInputKey} onChange={(key, file) => setEntityDocFile("inventory", key, file)} />}
             <button className="full primaryBtn" type="submit">{isEditing ? `Update ${bookingProfile.resourceLabel}` : `Save ${bookingProfile.resourceLabel}`}</button>
           </form>
           <div className="helperText" style={{marginTop:12}}>Quick View — see <strong>Master Registry</strong> for full details.</div>
