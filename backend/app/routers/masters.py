@@ -186,18 +186,25 @@ def _infer_item_type(sheet_name: str):
     return "device"
 
 @router.get("/warehouses", response_model=list[schemas.WarehouseRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_warehouses(db: Session = Depends(get_db)):
-    return db.query(models.Warehouse).order_by(models.Warehouse.name.asc()).all()
+def list_warehouses(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.Warehouse)
+    if current_user.company_id:
+        q = q.filter(models.Warehouse.company_id == current_user.company_id)
+    return q.order_by(models.Warehouse.name.asc()).all()
 
 @router.get("/bootstrap", response_model=schemas.MastersBootstrapRead, dependencies=[Depends(require_permission("masters","view"))])
-def masters_bootstrap(db: Session = Depends(get_db)):
+def masters_bootstrap(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    cid = current_user.company_id
+    def _q(model):
+        q = db.query(model)
+        return q.filter(model.company_id == cid) if cid else q
     return {
-        "warehouses": db.query(models.Warehouse).order_by(models.Warehouse.name.asc()).all(),
-        "vendors": db.query(models.Vendor).order_by(models.Vendor.name.asc()).all(),
-        "clients": db.query(models.Client).order_by(models.Client.name.asc()).all(),
-        "inventory": db.query(models.InventoryItem).order_by(models.InventoryItem.id.desc()).all(),
-        "equipment_master": db.query(models.EquipmentMaster).order_by(models.EquipmentMaster.name.asc()).all(),
-        "crew": db.query(models.CrewMember).order_by(models.CrewMember.id.desc()).all(),
+        "warehouses": _q(models.Warehouse).order_by(models.Warehouse.name.asc()).all(),
+        "vendors": _q(models.Vendor).order_by(models.Vendor.name.asc()).all(),
+        "clients": _q(models.Client).order_by(models.Client.name.asc()).all(),
+        "inventory": _q(models.InventoryItem).order_by(models.InventoryItem.id.desc()).all(),
+        "equipment_master": _q(models.EquipmentMaster).order_by(models.EquipmentMaster.name.asc()).all(),
+        "crew": _q(models.CrewMember).order_by(models.CrewMember.id.desc()).all(),
     }
 
 @router.post("/warehouses", response_model=schemas.WarehouseRead, dependencies=[Depends(require_permission("masters","add"))])
@@ -221,8 +228,11 @@ def update_warehouse(warehouse_id: int, payload: schemas.WarehouseUpdate, db: Se
     return item
 
 @router.get("/vendors", response_model=list[schemas.VendorRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_vendors(db: Session = Depends(get_db)):
-    return db.query(models.Vendor).order_by(models.Vendor.name.asc()).all()
+def list_vendors(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.Vendor)
+    if current_user.company_id:
+        q = q.filter(models.Vendor.company_id == current_user.company_id)
+    return q.order_by(models.Vendor.name.asc()).all()
 
 @router.post("/vendors", response_model=schemas.VendorRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_vendor(payload: schemas.VendorCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -248,8 +258,11 @@ def update_vendor(vendor_id: int, payload: schemas.VendorUpdate, db: Session = D
     return item
 
 @router.get("/clients", response_model=list[schemas.ClientRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_clients(db: Session = Depends(get_db)):
-    return db.query(models.Client).order_by(models.Client.name.asc()).all()
+def list_clients(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.Client)
+    if current_user.company_id:
+        q = q.filter(models.Client.company_id == current_user.company_id)
+    return q.order_by(models.Client.name.asc()).all()
 
 @router.post("/clients", response_model=schemas.ClientRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_client(payload: schemas.ClientCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -279,8 +292,11 @@ def update_client(client_id: int, payload: schemas.ClientUpdate, db: Session = D
     return item
 
 @router.get("/equipment-master", response_model=list[schemas.EquipmentMasterRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_equipment_master(db: Session = Depends(get_db)):
-    return db.query(models.EquipmentMaster).order_by(models.EquipmentMaster.name.asc()).all()
+def list_equipment_master(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.EquipmentMaster)
+    if current_user.company_id:
+        q = q.filter(models.EquipmentMaster.company_id == current_user.company_id)
+    return q.order_by(models.EquipmentMaster.name.asc()).all()
 
 @router.post("/equipment-master", response_model=schemas.EquipmentMasterRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_equipment_master(payload: schemas.EquipmentMasterCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -306,8 +322,11 @@ def update_equipment_master(em_id: int, payload: schemas.EquipmentMasterUpdate, 
     return item
 
 @router.get("/inventory", response_model=list[schemas.InventoryRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_inventory(db: Session = Depends(get_db)):
-    return db.query(models.InventoryItem).order_by(models.InventoryItem.id.desc()).all()
+def list_inventory(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.InventoryItem)
+    if current_user.company_id:
+        q = q.filter(models.InventoryItem.company_id == current_user.company_id)
+    return q.order_by(models.InventoryItem.id.desc()).all()
 
 @router.post("/inventory", response_model=schemas.InventoryRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_inventory(payload: schemas.InventoryCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -334,8 +353,11 @@ def update_inventory(item_id: int, payload: schemas.InventoryUpdate, db: Session
     return item
 
 @router.get("/crew", response_model=list[schemas.CrewRead], dependencies=[Depends(require_permission("masters","view"))])
-def list_crew(db: Session = Depends(get_db)):
-    return db.query(models.CrewMember).order_by(models.CrewMember.id.desc()).all()
+def list_crew(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    q = db.query(models.CrewMember)
+    if current_user.company_id:
+        q = q.filter(models.CrewMember.company_id == current_user.company_id)
+    return q.order_by(models.CrewMember.id.desc()).all()
 
 @router.post("/crew", response_model=schemas.CrewRead, dependencies=[Depends(require_permission("masters","add"))])
 def create_crew(payload: schemas.CrewCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
