@@ -76,28 +76,46 @@ function ProfileNotesFields({ title, fields = [], notes, onNotesChange }) {
           const key = profileFieldKey(field);
           const value = values[label] || "";
           const onChange = (e) => onNotesChange(writeProfileField(notes, field, e.target.value, fields));
-          const listId = `pf-dl-${key}`;
-          return (
-            <div className="fieldPair" key={key}>
-              <label className="fieldLabel">{label}</label>
-              {field.type === "select" ? (
-                <select value={value} onChange={onChange}>
-                  {(field.options || []).map(o => <option key={o} value={o}>{o || `— select —`}</option>)}
+
+          let inputEl;
+          if (field.type === "select" || field.type === "datalist") {
+            const opts = field.options || [];
+            const allOpts = opts.includes("Other") ? opts : [...opts, "Other"];
+            const isCustom = value && value !== "Other" && !allOpts.includes(value);
+            const selectVal = isCustom ? "Other" : value;
+            const customVal = isCustom ? value : "";
+            inputEl = (
+              <div style={{ width: "100%" }}>
+                <select
+                  value={selectVal}
+                  onChange={(e) => onNotesChange(writeProfileField(notes, field, e.target.value, fields))}
+                >
+                  {allOpts.map(o => <option key={o} value={o}>{o || "— select —"}</option>)}
                 </select>
-              ) : field.type === "datalist" ? (
-                <>
-                  <input value={value} onChange={onChange} placeholder={label} list={listId} />
-                  <datalist id={listId}>
-                    {(field.options || []).map(o => <option key={o} value={o} />)}
-                  </datalist>
-                </>
-              ) : field.type === "date" ? (
-                <input type="date" value={value} onChange={onChange} />
-              ) : field.type === "textarea" ? (
-                <textarea value={value} onChange={onChange} placeholder={label} />
-              ) : (
-                <input value={value} onChange={onChange} placeholder={label} />
-              )}
+                {selectVal === "Other" && (
+                  <input
+                    value={customVal}
+                    onChange={(e) => onNotesChange(writeProfileField(notes, field, e.target.value || "Other", fields))}
+                    placeholder={`Specify ${label}…`}
+                    style={{ marginTop: 6 }}
+                  />
+                )}
+              </div>
+            );
+          } else if (field.type === "date") {
+            inputEl = <input type="date" value={value} onChange={onChange} />;
+          } else if (field.type === "textarea") {
+            inputEl = <textarea value={value} onChange={onChange} placeholder={label} />;
+          } else {
+            inputEl = <input value={value} onChange={onChange} placeholder={label} />;
+          }
+
+          const showingOther = (field.type === "select" || field.type === "datalist") &&
+            (value === "Other" || (value && !(field.options || []).includes(value)));
+          return (
+            <div className="fieldPair" key={key} style={showingOther ? { alignItems: "flex-start" } : undefined}>
+              <label className="fieldLabel">{label}</label>
+              {inputEl}
             </div>
           );
         })}

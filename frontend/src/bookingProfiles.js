@@ -145,7 +145,7 @@ export const BOOKING_PROFILES = [
     documents: { gatePass: "Performance Call Sheet", jobCard: "Show Brief / Technical Rider", challan: "Travel Sheet", damage: "Cancellation / No-Show Report" },
     extraFields: {
       inventory: [
-        { label: "Genre / Category", key: "genre", type: "datalist", options: ["Bollywood", "Sufi / Ghazal", "Classical / Hindustani", "Folk / Regional", "Rock / Pop", "EDM / Electronic", "Jazz / Blues", "Hip-Hop / Rap", "Stand-up Comedy", "Dance / Choreography", "Instrumental", "Multi-genre"] },
+        { label: "Genre / Category", key: "genre", type: "select", options: ["", "Bollywood", "Sufi / Ghazal", "Classical / Hindustani", "Folk / Regional", "Rock / Pop", "EDM / Electronic", "Jazz / Blues", "Hip-Hop / Rap", "Stand-up Comedy", "Dance / Choreography", "Instrumental", "Multi-genre", "Other"] },
         { label: "Performance Type", key: "performance_type", type: "select", options: ["", "Live Singer", "Band / Group", "DJ", "Dancer", "Comedian", "Anchor / Host", "Motivational Speaker", "Classical Instrumentalist", "Magician / Illusionist", "Other"] },
         { label: "Primary Language", key: "language", type: "select", options: ["", "Hindi", "English", "Punjabi", "Tamil", "Telugu", "Kannada", "Marathi", "Bengali", "Gujarati", "Multi-lingual", "Other"] },
         { label: "Performance Duration", key: "performance_duration", type: "select", options: ["", "15 mins", "30 mins", "45 mins", "60 mins", "90 mins", "120 mins", "180 mins", "As per show requirement"] },
@@ -159,7 +159,7 @@ export const BOOKING_PROFILES = [
         { label: "Playlist / Set List Attachment", key: "playlist", type: "text" },
       ],
       booking: [
-        { label: "Performance Slot", key: "performance_slot", type: "datalist", options: ["Opening Act", "Mid-show", "Headline / Closing", "Background Music", "Cocktail Hour", "Custom"] },
+        { label: "Performance Slot", key: "performance_slot", type: "select", options: ["", "Opening Act", "Mid-show", "Headline / Closing", "Background Music", "Cocktail Hour", "Custom", "Other"] },
         { label: "Green Room Requirement", key: "green_room", type: "select", options: ["", "Not Required", "Basic Green Room", "VIP Green Room + Hospitality", "Separate Dressing Room"] },
         { label: "Soundcheck Time", key: "soundcheck_time", type: "text" },
         { label: "Hospitality Notes", key: "hospitality_notes", type: "textarea" },
@@ -204,13 +204,13 @@ export const BOOKING_PROFILES = [
     documents: { gatePass: "Venue Access Letter", jobCard: "Event Layout / Setup Brief", challan: "Vendor Entry Pass", damage: "Venue Damage Report" },
     extraFields: {
       inventory: [
-        { label: "Venue Type", key: "venue_type", type: "datalist", options: ["Banquet Hall", "Hotel Lawn / Garden", "Rooftop", "Farmhouse", "Beach / Waterfront", "Convention Centre", "Auditorium", "Open Ground", "Restaurant / Lounge", "Studio / Indoor Stage", "Mall Atrium", "Club / Bar"] },
+        { label: "Venue Type", key: "venue_type", type: "select", options: ["", "Banquet Hall", "Hotel Lawn / Garden", "Rooftop", "Farmhouse", "Beach / Waterfront", "Convention Centre", "Auditorium", "Open Ground", "Restaurant / Lounge", "Studio / Indoor Stage", "Mall Atrium", "Club / Bar", "Other"] },
         { label: "Indoor / Outdoor", key: "indoor_outdoor", type: "select", options: ["", "Indoor", "Outdoor", "Indoor + Outdoor", "Covered Outdoor"] },
         { label: "Capacity – Seated", key: "capacity_seated", type: "text" },
         { label: "Capacity – Theatre Style", key: "capacity_theatre", type: "text" },
         { label: "Capacity – Cocktail / Standing", key: "capacity_cocktail", type: "text" },
         { label: "Power Load Capacity (KW)", key: "power_kw", type: "text" },
-        { label: "Amenities", key: "amenities", type: "datalist", options: ["AC + Parking + Generator", "AC + Parking", "AC + Generator", "AC Only", "Basic (No AC/Parking)", "Full AV + Lighting + Generator"] },
+        { label: "Amenities", key: "amenities", type: "select", options: ["", "AC + Parking + Generator", "AC + Parking", "AC + Generator", "AC Only", "Basic (No AC/Parking)", "Full AV + Lighting + Generator", "Other"] },
         { label: "Parking Capacity (vehicles)", key: "parking_capacity", type: "text" },
         { label: "Setup Time Buffer (hrs)", key: "setup_buffer", type: "text" },
         { label: "Breakdown Time Buffer (hrs)", key: "breakdown_buffer", type: "text" },
@@ -258,12 +258,12 @@ export const BOOKING_PROFILES = [
     documents: { damage: "Condition Report" },
     extraFields: {
       inventory: [
-        { label: "Decor Theme / Style", key: "decor_theme", type: "datalist", options: ["Floral / Garden", "Royale / Mughal", "Contemporary / Modern", "Rustic / Vintage", "Minimalist", "Bohemian", "Beach / Coastal", "Festive / Traditional", "Corporate / Branded", "Fairytale / Princess", "Lighting & Ambiance", "Backdrop / Stage"] },
-        { label: "Material Type", key: "material_type", type: "datalist", options: ["Fabric / Draping", "Floral / Natural", "Wood", "Metal / Brass", "Plastic / Acrylic", "Paper / Cardboard", "Glass / Crystal", "LED / Neon Lights", "Thermocol / Foam", "Mixed"] },
+        { label: "Decor Theme / Style", key: "decor_theme", type: "select", options: ["", "Floral / Garden", "Royale / Mughal", "Contemporary / Modern", "Rustic / Vintage", "Minimalist", "Bohemian", "Beach / Coastal", "Festive / Traditional", "Corporate / Branded", "Fairytale / Princess", "Lighting & Ambiance", "Backdrop / Stage", "Other"] },
+        { label: "Material Type", key: "material_type", type: "select", options: ["", "Fabric / Draping", "Floral / Natural", "Wood", "Metal / Brass", "Plastic / Acrylic", "Paper / Cardboard", "Glass / Crystal", "LED / Neon Lights", "Thermocol / Foam", "Mixed", "Other"] },
         { label: "Color Palette", key: "color_palette", type: "text" },
         { label: "Condition Rating", key: "condition_rating", type: "select", options: ["", "Excellent", "Good", "Fair – Minor wear", "Needs Minor Repair", "Needs Major Repair"] },
         { label: "Fragility Level", key: "fragility", type: "select", options: ["", "Low – Durable", "Medium – Handle with care", "High – Fragile"] },
-        { label: "Event Theme Tag", key: "event_theme_tag", type: "datalist", options: ["Wedding", "Sangeet", "Mehndi", "Birthday", "Baby Shower", "Corporate Gala", "Product Launch", "Conference", "Engagement", "Anniversary"] },
+        { label: "Event Theme Tag", key: "event_theme_tag", type: "select", options: ["", "Wedding", "Sangeet", "Mehndi", "Birthday", "Baby Shower", "Corporate Gala", "Product Launch", "Conference", "Engagement", "Anniversary", "Other"] },
         { label: "Customization Notes", key: "customization", type: "textarea" },
       ],
       booking: [
@@ -303,7 +303,7 @@ export const BOOKING_PROFILES = [
     documents: { gatePass: "Kitchen Brief", jobCard: "Banquet Event Order (BEO)", challan: "F&B Delivery Challan", manpower: "Service Staff Deployment", damage: "Not applicable" },
     extraFields: {
       inventory: [
-        { label: "Cuisine Type", key: "cuisine_type", type: "datalist", options: ["North Indian", "South Indian", "Pan-Asian / Chinese", "Continental / Italian", "Mughlai / Awadhi", "Bengali", "Rajasthani / Gujarati", "Mediterranean", "Mexican", "Multi-Cuisine Buffet", "Bakery / Desserts", "Beverages / Bar"] },
+        { label: "Cuisine Type", key: "cuisine_type", type: "select", options: ["", "North Indian", "South Indian", "Pan-Asian / Chinese", "Continental / Italian", "Mughlai / Awadhi", "Bengali", "Rajasthani / Gujarati", "Mediterranean", "Mexican", "Multi-Cuisine Buffet", "Bakery / Desserts", "Beverages / Bar", "Other"] },
         { label: "Meal Type", key: "meal_type", type: "select", options: ["", "Breakfast", "Brunch", "Lunch", "Hi-Tea / Snacks", "Dinner", "Cocktail Bites", "Full Day (B+L+D)", "Custom"] },
         { label: "Service Style", key: "service_style", type: "select", options: ["", "Buffet", "Plated / À La Carte", "Live Counters", "Family Style", "Cocktail / Finger Food", "Packed Meals", "Mix (Buffet + Live Counters)"] },
         { label: "Dietary Options", key: "dietary", type: "select", options: ["", "Pure Veg", "Veg + Non-Veg", "Vegan Available", "Jain Available", "Veg + Vegan + Jain", "Non-Veg Only"] },
@@ -360,7 +360,7 @@ export const BOOKING_PROFILES = [
     documents: { gatePass: "Staff Deployment Sheet", jobCard: "Staff Briefing Document", manpower: "Shift Assignment Sheet", damage: "Attendance / Incident Report" },
     extraFields: {
       inventory: [
-        { label: "Role / Designation", key: "staff_role", type: "datalist", options: ["Event Manager", "Floor Manager", "Registration / Help Desk", "Security / Bouncer", "Hostess / Host", "Sound Engineer", "Light Technician", "Stage Manager", "Photographer", "Videographer", "Serving Staff / Waiter", "Driver / Logistics", "MC / Anchor", "Coordinator", "Usher"] },
+        { label: "Role / Designation", key: "staff_role", type: "select", options: ["", "Event Manager", "Floor Manager", "Registration / Help Desk", "Security / Bouncer", "Hostess / Host", "Sound Engineer", "Light Technician", "Stage Manager", "Photographer", "Videographer", "Serving Staff / Waiter", "Driver / Logistics", "MC / Anchor", "Coordinator", "Usher", "Other"] },
         { label: "Shift Type", key: "shift_type", type: "select", options: ["", "Full Day (10+ hrs)", "Half Day (5–6 hrs)", "Morning Shift", "Evening / Night Shift", "Event Day Only", "Custom"] },
         { label: "Dress Code / Uniform", key: "dress_code", type: "select", options: ["", "Formal (Suit / Business)", "Semi-Formal (Smart Casual)", "Traditional / Ethnic", "Uniform (Company Provided)", "Black Tie / Evening Wear", "As per event theme"] },
         { label: "ID Document Type", key: "id_doc_type", type: "select", options: ["", "Aadhaar", "PAN", "Passport", "Voter ID", "Driving Licence"] },
