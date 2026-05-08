@@ -55,6 +55,286 @@ def seed_booking_type_profiles(db: Session):
     db.commit()
 
 
+def seed_vertical_business_data(db: Session):
+    """Add idempotent demo operations data that matches each booking vertical."""
+
+    def upsert(model, lookup, values):
+        row = db.query(model).filter(*[getattr(model, key) == value for key, value in lookup.items()]).first()
+        payload = {**lookup, **values}
+        if row:
+            for key, value in values.items():
+                setattr(row, key, value)
+        else:
+            row = model(**payload)
+            db.add(row)
+            db.flush()
+        return row
+
+    def first(model, **lookup):
+        return db.query(model).filter(*[getattr(model, key) == value for key, value in lookup.items()]).first()
+
+    def add_doc(company, name, file_name, notes):
+        return upsert(models.CompanyDocument, {
+            "company_id": company.id,
+            "document_name": name,
+        }, {
+            "file_path": f"/demo-documents/{company.booking_type}/{file_name}",
+            "notes": notes,
+            "uploaded_by": "system",
+        })
+
+    def add_vendor(company, code, name, vendor_type, city, contact, phone, notes):
+        return upsert(models.Vendor, {"vendor_code": code}, {
+            "name": name,
+            "vendor_type": vendor_type,
+            "city": city,
+            "contact_person": contact,
+            "phone": phone,
+            "email": f"{code.lower()}@demo.eventory",
+            "notes": notes,
+            "company_id": company.id,
+        })
+
+    def add_po(company, number, code, item, item_type, qty, vendor, status, expected, amount, notes):
+        return upsert(models.ProcurementOrder, {"po_number": number}, {
+            "procurement_code": code,
+            "item_name": item,
+            "item_type": item_type,
+            "quantity": qty,
+            "vendor_id": vendor.id if vendor else None,
+            "status": status,
+            "expected_date": expected,
+            "bill_amount": amount,
+            "paid_amount": amount if status == "received" else 0,
+            "payment_date": expected if status == "received" else None,
+            "payment_mode": "bank_transfer" if status == "received" else None,
+            "notes": notes,
+            "is_demo": True,
+            "company_id": company.id,
+        })
+
+    def add_project(company, client_code, wh_code, title, show_type, venue, start, end, status, notes):
+        client = first(models.Client, client_code=client_code, company_id=company.id)
+        warehouse = first(models.Warehouse, code=wh_code, company_id=company.id)
+        setup = start - timedelta(days=1)
+        start_dt = datetime.combine(start, datetime.min.time().replace(hour=10))
+        end_dt = datetime.combine(end, datetime.min.time().replace(hour=23))
+        event_hours = max(8, ((end - start).days + 1) * 12)
+        block_start, block_end = calc_block_window(start_dt, 1, 6, event_hours, 12)
+        project = upsert(models.ProjectEvent, {"company_id": company.id, "title": title}, {
+            "show_type": show_type,
+            "client_id": client.id if client else None,
+            "venue": venue,
+            "origin_warehouse_id": warehouse.id if warehouse else None,
+            "setup_date": setup,
+            "expected_start_date": start,
+            "expected_end_date": end,
+            "shoot_start": start_dt,
+            "shoot_end": end_dt,
+            "setup_days": 1,
+            "block_start": block_start,
+            "block_end": block_end,
+            "status": status,
+            "notes": notes,
+            "is_demo": True,
+        })
+        for date_type, date_value in [
+            ("setup_date", setup),
+            ("start_date", start),
+            ("end_date", end),
+            ("return_date", end + timedelta(days=1)),
+        ]:
+            if not db.query(models.ProjectDate).filter(
+                models.ProjectDate.project_id == project.id,
+                models.ProjectDate.date_type == date_type,
+                models.ProjectDate.date_value == date_value,
+            ).first():
+                db.add(models.ProjectDate(project_id=project.id, date_type=date_type, date_value=date_value, company_id=company.id))
+        return project
+
+    def add_booking(company, project, booking_code, job_code, destination, status, items, crew, remarks):
+        booking = upsert(models.EventBooking, {"booking_code": booking_code}, {
+            "job_card_id": job_code,
+            "project_id": project.id,
+            "destination": destination,
+            "status": status,
+            "remarks": remarks,
+            "transport_mode": "company_vehicle",
+            "contact_person_name": "Demo Ops Lead",
+            "contact_person_mobile": "9999999999",
+            "call_time": datetime.combine(project.expected_start_date, datetime.min.time().replace(hour=9)),
+            "packup_time": datetime.combine(project.expected_end_date, datetime.min.time().replace(hour=23)),
+            "is_demo": True,
+            "company_id": company.id,
+        })
+        for asset_code in items:
+            item = first(models.InventoryItem, asset_code=asset_code, company_id=company.id)
+            if item and not db.query(models.BookingEquipment).filter(
+                models.BookingEquipment.booking_id == booking.id,
+                models.BookingEquipment.inventory_item_id == item.id,
+            ).first():
+                db.add(models.BookingEquipment(booking_id=booking.id, inventory_item_id=item.id, company_id=company.id))
+                if status in {"confirmed", "dispatched"}:
+                    item.status = "reserved"
+        for employee_code in crew:
+            member = first(models.CrewMember, employee_code=employee_code, company_id=company.id)
+            if member and not db.query(models.BookingCrew).filter(
+                models.BookingCrew.booking_id == booking.id,
+                models.BookingCrew.crew_member_id == member.id,
+            ).first():
+                db.add(models.BookingCrew(booking_id=booking.id, crew_member_id=member.id, company_id=company.id))
+        return booking
+
+    def add_paper(company, number, paper_type, reference, destination, booking=None, service_job=None, remarks=""):
+        return upsert(models.OutboundPaper, {"paper_number": number}, {
+            "paper_type": paper_type,
+            "reference_name": reference,
+            "destination": destination,
+            "issued_by": "Demo Operations",
+            "issue_status": "ready",
+            "related_booking_id": booking.id if booking else None,
+            "related_service_job_id": service_job.id if service_job else None,
+            "signature_name": "Authorized Signatory",
+            "remarks": remarks,
+            "is_demo": True,
+            "company_id": company.id,
+        })
+
+    def add_service_job(company, number, asset_code, vendor, sent, expected, problem, amount, remarks):
+        item = first(models.InventoryItem, asset_code=asset_code, company_id=company.id)
+        if not item:
+            return None
+        item.service_status = "in_service"
+        item.service_due = expected
+        item.status = "servicing"
+        return upsert(models.ServiceJob, {"job_number": number}, {
+            "inventory_item_id": item.id,
+            "vendor_id": vendor.id if vendor else None,
+            "vendor_name": vendor.name if vendor else "Internal Maintenance Team",
+            "sent_date": sent,
+            "expected_return_date": expected,
+            "status": "in_service",
+            "transport_mode": "company_vehicle",
+            "contact_person_name": vendor.contact_person if vendor else "Facility Lead",
+            "contact_person_mobile": vendor.phone if vendor else "9999999998",
+            "package_count": 1,
+            "declared_value": amount,
+            "problem_reported": problem,
+            "remarks": remarks,
+            "service_bill_amount": amount,
+            "is_demo": True,
+            "company_id": company.id,
+        })
+
+    verticals = [
+        ("artist", "Creativo Artist Management", "artist"),
+        ("venue", "VenueWorks India", "venue"),
+        ("decor", "Blooms & Decor India", "decor"),
+        ("catering", "Rasoi Events & Catering", "catering"),
+        ("staffing", "EventForce Staffing India", "staffing"),
+    ]
+    companies = {btype: first(models.Company, name=name) for btype, name, _ in verticals}
+    companies["equipment"] = first(models.Company, name="E365 Demo Event Company")
+
+    if companies.get("equipment"):
+        co = companies["equipment"]
+        vend = add_vendor(co, "VEN-EQ-00901", "Kolkata Truss Safety Works", "service", "Kolkata", "Nirmal Pal", "9001000901", "Rigging inspection, truss load testing, and safety certificates.")
+        add_doc(co, "Equipment Insurance Policy", "equipment-insurance-policy.pdf", "Covers owned lighting, audio, rigging, and LED inventory.")
+        project = add_project(co, "CLI-00007", "WH-KOL-MAIN", "City Marathon Finish Line Experience 2026", "Sports Event Production", "Red Road, Kolkata", date(2026, 6, 12), date(2026, 6, 13), "confirmed", "LED finish arch, public-address audio, power, and stage lighting.")
+        booking = add_booking(co, project, "EQ-BK-9001", "EQ-JC-9001", "Red Road, Kolkata", "confirmed", ["E365/LED/PNL-01", "E365/AUD/JBL-01", "E365/TRS/H30-01"], ["EMP-00001", "EMP-00002"], "Sports event equipment deployment with return QC.")
+        add_po(co, "PO-EQ-9001", "PROC-EQ-9001", "Temporary crowd-control truss ballast", "equipment", 12, vend, "ordered", date(2026, 6, 8), 48000, "Needed for outdoor wind-loading compliance.")
+        add_paper(co, "PAP-EQ-9001", "Equipment Dispatch Note", project.title, project.venue, booking, None, "Dispatch list, serials, crew handover, and return checklist.")
+
+    if companies.get("artist"):
+        co = companies["artist"]
+        travel = add_vendor(co, "VEN-ART-001", "Encore Artist Travel Desk", "logistics", "Mumbai", "Reema Shah", "9101000101", "Flights, hotel rooms, airport pickup, and artist hospitality riders.")
+        backline = add_vendor(co, "VEN-ART-002", "StageTone Backline Rentals", "production", "Mumbai", "Kabir Menon", "9101000102", "Keyboard, percussion, IEM, and artist backline support.")
+        add_doc(co, "Artist Agreement Template", "artist-agreement-template.pdf", "Standard performance, exclusivity, overtime, cancellation, and hospitality terms.")
+        add_doc(co, "PAN / TDS Declarations", "artist-pan-tds-declarations.pdf", "Finance documents for artist payouts and tax deductions.")
+        p1 = add_project(co, "CLI-A0003", "WH-ART-MUM", "Delhi Sangeet Night - Live Bollywood Set", "Wedding Artist Booking", "The Leela Palace, New Delhi", date(2026, 5, 24), date(2026, 5, 24), "confirmed", "Singer, MC, dance troupe, green-room hospitality, travel, and soundcheck timeline.")
+        b1 = add_booking(co, p1, "ART-BK-9001", "ART-JC-9001", p1.venue, "confirmed", ["ART/VOC/RN-01", "ART/DNC/BT-01", "ART/CMC/SK-01"], ["EMP-A0001", "EMP-A0002"], "Artist blocking only. No warranty, service, or return workflow.")
+        p2 = add_project(co, "CLI-A0004", "WH-ART-MUM", "Hyderabad Corporate Sufi Evening", "Corporate Entertainment", "HICC Novotel, Hyderabad", date(2026, 6, 6), date(2026, 6, 6), "planned", "Sufi act with backline, rehearsal slot, accommodation, and stage plot.")
+        b2 = add_booking(co, p2, "ART-BK-9002", "ART-JC-9002", p2.venue, "planned", ["ART/VOC/SF-01", "ART/QAW/NZ-01"], ["EMP-A0003", "EMP-A0004"], "Hold artist calendar until advance payment is received.")
+        add_po(co, "PO-ART-9001", "PROC-ART-9001", "Artist flights and 5-star accommodation", "travel", 8, travel, "ordered", date(2026, 5, 20), 185000, "Travel rider for Delhi Sangeet Night.")
+        add_po(co, "PO-ART-9002", "PROC-ART-9002", "Percussion + keyboard backline package", "production", 1, backline, "requested", date(2026, 6, 3), 42000, "Needed for Hyderabad Sufi set.")
+        add_paper(co, "PAP-ART-9001", "Artist Movement Sheet", p1.title, p1.venue, b1, None, "Call time, green-room, travel, rehearsal, and payout milestones.")
+        add_paper(co, "PAP-ART-9002", "Performance Agreement", p2.title, p2.venue, b2, None, "Performance fee, cancellation clause, and hospitality rider.")
+
+    if companies.get("venue"):
+        co = companies["venue"]
+        house = add_vendor(co, "VEN-VEN-001", "Pristine Venue Housekeeping", "facility", "New Delhi", "Farah Khan", "9201000101", "Deep cleaning, restroom staffing, and post-event turnover.")
+        maint = add_vendor(co, "VEN-VEN-002", "BlueLine Facility Maintenance", "repair", "Mumbai", "Suresh Iyer", "9201000102", "HVAC, plumbing, electrical, ballroom door, and panel repairs.")
+        add_doc(co, "Fire NOC - Venue Portfolio", "venue-fire-noc.pdf", "Fire department clearances tracked per venue space.")
+        add_doc(co, "Venue License / Permit Register", "venue-license-permit-register.pdf", "Liquor permissions, municipal event permits, and public liability records.")
+        p1 = add_project(co, "CLI-V0002", "WH-VEN-DEL", "BKC Annual Leadership Summit", "Corporate Venue Booking", "Royal Banquets & Events, Mumbai", date(2026, 5, 28), date(2026, 5, 29), "confirmed", "Ballroom hold with setup slot, housekeeping, parking, banquet ops, and security.")
+        b1 = add_booking(co, p1, "VEN-BK-9001", "VEN-JC-9001", p1.venue, "confirmed", ["VEN/BNQ/ROY-01"], ["EMP-V0001", "EMP-V0005"], "Venue booking uses hold dates and maintenance checks, not warehouse returns.")
+        p2 = add_project(co, "CLI-V0004", "WH-VEN-DEL", "Jaipur Heritage Wedding Venue Block", "Destination Wedding Venue", "Rajmahal Heritage Palace, Jaipur", date(2026, 6, 18), date(2026, 6, 20), "planned", "Three-day palace venue hold with guest flow, valet, and permit checklist.")
+        b2 = add_booking(co, p2, "VEN-BK-9002", "VEN-JC-9002", p2.venue, "planned", ["VEN/HRT/RAJ-01"], ["EMP-V0002", "EMP-V0003"], "Venue calendar block pending security deposit.")
+        sj = add_service_job(co, "VEN-MNT-9001", "VEN/HOT/ITC-01", maint, date(2026, 5, 9), date(2026, 5, 14), "Ballroom partition track jammed during pre-event inspection.", 12500, "Maintenance ticket. Venue repairs are allowed; warranty tracking is not applicable.")
+        add_po(co, "PO-VEN-9001", "PROC-VEN-9001", "Extra housekeeping and restroom attendants", "facility", 16, house, "ordered", date(2026, 5, 27), 64000, "Two-day corporate summit venue staffing.")
+        add_paper(co, "PAP-VEN-9001", "Venue Hold Letter", p1.title, p1.venue, b1, None, "Hold confirmation, setup windows, deposit, and house rules.")
+        add_paper(co, "PAP-VEN-9002", "Maintenance Work Order", "ITC ballroom partition repair", "ITC Gardenia Grand Ballroom", None, sj, "Internal repair record for venue readiness.")
+
+    if companies.get("decor"):
+        co = companies["decor"]
+        florist = add_vendor(co, "VEN-DEC-001", "Pink City Fresh Florals", "procurement", "Jaipur", "Mohan Lal", "9301000101", "Fresh flowers, garlands, foliage, and floral foam blocks.")
+        fabricator = add_vendor(co, "VEN-DEC-002", "Royal Props Fabrication", "repair", "Jaipur", "Neha Bhandari", "9301000102", "Mandap touch-ups, repainting, carpentry, and stage backdrop repairs.")
+        add_doc(co, "Decor Material Rate Card", "decor-material-rate-card.pdf", "Package inclusions, rental damage terms, floral wastage, and overtime pricing.")
+        add_doc(co, "Workshop Safety Checklist", "decor-workshop-safety-checklist.pdf", "Electrical, ladder, fabric fire-retardant, and rigging checks.")
+        p1 = add_project(co, "CLI-D0001", "WH-DEC-JAI", "Udaipur Royal Mandap and Floral Decor", "Wedding Decor Booking", "The Oberoi Udaivilas, Udaipur", date(2026, 5, 31), date(2026, 6, 1), "confirmed", "Mandap, bridal arch, floral entrance, table decor, install crew, and return checklist.")
+        b1 = add_booking(co, p1, "DEC-BK-9001", "DEC-JC-9001", p1.venue, "confirmed", ["DEC/MND/RAJ-01", "DEC/FLR/BRL-02", "DEC/ENT/GTW-01", "DEC/TBL/CRY-01"], ["EMP-D0001", "EMP-D0004"], "Decor items can be repaired/refurbished and returned after event.")
+        p2 = add_project(co, "CLI-D0004", "WH-DEC-JAI", "Bangalore Product Launch Stage Decor", "Corporate Decor Booking", "JW Marriott, Bengaluru", date(2026, 6, 11), date(2026, 6, 11), "planned", "Backdrop, branded entrance, fairy-light canopy, and floral centrepieces.")
+        b2 = add_booking(co, p2, "DEC-BK-9002", "DEC-JC-9002", p2.venue, "planned", ["DEC/STG/GLD-01", "DEC/LGT/CAN-01", "DEC/FLR/BRL-01"], ["EMP-D0002", "EMP-D0005"], "Requires client art approval before dispatch.")
+        sj = add_service_job(co, "DEC-REP-9001", "DEC/MND/RAJ-02", fabricator, date(2026, 5, 10), date(2026, 5, 16), "Mandap side pillar paint chipped after last return.", 7800, "Decor repair/refurbishment before next booking.")
+        add_po(co, "PO-DEC-9001", "PROC-DEC-9001", "Fresh marigold, mogra, and roses for Udaipur wedding", "consumable", 350, florist, "ordered", date(2026, 5, 30), 96000, "Perishable floral procurement tied to wedding setup date.")
+        add_paper(co, "PAP-DEC-9001", "Decor Dispatch Sheet", p1.title, p1.venue, b1, None, "Set-wise dispatch, installation notes, and return damage checklist.")
+        add_paper(co, "PAP-DEC-9002", "Workshop Repair Note", "Rajasthani mandap pillar repaint", "Jaipur workshop", None, sj, "Repair note before venue dispatch.")
+
+    if companies.get("catering"):
+        co = companies["catering"]
+        produce = add_vendor(co, "VEN-CAT-001", "Okhla Fresh Produce Market", "procurement", "New Delhi", "Iqbal Khan", "9401000101", "Vegetables, fruits, paneer, and fresh dairy sourced event-wise.")
+        disposables = add_vendor(co, "VEN-CAT-002", "EcoServe Disposables", "procurement", "New Delhi", "Anjali Rao", "9401000102", "Biodegradable plates, cutlery, chafing labels, and service counters.")
+        add_doc(co, "FSSAI License", "catering-fssai-license.pdf", "Food safety license for central kitchen and outdoor catering operations.")
+        add_doc(co, "Menu Allergen Matrix", "catering-menu-allergen-matrix.pdf", "Allergen notes for dairy, gluten, nuts, egg, shellfish, and Jain variants.")
+        p1 = add_project(co, "CLI-C0002", "WH-CAT-DEL", "Infosys Leadership Offsite Catering", "Corporate Catering", "Infosys Electronic City Campus, Bengaluru", date(2026, 5, 26), date(2026, 5, 27), "confirmed", "Breakfast, high tea, buffet lunch, allergen labels, and service staff rosters.")
+        b1 = add_booking(co, p1, "CAT-BK-9001", "CAT-JC-9001", p1.venue, "confirmed", ["CAT/HTE/CRP-01", "CAT/VEG/NI-01", "CAT/LIV/CHT-01"], ["EMP-C0001", "EMP-C0002"], "Catering uses menu units and consumables. No warranty/service/return workflow.")
+        p2 = add_project(co, "CLI-C0001", "WH-CAT-DEL", "Delhi Wedding Grand Catering", "Wedding Catering", "The Grand, Vasant Kunj, New Delhi", date(2026, 6, 14), date(2026, 6, 15), "planned", "Multi-cuisine wedding package with live counters, tasting sign-off, and Jain menu.")
+        b2 = add_booking(co, p2, "CAT-BK-9002", "CAT-JC-9002", p2.venue, "planned", ["CAT/WED/GRD-01", "CAT/LIV/BBQ-01", "CAT/SI/SDY-01"], ["EMP-C0003", "EMP-C0005"], "Pending tasting confirmation and headcount freeze.")
+        add_po(co, "PO-CAT-9001", "PROC-CAT-9001", "Fresh vegetables, paneer, curd, fruit, and spices", "consumable", 1, produce, "ordered", date(2026, 5, 25), 118000, "Event-wise fresh stock for Infosys offsite.")
+        add_po(co, "PO-CAT-9002", "PROC-CAT-9002", "Compostable buffet disposables and labels", "consumable", 800, disposables, "received", date(2026, 5, 22), 36000, "Eco service ware and allergen label cards.")
+        add_paper(co, "PAP-CAT-9001", "Kitchen Production Plan", p1.title, p1.venue, b1, None, "Menu quantities, production batch timing, and dispatch vehicle plan.")
+        add_paper(co, "PAP-CAT-9002", "FSSAI Compliance Sheet", p2.title, p2.venue, b2, None, "Food safety temperatures, tasting sign-off, and allergen checklist.")
+
+    if companies.get("staffing"):
+        co = companies["staffing"]
+        uniform = add_vendor(co, "VEN-STF-001", "Urban Uniform Supply Co.", "procurement", "Bengaluru", "Latika Menon", "9501000101", "Event uniforms, badges, lanyards, and shoes.")
+        temp = add_vendor(co, "VEN-STF-002", "MetroTemp Manpower Pool", "manpower", "Mumbai", "Rohit Batra", "9501000102", "Backup ushers, security, valet, and banquet staff.")
+        add_doc(co, "Labour License", "staffing-labour-license.pdf", "Labour compliance document for temporary event staffing.")
+        add_doc(co, "PF / ESIC Register", "staffing-pf-esic-register.pdf", "Employee statutory compliance and emergency-contact register.")
+        p1 = add_project(co, "CLI-S0001", "WH-STF-BLR", "TCS Annual Day Staffing Deployment", "Corporate Staffing", "Jio World Convention Centre, Mumbai", date(2026, 5, 25), date(2026, 5, 25), "confirmed", "Registration desk, ushers, security, AV runners, valet marshals, and supervisor deployment.")
+        b1 = add_booking(co, p1, "STF-BK-9001", "STF-JC-9001", p1.venue, "confirmed", ["STF/CRD/SG-01", "STF/SEC/VS-01", "STF/HSP/MV-01", "STF/VLT/SS-01"], ["EMP-S0001", "EMP-S0002"], "Staffing ERP focuses roster, attendance, shift times, and client sign-off.")
+        p2 = add_project(co, "CLI-S0003", "WH-STF-BLR", "Mumbai Wedding Hospitality Team", "Wedding Staffing", "Taj Lands End, Mumbai", date(2026, 6, 7), date(2026, 6, 8), "planned", "Hostesses, valet, hospitality waiters, security, and production runners.")
+        b2 = add_booking(co, p2, "STF-BK-9002", "STF-JC-9002", p2.venue, "planned", ["STF/HSP/MH-01", "STF/DES/KP-01", "STF/SEC/RG-01", "STF/MGR/PM-01"], ["EMP-S0003", "EMP-S0004"], "Pending roster freeze and uniform sizes.")
+        add_po(co, "PO-STF-9001", "PROC-STF-9001", "Black event uniforms, lanyards, and name badges", "uniform", 120, uniform, "ordered", date(2026, 5, 23), 72000, "For TCS annual day deployment.")
+        add_po(co, "PO-STF-9002", "PROC-STF-9002", "Backup valet and hospitality staff pool", "manpower", 25, temp, "requested", date(2026, 6, 5), 87500, "Reserve pool for Mumbai wedding hospitality.")
+        add_paper(co, "PAP-STF-9001", "Manpower Deployment Sheet", p1.title, p1.venue, b1, None, "Shift roster, role assignment, reporting time, and supervisor contact.")
+        add_paper(co, "PAP-STF-9002", "Attendance Roster", p2.title, p2.venue, b2, None, "Roster freeze, IDs, uniform sizes, and client sign-off space.")
+
+    # Enforce vertical logic: no warranty/service semantics for people, food, or staffing.
+    no_service_types = {"artist", "catering", "staffing"}
+    no_warranty_types = {"artist", "venue", "decor", "catering", "staffing"}
+    for company in [co for co in companies.values() if co]:
+        for item in db.query(models.InventoryItem).filter(models.InventoryItem.company_id == company.id).all():
+            if company.booking_type in no_warranty_types:
+                item.warranty_expiry = None
+            if company.booking_type in no_service_types:
+                item.service_due = None
+                item.service_status = "not_in_service"
+                if item.status == "servicing":
+                    item.status = "available"
+    db.commit()
+
+
 def seed_db(db: Session):
     seed_builtin_presets(db)
     seed_booking_type_profiles(db)
@@ -105,7 +385,8 @@ def seed_db(db: Session):
     db.commit()
 
     # Business/reference seed should still run after a reset that preserves users.
-    if db.query(models.Warehouse).first():
+    if db.query(models.Warehouse).filter(models.Warehouse.code == "WH-KOL-MAIN").first():
+        seed_vertical_business_data(db)
         return
 
     # ── WAREHOUSES ──
@@ -748,3 +1029,4 @@ def seed_db(db: Session):
     ]:
         _add_client(*args)
     db.commit()
+    seed_vertical_business_data(db)
