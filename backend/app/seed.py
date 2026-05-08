@@ -47,6 +47,7 @@ def seed_db(db: Session):
             email="admin@e365.demo",
             country="India",
             status="active",
+            theme_option="auto",
         )
         db.add(default_company)
         db.commit()

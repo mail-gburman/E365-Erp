@@ -6,7 +6,7 @@ from .env import load_env
 
 load_env()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./e365_erp_tier_v01.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./eventory.db")
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
 

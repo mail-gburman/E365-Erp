@@ -290,8 +290,8 @@ with engine.connect() as conn:
         row = conn.execute(text("SELECT id FROM companies ORDER BY id ASC LIMIT 1")).first()
         if not row:
             conn.execute(text("""
-                INSERT INTO companies (created_at, name, legal_name, status, country)
-                VALUES (CURRENT_TIMESTAMP, 'E365 Demo Event Company', 'E365 Demo Event Company', 'active', 'India')
+                INSERT INTO companies (created_at, name, legal_name, status, country, theme_option, booking_type)
+                VALUES (CURRENT_TIMESTAMP, 'E365 Demo Event Company', 'E365 Demo Event Company', 'active', 'India', 'auto', 'equipment')
             """))
             conn.commit()
             row = conn.execute(text("SELECT id FROM companies ORDER BY id ASC LIMIT 1")).first()
