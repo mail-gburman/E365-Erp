@@ -38,6 +38,32 @@ class Company(Base):
     booking_type = Column(String, default="equipment", nullable=False)  # equipment / artist / venue / decor / catering / staffing
     notes = Column(Text, nullable=True)
 
+    @property
+    def booking_profile_label(self):
+        from .booking_profiles import get_booking_profile
+        return get_booking_profile(self.booking_type).get("label")
+
+    @property
+    def booking_features_json(self):
+        from .booking_profiles import get_booking_profile, profile_json
+        return profile_json(get_booking_profile(self.booking_type), "features")
+
+    @property
+    def booking_modules_json(self):
+        from .booking_profiles import get_booking_profile, profile_json
+        return profile_json(get_booking_profile(self.booking_type), "modules")
+
+
+class BookingTypeProfile(Base):
+    __tablename__ = "booking_type_profiles"
+    id = Column(Integer, primary_key=True)
+    booking_type = Column(String, unique=True, index=True, nullable=False)
+    label = Column(String, nullable=False)
+    service_label = Column(String, nullable=True)
+    service_item_label = Column(String, nullable=True)
+    features_json = Column(Text, nullable=False)
+    modules_json = Column(Text, nullable=False)
+
 
 class CompanyDocument(Base):
     __tablename__ = "company_documents"

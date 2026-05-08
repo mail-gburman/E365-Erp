@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
 from ..database import get_db
 from ..auth import require_roles, get_current_user
+from ..booking_profiles import feature_enabled_for_user
 from ..permissions import require_document_permission
 from .. import models, schemas
 from ..utils import aggregate_equipment_rows, overlaps, make_branded_pdf, make_job_card_pdf, make_road_challan_pdf, make_calendar_day_summary_pdf, make_manpower_details_pdf
@@ -1350,8 +1351,10 @@ def create_damage(payload: schemas.DamageLogCreate, db: Session = Depends(get_db
     db.commit()
     db.refresh(damage)
 
-    # Auto-create service job if requested
+    # Auto-create repair/service job only for booking verticals that support it.
     if payload.auto_create_service_job:
+        if not feature_enabled_for_user(current_user, "serviceJobs"):
+            raise HTTPException(status_code=400, detail="Repair/service jobs are not used for this company's booking type.")
         sj = models.ServiceJob(
             job_number=next_service_job_number(db),
             inventory_item_id=payload.inventory_item_id,

@@ -3,6 +3,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
+from ..auth import get_current_user
+from ..booking_profiles import feature_enabled_for_user
 from .. import models
 from ..utils import overlaps
 from ..permissions import require_permission
@@ -62,6 +64,7 @@ def _booking_conflict_rows(bookings):
 @router.get("")
 def dashboard(
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
     range_start: Optional[str] = Query(None),
     range_end: Optional[str] = Query(None),
 ):
@@ -72,8 +75,11 @@ def dashboard(
     active_items = db.query(models.InventoryItem).filter(models.InventoryItem.status.in_(["reserved", "on_shoot"])).count()
     crew_total = db.query(models.CrewMember).count()
     active_projects = db.query(models.ProjectEvent).filter(models.ProjectEvent.status.in_(["planned", "confirmed"])).count()
-    in_service = db.query(models.ServiceJob).filter(models.ServiceJob.status == "in_service").count()
-    warranty_soon = db.query(models.InventoryItem).filter(models.InventoryItem.warranty_expiry != None, models.InventoryItem.warranty_expiry <= week_out).count()
+    supports_service_jobs = feature_enabled_for_user(current_user, "serviceJobs")
+    supports_warranty = feature_enabled_for_user(current_user, "warranty")
+    supports_returns = feature_enabled_for_user(current_user, "returns")
+    in_service = db.query(models.ServiceJob).filter(models.ServiceJob.status == "in_service").count() if supports_service_jobs else 0
+    warranty_soon = db.query(models.InventoryItem).filter(models.InventoryItem.warranty_expiry != None, models.InventoryItem.warranty_expiry <= week_out).count() if supports_warranty else 0
 
     # Third-party equipment stats
     third_party_total = db.query(models.InventoryItem).filter(models.InventoryItem.owner_type == "third_party").count()
@@ -99,9 +105,9 @@ def dashboard(
     for b in bookings:
         if not b.project:
             continue
-        if b.project.block_end.date() == today:
+        if supports_returns and b.project.block_end.date() == today:
             return_due_today += 1
-        if b.project.block_end < now_dt:
+        if supports_returns and b.project.block_end < now_dt:
             overdue_returns += 1
 
     conflict_rows, equipment_conflicts, crew_conflicts = _booking_conflict_rows(bookings)

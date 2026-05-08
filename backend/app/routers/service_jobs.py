@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse, FileResponse
 from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
 from ..auth import get_current_user
+from ..booking_profiles import feature_enabled_for_user
 from ..permissions import require_document_permission, require_permission
 from .. import models, schemas
 from ..utils import make_branded_pdf, make_service_declaration_pdf, make_address_label_pdf
@@ -44,12 +45,12 @@ def _attachment_payload(att):
 
 
 def _service_jobs_enabled(current_user):
-    return getattr(getattr(current_user, "company", None), "booking_type", "equipment") in {"equipment", "venue", "decor"}
+    return feature_enabled_for_user(current_user, "serviceJobs")
 
 
 def _reject_if_not_service_profile(current_user):
     if not _service_jobs_enabled(current_user):
-        raise HTTPException(status_code=400, detail="Service jobs are not used for this company's booking type.")
+        raise HTTPException(status_code=400, detail="Repair/service jobs are not used for this company's booking type.")
 
 
 @router.get("/", response_model=list[schemas.ServiceJobRead], dependencies=[Depends(require_permission("services","view"))])

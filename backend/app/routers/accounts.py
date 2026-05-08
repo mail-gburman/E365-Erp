@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from ..database import get_db
 from ..auth import get_current_user
+from ..booking_profiles import feature_enabled_for_user
 from ..permissions import require_document_permission, require_permission, resolved_permissions
 from .. import models, schemas
 from ..audit import audit
@@ -505,7 +506,7 @@ def _ledger_payment_index(db: Session) -> dict[str, dict]:
 
 
 @router.get("/ledger", dependencies=[Depends(require_permission("accounts", "view"))])
-def accounts_ledger(db: Session = Depends(get_db)):
+def accounts_ledger(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     payments = _ledger_payment_index(db)
     invoices = db.query(models.AccountInvoice).options(
         joinedload(models.AccountInvoice.booking).joinedload(models.EventBooking.project).joinedload(models.ProjectEvent.client)
@@ -571,21 +572,22 @@ def accounts_ledger(db: Session = Depends(get_db)):
         })
 
     service_rows = []
-    for row in db.query(models.ServiceJob).options(joinedload(models.ServiceJob.vendor)).order_by(models.ServiceJob.id.desc()).all():
-        bill = _service_bill_amount(row)
-        paid = float(row.service_paid_amount or 0)
-        service_rows.append({
-            "reference": row.job_number,
-            "vendor_name": row.vendor_name or (row.vendor.name if row.vendor else "-"),
-            "status": row.status,
-            "bill_amount": bill,
-            "paid_amount": paid,
-            "due_amount": round(bill - paid, 2),
-            "payment_mode": row.service_payment_mode or "-",
-            "payment_date": row.service_payment_date.isoformat() if row.service_payment_date else None,
-            "details": row.service_payment_details or row.remarks or row.problem_reported or "-",
-            "payments": payments.get(f"service:{row.job_number}", {}).get("payments") or [],
-        })
+    if feature_enabled_for_user(current_user, "serviceJobs"):
+        for row in db.query(models.ServiceJob).options(joinedload(models.ServiceJob.vendor)).order_by(models.ServiceJob.id.desc()).all():
+            bill = _service_bill_amount(row)
+            paid = float(row.service_paid_amount or 0)
+            service_rows.append({
+                "reference": row.job_number,
+                "vendor_name": row.vendor_name or (row.vendor.name if row.vendor else "-"),
+                "status": row.status,
+                "bill_amount": bill,
+                "paid_amount": paid,
+                "due_amount": round(bill - paid, 2),
+                "payment_mode": row.service_payment_mode or "-",
+                "payment_date": row.service_payment_date.isoformat() if row.service_payment_date else None,
+                "details": row.service_payment_details or row.remarks or row.problem_reported or "-",
+                "payments": payments.get(f"service:{row.job_number}", {}).get("payments") or [],
+            })
 
     total_receivable = sum(row["total_amount"] for row in client_rows)
     total_received = sum(row["amount_received"] for row in client_rows)
@@ -665,6 +667,8 @@ def record_barter(payload: dict, db: Session = Depends(get_db), current_user=Dep
 def record_ledger_payment(payload: schemas.AccountLedgerPaymentPayload, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if payload.entry_type not in {"client", "manpower", "vendor", "service"}:
         raise HTTPException(status_code=400, detail="Invalid ledger payment type.")
+    if payload.entry_type == "service" and not feature_enabled_for_user(current_user, "serviceJobs"):
+        raise HTTPException(status_code=400, detail="Repair/service billing is not used for this company's booking type.")
     amount = float(payload.amount or 0)
     if amount <= 0:
         raise HTTPException(status_code=400, detail="Payment amount must be greater than zero.")
@@ -715,7 +719,7 @@ def record_ledger_payment(payload: schemas.AccountLedgerPaymentPayload, db: Sess
     db.add(payment)
     audit(db, current_user.username, "record_payment", "account_ledger", entity_id=payload.reference, details={"type": payload.entry_type, "amount": amount})
     db.commit()
-    return accounts_ledger(db)
+    return accounts_ledger(db, current_user)
 
 
 @router.post("/invoices")

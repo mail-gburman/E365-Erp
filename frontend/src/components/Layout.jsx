@@ -252,7 +252,7 @@ export default function Layout({ children }) {
     ["/bookings", "Booking", "📦"],
     ["/calendar", "Calendar", "🗓️"],
     ["/operations", bookingProfile.operationsLabel, "📄"],
-    ...(bookingProfile.features.serviceJobs ? [["/services", "Service Jobs", "🔧"]] : []),
+    ...(bookingProfile.features.serviceJobs ? [["/services", bookingProfile.serviceNavLabel, "🔧"]] : []),
     ["/vendors", bookingProfile.vendorsLabel, "🏪"],
     ["/accounts", "Accounts", "💰"],
     ["/audit", "Audit & Exports", "📤"],
@@ -263,7 +263,7 @@ export default function Layout({ children }) {
     if (href === "/accounts") return canSeeAccounts;
     return true;
   }));
-  }, [bookingProfile.addLabel, bookingProfile.features.serviceJobs, bookingProfile.operationsLabel, bookingProfile.registryLabel, bookingProfile.vendorsLabel, canSeeAccounts, role]);
+  }, [bookingProfile.addLabel, bookingProfile.features.serviceJobs, bookingProfile.operationsLabel, bookingProfile.registryLabel, bookingProfile.serviceNavLabel, bookingProfile.vendorsLabel, canSeeAccounts, role]);
 
   async function handleSaveProfile() {
     setSavingProfile(true);

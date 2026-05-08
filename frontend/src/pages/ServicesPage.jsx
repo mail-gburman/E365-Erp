@@ -5,7 +5,8 @@ import AutocompleteInput from "../components/AutocompleteInput";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions } from "../components/SearchBar";
 import { api, downloadAuthorized, fetchBlobUrlAuthorized, viewAuthorized } from "../api";
-import { getCompanyName } from "../auth";
+import { getBookingType, getCompanyName } from "../auth";
+import { getBookingProfile } from "../bookingProfiles";
 
 const blank = {
   service_scope: "inhouse",
@@ -83,6 +84,9 @@ function AttachmentThumb({ attachment }) {
 
 export default function ServicesPage() {
   const companyName = getCompanyName() || "Company";
+  const bookingProfile = getBookingProfile(getBookingType());
+  const servicePageTitle = bookingProfile.serviceNavLabel || "Service Jobs";
+  const serviceItemLabel = bookingProfile.serviceItemLabel || "Service Job";
   const inhouseServiceName = `${companyName} Inhouse Service`;
   const inhouseDeskName = `${companyName} Inhouse Service Desk`;
   const companyOfficeName = `${companyName} Office`;
@@ -253,11 +257,11 @@ export default function ServicesPage() {
 
   return (
     <div className="page">
-      <h1 className="pageTitle">Service Jobs</h1>
+      <h1 className="pageTitle">{servicePageTitle}</h1>
       {message ? <div className="messageBar">{message} <button className="dismissBtn" onClick={() => setMessage("")}>Dismiss</button></div> : null}
 
       <div className="grid2">
-        <Card title="Create Service Job">
+        <Card title={`Create ${serviceItemLabel}`}>
           <form className="formGrid" onSubmit={save}>
             <div className="full serviceSectionTitle">1. Basic Service Entry</div>
             <div className="full helperText serviceGuide">First choose inhouse or vendor service. Vendor dispatch fields appear only for vendor service.</div>
@@ -332,7 +336,7 @@ export default function ServicesPage() {
             <div className="full helperText serviceGuide">Write the fault in simple words. Example: “Camera not powering on”, “Audio crackling on output”, “Tripod leg lock broken”.</div>
             <textarea className="full" placeholder="Problem Reported" value={form.problem_reported} onChange={(e) => setForm({ ...form, problem_reported: e.target.value })}></textarea>
             <textarea className="full" placeholder="Internal Remarks" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })}></textarea>
-            <button className="full primaryBtn" type="submit" disabled={saving}>{saving ? "Saving..." : "Create Service Job"}</button>
+            <button className="full primaryBtn" type="submit" disabled={saving}>{saving ? "Saving..." : `Create ${serviceItemLabel}`}</button>
           </form>
         </Card>
 
@@ -350,7 +354,7 @@ export default function ServicesPage() {
         </Card>
       </div>
 
-      <Card title="Service Jobs / Full View">
+      <Card title={`${servicePageTitle} / Full View`}>
         <div className="auditSubFilters" style={{ marginBottom: 10 }}>
           <SearchBar value={svcSearch} onChange={(value) => { setSvcSearch(value); svcPg.setPage(1); }} suggestions={buildSuggestions(jobs)} placeholder="Search by job number, equipment, vendor, transport, tracking number, contact..." />
           <select value={svcStatusFilter} onChange={(e) => { setSvcStatusFilter(e.target.value); svcPg.setPage(1); }}>
@@ -411,7 +415,7 @@ export default function ServicesPage() {
         <div className="modalOverlay" onClick={() => setActionDialog(null)}>
           <div className="modalCard" style={{ width: "min(480px,95vw)" }} onClick={e => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 10px", fontSize: 16 }}>
-              {actionDialog.type === "complete" ? "Complete Service Job" : "Mark as Forever Damaged"}
+              {actionDialog.type === "complete" ? `Complete ${serviceItemLabel}` : "Mark as Forever Damaged"}
             </h3>
             <p className="helperText">Job: <strong>{actionDialog.jobNumber}</strong></p>
             {actionDialog.type === "forever_damaged" && (

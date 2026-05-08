@@ -3,6 +3,7 @@ import json
 from sqlalchemy.orm import Session
 from . import models
 from .auth import hash_password
+from .booking_profiles import BOOKING_TYPE_PROFILES
 from .permissions import ROLE_DEFAULTS
 from .utils import calc_block_window
 
@@ -35,8 +36,28 @@ def seed_builtin_presets(db: Session):
     db.commit()
 
 
+def seed_booking_type_profiles(db: Session):
+    """Persist booking-type feature matrix so backend and DB both know vertical rules."""
+    for booking_type, profile in BOOKING_TYPE_PROFILES.items():
+        row = db.query(models.BookingTypeProfile).filter(models.BookingTypeProfile.booking_type == booking_type).first()
+        payload = {
+            "label": profile["label"],
+            "service_label": profile.get("service_label"),
+            "service_item_label": profile.get("service_item_label"),
+            "features_json": json.dumps(profile.get("features", {}), sort_keys=True),
+            "modules_json": json.dumps(profile.get("modules", []), sort_keys=True),
+        }
+        if row:
+            for key, value in payload.items():
+                setattr(row, key, value)
+        else:
+            db.add(models.BookingTypeProfile(booking_type=booking_type, **payload))
+    db.commit()
+
+
 def seed_db(db: Session):
     seed_builtin_presets(db)
+    seed_booking_type_profiles(db)
 
     default_company = db.query(models.Company).filter(models.Company.name == "E365 Demo Event Company").first()
     if not default_company:

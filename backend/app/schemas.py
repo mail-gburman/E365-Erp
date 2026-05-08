@@ -154,6 +154,20 @@ class CompanyRead(CompanyBase):
     id: int
     logo_path: Optional[str] = None
     created_at: Optional[datetime] = None
+    booking_profile_label: Optional[str] = None
+    booking_features_json: Optional[str] = None
+    booking_modules_json: Optional[str] = None
+    class Config:
+        from_attributes = True
+
+
+class BookingTypeProfileRead(BaseModel):
+    booking_type: str
+    label: str
+    service_label: Optional[str] = None
+    service_item_label: Optional[str] = None
+    features_json: str
+    modules_json: str
     class Config:
         from_attributes = True
 

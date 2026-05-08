@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..auth import require_roles, hash_password, get_current_user
 from ..audit import audit
+from ..booking_profiles import VALID_BOOKING_TYPES
 from .. import models, schemas
 from ..demo_data import ensure_demo_data, remove_demo_data, demo_dataset_status
 
@@ -32,8 +33,15 @@ def _current_company_or_404(db: Session, current_user):
 def _clean_company_booking_type(data: dict):
     if "booking_type" not in data or data.get("booking_type") is None:
         return
-    if data["booking_type"] not in {"equipment", "artist", "venue", "decor", "catering", "staffing"}:
-        raise HTTPException(status_code=400, detail="Booking type must be equipment, artist, venue, decor, catering, or staffing.")
+    if data["booking_type"] not in VALID_BOOKING_TYPES:
+        raise HTTPException(status_code=400, detail=f"Booking type must be one of: {', '.join(sorted(VALID_BOOKING_TYPES))}.")
+
+
+@router.get("/booking-profiles", response_model=list[schemas.BookingTypeProfileRead])
+def list_booking_profiles(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if current_user.role not in {"super_admin", "admin"}:
+        raise HTTPException(status_code=403, detail="Only admins can view booking profiles.")
+    return db.query(models.BookingTypeProfile).order_by(models.BookingTypeProfile.booking_type.asc()).all()
 
 
 @router.get("/companies", response_model=list[schemas.CompanyRead])

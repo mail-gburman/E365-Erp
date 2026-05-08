@@ -145,7 +145,7 @@ export default function AuditPage() {
               <option value="bookings">{supportsReturns ? "Bookings / QC / Returns" : "Bookings / Activity"}</option>
               <option value="equipment">{bookingProfile.resourceLabel} / Registry</option>
               <option value="manpower">Manpower / Crew</option>
-              {supportsServiceJobs && <option value="services">Service Jobs</option>}
+              {supportsServiceJobs && <option value="services">{bookingProfile.serviceNavLabel}</option>}
               <option value="papers">Papers / {bookingProfile.documents.gatePass}</option>
               <option value="additions">All New Additions</option>
               <option value="users">Users</option>
