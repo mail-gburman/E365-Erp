@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
+import PhoneInput from "../components/PhoneInput";
 import AutocompleteInput from "../components/AutocompleteInput";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions } from "../components/SearchBar";
@@ -297,9 +298,9 @@ export default function ServicesPage() {
             <input placeholder="Courier / Logistics Partner" value={form.courier_partner} onChange={(e) => setForm({ ...form, courier_partner: e.target.value })} />
             <input placeholder="AWB / Docket / Tracking Number" value={form.awb_number} onChange={(e) => setForm({ ...form, awb_number: e.target.value })} />
             <input placeholder="Primary Contact Name" value={form.contact_person_name} onChange={(e) => setForm({ ...form, contact_person_name: e.target.value })} />
-            <input placeholder="Primary Contact Mobile" value={form.contact_person_mobile} onChange={(e) => setForm({ ...form, contact_person_mobile: e.target.value })} />
+            <PhoneInput placeholder="Primary Contact Mobile" value={form.contact_person_mobile} onChange={v => setForm({ ...form, contact_person_mobile: v })} />
             <input placeholder="Alternate Contact Name" value={form.alternate_contact_name} onChange={(e) => setForm({ ...form, alternate_contact_name: e.target.value })} />
-            <input placeholder="Alternate Contact Mobile" value={form.alternate_contact_mobile} onChange={(e) => setForm({ ...form, alternate_contact_mobile: e.target.value })} />
+            <PhoneInput placeholder="Alternate Contact Mobile" value={form.alternate_contact_mobile} onChange={v => setForm({ ...form, alternate_contact_mobile: v })} />
             <input placeholder="Contact Email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} />
             <textarea className="full" placeholder="Pickup Address / From Address" value={form.pickup_address} onChange={(e) => setForm({ ...form, pickup_address: e.target.value })}></textarea>
             <textarea className="full" placeholder="Delivery Address / Service Centre Address" value={form.delivery_address} onChange={(e) => setForm({ ...form, delivery_address: e.target.value })}></textarea>
