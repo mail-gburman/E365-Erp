@@ -2027,3 +2027,48 @@ button:disabled{opacity:.6;cursor:not-allowed;}
 :where(.tenantShell,.superAdminShell) :is(.ghostBtn,.compactBtn,.tabBtn,.pgBtn,.dateQuickBtn,.calLegendBtn,.calFilterGroupBtn){
   color:var(--readable-text);
 }
+
+/* Final action-button contrast contract.
+   Filled buttons always get white text, even when combined with .compactBtn or dynamic logo themes. */
+:where(.tenantShell,.superAdminShell) :is(
+  .primaryBtn,
+  .downloadBtn,
+  .dangerBtn,
+  .actionCell button,
+  button.primaryBtn,
+  button.downloadBtn,
+  button.dangerBtn
+){
+  color:#fff !important;
+  text-shadow:0 1px 2px rgba(0,0,0,.42);
+}
+
+:where(.tenantShell,.superAdminShell) :is(.primaryBtn,.downloadBtn,.actionCell button):not(:disabled){
+  background:linear-gradient(135deg,#080808 0%, color-mix(in srgb, var(--brand-primary) 72%, #111827) 46%, var(--brand-secondary) 100%) !important;
+  border:1px solid rgba(0,0,0,.22);
+}
+
+:where(.tenantShell,.superAdminShell) .dangerBtn:not(:disabled){
+  background:linear-gradient(135deg,#991b1b 0%,#dc2626 100%) !important;
+  border:1px solid #7f1d1d;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.primaryBtn,.downloadBtn,.dangerBtn,.actionCell button):disabled{
+  color:rgba(255,255,255,.78) !important;
+  background:#64748b !important;
+  border-color:#475569;
+  opacity:1;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.ghostBtn,.tabBtn,.pgBtn,.dateQuickBtn,.calLegendBtn,.calFilterGroupBtn,.subMenuTab):not(.primaryBtn):not(.downloadBtn):not(.dangerBtn){
+  background:#fff;
+  color:var(--readable-text) !important;
+  border:1px solid var(--readable-line);
+  text-shadow:none;
+}
+
+:where(.tenantShell,.superAdminShell) :is(.ghostBtn,.tabBtn,.pgBtn,.dateQuickBtn,.calLegendBtn,.calFilterGroupBtn,.subMenuTab):hover:not(:disabled):not(.primaryBtn):not(.downloadBtn):not(.dangerBtn){
+  background:#f1f5f9;
+  color:#0f172a !important;
+  border-color:#94a3b8;
+}
