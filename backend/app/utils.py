@@ -103,14 +103,14 @@ def make_branded_pdf(title, subtitle, lines):
 
     def _draw_branded_header():
         if LOGO_PATH.exists():
-            c.drawImage(str(LOGO_PATH), left, height - 110, width=180, height=80, preserveAspectRatio=True, mask="auto")
+            c.drawImage(str(LOGO_PATH), left, height - 136, width=330, height=122, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 18)
-        c.drawString(left, height - 130, title)
+        c.drawString(left, height - 154, title)
         c.setFont("Helvetica", 11)
-        c.drawString(left, height - 148, subtitle)
+        c.drawString(left, height - 172, subtitle)
         c.setFont("Helvetica", 8)
-        c.drawString(left, height - 162, COMPANY_ADDRESS_LINE)
-        return height - 180
+        c.drawString(left, height - 186, COMPANY_ADDRESS_LINE)
+        return height - 204
 
     def _branded_new_page():
         nonlocal page_no
@@ -1095,7 +1095,7 @@ def make_service_declaration_pdf(item_description, to_name, to_address, to_conta
     # ── Letterhead ──────────────────────────────────────────────────────────
     y = height - 40
     if LOGO_PATH.exists():
-        c.drawImage(str(LOGO_PATH), left, y - 48, width=110, height=48,
+        c.drawImage(str(LOGO_PATH), left, y - 80, width=230, height=86,
                     preserveAspectRatio=True, mask="auto")
     c.setFont("Helvetica-Bold", 15)
     c.drawRightString(right, y - 10, "CREATVO STUDIOS")
@@ -1238,7 +1238,7 @@ def make_account_invoice_pdf(invoice, booking, project, client_name="-", line_it
         nonlocal y
         y = height - 42
         if LOGO_PATH.exists():
-            c.drawImage(str(LOGO_PATH), left, y - 24, width=110, height=40, preserveAspectRatio=True, mask="auto")
+            c.drawImage(str(LOGO_PATH), left, y - 58, width=210, height=78, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 16)
         c.drawRightString(right, y, "CREATVO STUDIOS")
         c.setFont("Helvetica-Bold", 12)
