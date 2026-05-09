@@ -144,6 +144,11 @@ def _doc_row(document_type: str, name: str, entity: str, download_url: str, crea
         "source": source,
     }
 
+def _tenant_filter(query, model, current_user):
+    if current_user.company_id:
+        return query.filter(model.company_id == current_user.company_id)
+    return query
+
 @router.get("/system/document-library")
 def document_library(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     rows = []
@@ -164,7 +169,8 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
         "other": "Other",
     }
 
-    for doc in db.query(models.StatutoryDocument).order_by(models.StatutoryDocument.id.desc()).all():
+    uploaded_query = _tenant_filter(db.query(models.StatutoryDocument), models.StatutoryDocument, current_user)
+    for doc in uploaded_query.order_by(models.StatutoryDocument.id.desc()).all():
         doc_type = _uploaded_document_type(doc.entity_type)
         if doc_type not in type_labels:
             doc_type = "other"
@@ -180,7 +186,8 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
         ))
 
     doc_ready_statuses = {"confirmed", "dispatched", "returned", "closed", "completed"}
-    for booking in db.query(models.EventBooking).order_by(models.EventBooking.id.desc()).all():
+    booking_query = _tenant_filter(db.query(models.EventBooking), models.EventBooking, current_user)
+    for booking in booking_query.order_by(models.EventBooking.id.desc()).all():
         effective_status = (booking.parent_booking.status if booking.parent_booking else booking.status) or ""
         if effective_status.lower() not in doc_ready_statuses:
             continue
@@ -192,8 +199,14 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
         if has_document_permission(current_user, "manpower_pdf", "view"):
             rows.append(_doc_row("manpower_pdf", f"Manpower PDF {booking.job_card_id}", entity, f"/bookings/{booking.id}/manpower-pdf", booking.created_at))
 
-    for gate in db.query(models.GatePass).order_by(models.GatePass.id.desc()).all():
+    gate_query = db.query(models.GatePass).join(models.EventBooking)
+    if current_user.company_id:
+        gate_query = gate_query.filter(models.EventBooking.company_id == current_user.company_id)
+    for gate in gate_query.order_by(models.GatePass.id.desc()).all():
         if not has_document_permission(current_user, "gate_pass", "view"):
+            continue
+        booking_status = ((gate.booking.parent_booking.status if gate.booking and gate.booking.parent_booking else gate.booking.status) if gate.booking else "") or ""
+        if booking_status.lower() not in doc_ready_statuses:
             continue
         rows.append(_doc_row(
             "gate_pass",
@@ -203,7 +216,10 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
             gate.created_at,
         ))
 
-    for invoice in db.query(models.AccountInvoice).order_by(models.AccountInvoice.id.desc()).all():
+    invoice_query = db.query(models.AccountInvoice).join(models.EventBooking)
+    if current_user.company_id:
+        invoice_query = invoice_query.filter(models.EventBooking.company_id == current_user.company_id)
+    for invoice in invoice_query.order_by(models.AccountInvoice.id.desc()).all():
         if not has_document_permission(current_user, "invoice", "view"):
             continue
         rows.append(_doc_row(
@@ -214,7 +230,8 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
             invoice.created_at,
         ))
 
-    for job in db.query(models.ServiceJob).order_by(models.ServiceJob.id.desc()).all():
+    service_query = _tenant_filter(db.query(models.ServiceJob), models.ServiceJob, current_user)
+    for job in service_query.order_by(models.ServiceJob.id.desc()).all():
         if not has_document_permission(current_user, "service", "view"):
             continue
         entity = f"{job.job_number} · {job.vendor_name}"
@@ -222,7 +239,8 @@ def document_library(db: Session = Depends(get_db), current_user = Depends(get_c
         rows.append(_doc_row("service", f"Service Declaration {job.job_number}", entity, f"/service-jobs/{job.id}/declaration-pdf", job.created_at))
         rows.append(_doc_row("service", f"Service Address Label {job.job_number}", entity, f"/service-jobs/{job.id}/address-label-pdf", job.created_at))
 
-    for paper in db.query(models.OutboundPaper).order_by(models.OutboundPaper.id.desc()).all():
+    paper_query = _tenant_filter(db.query(models.OutboundPaper), models.OutboundPaper, current_user)
+    for paper in paper_query.order_by(models.OutboundPaper.id.desc()).all():
         if not has_document_permission(current_user, "paper", "view"):
             continue
         rows.append(_doc_row(

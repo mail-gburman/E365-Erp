@@ -762,13 +762,15 @@ def update_invoice(invoice_id: int, payload: schemas.AccountInvoicePayload, db: 
 
 
 @router.get("/invoices/{invoice_id}/pdf", dependencies=[Depends(require_permission("accounts", "view")), Depends(require_document_permission("invoice", "download"))])
-def invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
+def invoice_pdf(invoice_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     invoice = db.query(models.AccountInvoice).options(
         joinedload(models.AccountInvoice.booking).joinedload(models.EventBooking.project).joinedload(models.ProjectEvent.client)
     ).filter(models.AccountInvoice.id == invoice_id).first()
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found.")
     booking = invoice.booking
+    if current_user.company_id and (not booking or booking.company_id != current_user.company_id):
+        raise HTTPException(status_code=404, detail="Invoice not found.")
     project = booking.project if booking else None
     client_name = project.client.name if project and project.client else "-"
     pdf = make_account_invoice_pdf(

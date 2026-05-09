@@ -200,6 +200,18 @@ def seed_vertical_business_data(db: Session):
             "company_id": company.id,
         })
 
+    def add_gate_pass(company, number, booking, pass_type, remarks):
+        if not booking:
+            return None
+        return upsert(models.GatePass, {"gate_pass_number": number}, {
+            "booking_id": booking.id,
+            "pass_type": pass_type,
+            "approved_by": "Demo Operations",
+            "status": "issued",
+            "remarks": remarks,
+            "company_id": company.id,
+        })
+
     def add_service_job(company, number, asset_code, vendor, sent, expected, problem, amount, remarks):
         item = first(models.InventoryItem, asset_code=asset_code, company_id=company.id)
         if not item:
@@ -256,6 +268,7 @@ def seed_vertical_business_data(db: Session):
         booking = add_booking(co, project, "EQ-BK-9001", "EQ-JC-9001", "Red Road, Kolkata", "confirmed", ["E365/LED/PNL-01", "E365/AUD/JBL-01", "E365/TRS/H30-01"], ["EMP-00001", "EMP-00002"], "Sports event equipment deployment with return QC.")
         add_po(co, "PO-EQ-9001", "PROC-EQ-9001", "Temporary crowd-control truss ballast", "equipment", 12, vend, "ordered", date(2026, 6, 8), 48000, "Needed for outdoor wind-loading compliance.")
         add_paper(co, "PAP-EQ-9001", "Equipment Dispatch Note", project.title, project.venue, booking, None, "Dispatch list, serials, crew handover, and return checklist.")
+        add_gate_pass(co, "GATE-EQ-9001", booking, "gate_out", "Equipment dispatch sample for City Marathon production.")
 
     if companies.get("artist"):
         co = companies["artist"]
@@ -271,6 +284,7 @@ def seed_vertical_business_data(db: Session):
         add_po(co, "PO-ART-9002", "PROC-ART-9002", "Percussion + keyboard backline package", "production", 1, backline, "requested", date(2026, 6, 3), 42000, "Needed for Hyderabad Sufi set.")
         add_paper(co, "PAP-ART-9001", "Artist Movement Sheet", p1.title, p1.venue, b1, None, "Call time, green-room, travel, rehearsal, and payout milestones.")
         add_paper(co, "PAP-ART-9002", "Performance Agreement", p2.title, p2.venue, b2, None, "Performance fee, cancellation clause, and hospitality rider.")
+        add_gate_pass(co, "GATE-ART-9001", b1, "artist_check_in", "Artist arrival, green-room, rehearsal, and performance access sample.")
 
     if companies.get("venue"):
         co = companies["venue"]
@@ -286,6 +300,7 @@ def seed_vertical_business_data(db: Session):
         add_po(co, "PO-VEN-9001", "PROC-VEN-9001", "Extra housekeeping and restroom attendants", "facility", 16, house, "ordered", date(2026, 5, 27), 64000, "Two-day corporate summit venue staffing.")
         add_paper(co, "PAP-VEN-9001", "Venue Hold Letter", p1.title, p1.venue, b1, None, "Hold confirmation, setup windows, deposit, and house rules.")
         add_paper(co, "PAP-VEN-9002", "Maintenance Work Order", "ITC ballroom partition repair", "ITC Gardenia Grand Ballroom", None, sj, "Internal repair record for venue readiness.")
+        add_gate_pass(co, "GATE-VEN-9001", b1, "venue_access", "Venue setup-window and operations access sample.")
 
     if companies.get("decor"):
         co = companies["decor"]
@@ -301,6 +316,7 @@ def seed_vertical_business_data(db: Session):
         add_po(co, "PO-DEC-9001", "PROC-DEC-9001", "Fresh marigold, mogra, and roses for Udaipur wedding", "consumable", 350, florist, "ordered", date(2026, 5, 30), 96000, "Perishable floral procurement tied to wedding setup date.")
         add_paper(co, "PAP-DEC-9001", "Decor Dispatch Sheet", p1.title, p1.venue, b1, None, "Set-wise dispatch, installation notes, and return damage checklist.")
         add_paper(co, "PAP-DEC-9002", "Workshop Repair Note", "Rajasthani mandap pillar repaint", "Jaipur workshop", None, sj, "Repair note before venue dispatch.")
+        add_gate_pass(co, "GATE-DEC-9001", b1, "decor_dispatch", "Decor set dispatch, install crew access, and return-control sample.")
 
     if companies.get("catering"):
         co = companies["catering"]
@@ -316,6 +332,7 @@ def seed_vertical_business_data(db: Session):
         add_po(co, "PO-CAT-9002", "PROC-CAT-9002", "Compostable buffet disposables and labels", "consumable", 800, disposables, "received", date(2026, 5, 22), 36000, "Eco service ware and allergen label cards.")
         add_paper(co, "PAP-CAT-9001", "Kitchen Production Plan", p1.title, p1.venue, b1, None, "Menu quantities, production batch timing, and dispatch vehicle plan.")
         add_paper(co, "PAP-CAT-9002", "FSSAI Compliance Sheet", p2.title, p2.venue, b2, None, "Food safety temperatures, tasting sign-off, and allergen checklist.")
+        add_gate_pass(co, "GATE-CAT-9001", b1, "kitchen_dispatch", "Food dispatch, service team reporting, and venue entry sample.")
 
     if companies.get("staffing"):
         co = companies["staffing"]
@@ -331,6 +348,7 @@ def seed_vertical_business_data(db: Session):
         add_po(co, "PO-STF-9002", "PROC-STF-9002", "Backup valet and hospitality staff pool", "manpower", 25, temp, "requested", date(2026, 6, 5), 87500, "Reserve pool for Mumbai wedding hospitality.")
         add_paper(co, "PAP-STF-9001", "Manpower Deployment Sheet", p1.title, p1.venue, b1, None, "Shift roster, role assignment, reporting time, and supervisor contact.")
         add_paper(co, "PAP-STF-9002", "Attendance Roster", p2.title, p2.venue, b2, None, "Roster freeze, IDs, uniform sizes, and client sign-off space.")
+        add_gate_pass(co, "GATE-STF-9001", b1, "staff_check_in", "Staff reporting, ID verification, and shift access sample.")
 
     # Enforce vertical logic: no warranty/service semantics for people, food, or staffing.
     no_service_types = {"artist", "catering", "staffing"}

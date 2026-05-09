@@ -17,7 +17,7 @@ from ..utils import aggregate_equipment_rows, overlaps, make_branded_pdf, make_j
 from ..codegen import next_booking_code, next_gate_pass_number, next_job_card_id, next_supplementary_job_card_id, next_service_job_number
 from ..audit import audit
 
-router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(require_roles("admin", "operations", "store"))])
+router = APIRouter(prefix="/bookings", tags=["Bookings"], dependencies=[Depends(require_roles("super_admin", "admin", "operations", "store"))])
 
 ACTIVE_STATUSES = ["confirmed", "dispatched"]
 CREATE_BOOKING_STATUSES = {"planned", "confirmed"}
@@ -215,6 +215,30 @@ def _ensure_document_allowed(booking: models.EventBooking):
         return
     if effective_status not in DOC_ALLOWED_STATUSES:
         raise HTTPException(status_code=400, detail="Documents are available only after booking confirmation.")
+
+
+def _ensure_booking_tenant(booking: models.EventBooking | None, current_user):
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+    if current_user.company_id and booking.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Booking not found.")
+
+
+def _company_name_for_booking(db: Session, booking: models.EventBooking) -> str:
+    company = db.query(models.Company).filter(models.Company.id == booking.company_id).first()
+    return company.name if company else "Eventory"
+
+
+def _job_card_title_for_booking(db: Session, booking: models.EventBooking) -> str:
+    company = db.query(models.Company).filter(models.Company.id == booking.company_id).first()
+    booking_type = (company.booking_type if company else "equipment") or "equipment"
+    return {
+        "artist": "Artist Booking Call Sheet",
+        "venue": "Venue Booking Access Sheet",
+        "decor": "Decor Dispatch & Install Sheet",
+        "catering": "Catering Production & Dispatch Sheet",
+        "staffing": "Staffing Deployment Sheet",
+    }.get(booking_type, "Event Equipment Job Card & Challan")
 
 
 def _confirm_booking_resources(db: Session, booking: models.EventBooking, exclude_booking_ids: set[int] | None = None):
@@ -695,11 +719,12 @@ def list_gate_pass_details(db: Session = Depends(get_db), current_user=Depends(g
     return out
 
 @router.get("/gate-passes/{gate_pass_id}/pdf", dependencies=[Depends(require_document_permission("gate_pass", "download"))])
-def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
+def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     gp = db.query(models.GatePass).filter(models.GatePass.id == gate_pass_id).first()
     if not gp:
         raise HTTPException(status_code=404, detail="Gate pass not found.")
     booking = gp.booking
+    _ensure_booking_tenant(booking, current_user)
     if booking:
         _ensure_document_allowed(booking)
     project_title = booking.project.title if booking and booking.project else "-"
@@ -707,8 +732,8 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
     equipment = aggregate_equipment_rows(_booking_equipment_rows(booking)) if booking else []
     manpower = [{"name": x.crew_member.full_name} for x in booking.crew if booking and x.crew_member]
     pdf = make_job_card_pdf(
-        "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "CREATVO STUDIOS",
+        _job_card_title_for_booking(db, booking),
+        _company_name_for_booking(db, booking),
         [
             ("M/s", project_title),
             ("Programme", project_title),
@@ -724,14 +749,13 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db)):
     return StreamingResponse(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="gatepass_{gp.gate_pass_number}.pdf"'})
 
 @router.get("/{booking_id}/job-card-pdf", dependencies=[Depends(require_document_permission("job_card", "download"))])
-def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
+def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     booking = db.query(models.EventBooking).options(
         joinedload(models.EventBooking.project),
         joinedload(models.EventBooking.equipment).joinedload(models.BookingEquipment.inventory_item),
         joinedload(models.EventBooking.crew).joinedload(models.BookingCrew.crew_member),
     ).filter(models.EventBooking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_booking_tenant(booking, current_user)
     _ensure_document_allowed(booking)
     items = aggregate_equipment_rows([r for r in _booking_equipment_rows(booking) if r.get("owner_type") != "third_party"])
     # Job Card — Only Manpower name in boxes
@@ -777,8 +801,8 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
             change_summary = booking.remarks or "Supplementary issued for date/scope changes."
 
     pdf = make_job_card_pdf(
-        "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT",
-        "CREATVO STUDIOS",
+        _job_card_title_for_booking(db, booking),
+        _company_name_for_booking(db, booking),
         meta,
         items,
         manpower,
@@ -794,14 +818,13 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{booking_id}/road-challan-pdf", dependencies=[Depends(require_document_permission("challan", "download"))])
-def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db)):
+def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Generate Road Challan PDF for a booking."""
     booking = db.query(models.EventBooking).options(
         joinedload(models.EventBooking.project).joinedload(models.ProjectEvent.client),
         joinedload(models.EventBooking.equipment).joinedload(models.BookingEquipment.inventory_item).joinedload(models.InventoryItem.equipment_master),
     ).filter(models.EventBooking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_booking_tenant(booking, current_user)
     _ensure_document_allowed(booking)
     project = booking.project
     client_name = project.client.name if project and project.client else (project.title if project else "-")
@@ -823,13 +846,12 @@ def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{booking_id}/manpower-pdf", dependencies=[Depends(require_document_permission("manpower_pdf", "download"))])
-def booking_manpower_pdf(booking_id: int, db: Session = Depends(get_db)):
+def booking_manpower_pdf(booking_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     booking = db.query(models.EventBooking).options(
         joinedload(models.EventBooking.project),
         joinedload(models.EventBooking.crew).joinedload(models.BookingCrew.crew_member).joinedload(models.CrewMember.vendor),
     ).filter(models.EventBooking.id == booking_id).first()
-    if not booking:
-        raise HTTPException(status_code=404, detail="Booking not found.")
+    _ensure_booking_tenant(booking, current_user)
     _ensure_document_allowed(booking)
     crew_ids = [row.crew_member_id for row in booking.crew if row.crew_member_id]
     docs_by_crew = {crew_id: [] for crew_id in crew_ids}

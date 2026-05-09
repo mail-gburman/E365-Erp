@@ -12,8 +12,11 @@ from ..audit import audit
 router = APIRouter(prefix="/papers", tags=["Papers"])
 
 @router.get("/", response_model=list[schemas.OutboundPaperRead], dependencies=[Depends(require_permission("papers","view"))])
-def list_papers(db: Session = Depends(get_db)):
-    return db.query(models.OutboundPaper).order_by(models.OutboundPaper.id.desc()).all()
+def list_papers(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    query = db.query(models.OutboundPaper)
+    if current_user.company_id:
+        query = query.filter(models.OutboundPaper.company_id == current_user.company_id)
+    return query.order_by(models.OutboundPaper.id.desc()).all()
 
 @router.post("/", response_model=schemas.OutboundPaperRead, dependencies=[Depends(require_permission("papers","add"))])
 def create_paper(payload: schemas.OutboundPaperCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
@@ -24,9 +27,11 @@ def create_paper(payload: schemas.OutboundPaperCreate, db: Session = Depends(get
     db.add(item); audit(db,current_user.username,"create","paper",details=data); db.commit(); db.refresh(item); return item
 
 @router.get("/{paper_id}/pdf", dependencies=[Depends(require_document_permission("paper", "download"))])
-def paper_pdf(paper_id: int, db: Session = Depends(get_db)):
+def paper_pdf(paper_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     item = db.query(models.OutboundPaper).filter(models.OutboundPaper.id == paper_id).first()
     if not item:
+        raise HTTPException(status_code=404, detail="Paper not found.")
+    if current_user.company_id and item.company_id != current_user.company_id:
         raise HTTPException(status_code=404, detail="Paper not found.")
     pdf = make_branded_pdf(
         "Eventory - Outbound / Movement Paper",

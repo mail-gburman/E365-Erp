@@ -53,18 +53,36 @@ def _reject_if_not_service_profile(current_user):
         raise HTTPException(status_code=400, detail="Repair/service jobs are not used for this company's booking type.")
 
 
+def _ensure_service_job_tenant(item: models.ServiceJob | None, current_user):
+    if not item:
+        raise HTTPException(status_code=404, detail="Service job not found.")
+    if current_user.company_id and item.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail="Service job not found.")
+
+
+def _company_name(db: Session, company_id: int | None) -> str:
+    company = db.query(models.Company).filter(models.Company.id == company_id).first() if company_id else None
+    return company.name if company else "Eventory"
+
+
 @router.get("/", response_model=list[schemas.ServiceJobRead], dependencies=[Depends(require_permission("services","view"))])
 def list_service_jobs(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if not _service_jobs_enabled(current_user):
         return []
-    return db.query(models.ServiceJob).order_by(models.ServiceJob.id.desc()).all()
+    query = db.query(models.ServiceJob)
+    if current_user.company_id:
+        query = query.filter(models.ServiceJob.company_id == current_user.company_id)
+    return query.order_by(models.ServiceJob.id.desc()).all()
 
 
 @router.get("/details", dependencies=[Depends(require_permission("services","view"))])
 def list_service_job_details(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if not _service_jobs_enabled(current_user):
         return []
-    rows = db.query(models.ServiceJob).order_by(models.ServiceJob.id.desc()).all()
+    query = db.query(models.ServiceJob)
+    if current_user.company_id:
+        query = query.filter(models.ServiceJob.company_id == current_user.company_id)
+    rows = query.order_by(models.ServiceJob.id.desc()).all()
     return [{
         "id": r.id,
         "job_number": r.job_number,
@@ -251,16 +269,16 @@ def delete_service_attachment(attachment_id: int, db: Session = Depends(get_db),
 
 
 @router.get("/{job_id}/pdf", dependencies=[Depends(require_document_permission("service", "download"))])
-def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
+def download_service_pdf(job_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     item = db.query(models.ServiceJob).options(
         joinedload(models.ServiceJob.vendor),
         joinedload(models.ServiceJob.inventory_item),
         joinedload(models.ServiceJob.attachments),
     ).filter(models.ServiceJob.id == job_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Service job not found.")
+    _ensure_service_job_tenant(item, current_user)
     vendor = item.vendor
     inv = item.inventory_item
+    company_name = _company_name(db, item.company_id)
     inv_label = f"{inv.asset_code} - {inv.name}" if inv else "(equipment record unavailable)"
     try:
         declared_value_str = f"INR {float(item.declared_value):,.2f}" if item.declared_value is not None else "-"
@@ -284,7 +302,7 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
             f"Alternate Contact: {item.alternate_contact_name or '-'}",
             f"Alternate Mobile: {item.alternate_contact_mobile or '-'}",
             f"Email: {item.contact_email or '-'}",
-            f"Pickup Address: {item.pickup_address or 'CREATVO STUDIOS Office'}",
+            f"Pickup Address: {item.pickup_address or f'{company_name} Office'}",
             f"Delivery Address: {_coalesce(item.delivery_address, _vendor_address(vendor)) or '-'}",
             f"Sent Date: {sent_date_str}",
             f"Expected Return: {expected_ret_str}",
@@ -302,15 +320,15 @@ def download_service_pdf(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{job_id}/declaration-pdf", dependencies=[Depends(require_document_permission("service", "download"))])
-def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
+def service_declaration_pdf(job_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     item = db.query(models.ServiceJob).options(
         joinedload(models.ServiceJob.vendor),
         joinedload(models.ServiceJob.inventory_item),
         joinedload(models.ServiceJob.attachments),
     ).filter(models.ServiceJob.id == job_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Service job not found.")
+    _ensure_service_job_tenant(item, current_user)
     inv = item.inventory_item
+    company_name = _company_name(db, item.company_id)
     item_desc = f"{item.package_count or 1} package(s) containing {inv.name}" if inv else "Equipment"
     if inv and inv.serial_number:
         item_desc += f", S/N. {inv.serial_number}"
@@ -322,8 +340,8 @@ def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
     if item.attachments:
         item_desc += f", with {len(item.attachments)} damage photo(s) on record"
     vendor = item.vendor
-    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, "CREATVO STUDIOS Inhouse Service")
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "CREATVO STUDIOS")
+    to_name = _coalesce(item.contact_person_name, item.vendor_name, vendor.name if vendor else None, f"{company_name} Inhouse Service")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), company_name)
     to_contact_parts = [
         _coalesce(item.contact_person_mobile, vendor.phone if vendor else None),
         item.contact_email,
@@ -341,18 +359,18 @@ def service_declaration_pdf(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{job_id}/address-label-pdf", dependencies=[Depends(require_document_permission("service", "download"))])
-def service_address_label_pdf(job_id: int, db: Session = Depends(get_db)):
+def service_address_label_pdf(job_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     item = db.query(models.ServiceJob).options(
         joinedload(models.ServiceJob.vendor),
         joinedload(models.ServiceJob.inventory_item),
     ).filter(models.ServiceJob.id == job_id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail="Service job not found.")
+    _ensure_service_job_tenant(item, current_user)
     vendor = item.vendor
-    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, "CREATVO STUDIOS Inhouse Service")
+    company_name = _company_name(db, item.company_id)
+    vendor_name = _coalesce(item.vendor_name, vendor.name if vendor else None, f"{company_name} Inhouse Service")
     contact_name = item.contact_person_name or None
     to_name = vendor_name if not contact_name else f"{vendor_name}\nAttn: {contact_name}"
-    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), "CREATVO STUDIOS")
+    to_address = _coalesce(item.delivery_address, _vendor_address(vendor), company_name)
     to_contact_parts = [item.contact_person_mobile, item.alternate_contact_mobile, item.contact_email, vendor.phone if vendor else None]
     to_contact = " | ".join([str(x) for x in to_contact_parts if x])
     to_gstin = vendor.gst_number if vendor else None
