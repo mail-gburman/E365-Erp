@@ -352,22 +352,29 @@ def _booking_completion_check(db: Session, booking: models.EventBooking) -> dict
 
 
 @router.get("/")
-def list_bookings(db: Session = Depends(get_db)):
-    return db.query(models.EventBooking).order_by(models.EventBooking.id.desc()).all()
+def list_bookings(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    query = db.query(models.EventBooking)
+    if current_user.company_id:
+        query = query.filter(models.EventBooking.company_id == current_user.company_id)
+    return query.order_by(models.EventBooking.id.desc()).all()
 
 @router.get("/resource-search")
 def resource_search(
     q: str = Query(""),
     resource_type: str = Query("inventory"),
+    item_types: str | None = Query(None),
     project_id: int | None = Query(None),
     block_start: str | None = Query(None),
     block_end: str | None = Query(None),
     db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     q = (q or "").strip().lower()
     req_block_start, req_block_end = _window_from_request(db, project_id, block_start, block_end)
     if resource_type == "crew":
         query = db.query(models.CrewMember).order_by(models.CrewMember.full_name.asc())
+        if current_user.company_id:
+            query = query.filter(models.CrewMember.company_id == current_user.company_id)
         if q:
             query = query.filter(
                 or_(
@@ -386,8 +393,14 @@ def resource_search(
 
     item_type = None if resource_type == "inventory" else resource_type
     query = db.query(models.InventoryItem).order_by(models.InventoryItem.name.asc())
+    if current_user.company_id:
+        query = query.filter(models.InventoryItem.company_id == current_user.company_id)
     if item_type:
         query = query.filter(models.InventoryItem.item_type == item_type)
+    elif item_types:
+        allowed_types = [x.strip() for x in item_types.split(",") if x.strip()]
+        if allowed_types:
+            query = query.filter(models.InventoryItem.item_type.in_(allowed_types))
     if q:
         query = query.filter(
             or_(
@@ -406,7 +419,7 @@ def resource_search(
     return payload
 
 @router.get("/required-accessories")
-def required_accessories(equipment_ids: str = Query(""), db: Session = Depends(get_db)):
+def required_accessories(equipment_ids: str = Query(""), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     ids = [int(x) for x in equipment_ids.split(",") if x.strip().isdigit()]
     required_codes, optional_codes, required_counts, optional_counts = _required_optional_for_items(db, ids)
     available_required = []
@@ -414,22 +427,31 @@ def required_accessories(equipment_ids: str = Query(""), db: Session = Depends(g
     for code in required_codes:
         matches = db.query(models.InventoryItem).join(models.EquipmentMaster, isouter=True).filter(
             (models.EquipmentMaster.equipment_code == code) | (models.InventoryItem.asset_code == code) | (models.InventoryItem.name.ilike(f"%{code}%"))
-        ).all()
+        )
+        if current_user.company_id:
+            matches = matches.filter(models.InventoryItem.company_id == current_user.company_id)
+        matches = matches.all()
         available_required.extend([{"id": m.id, "asset_code": m.asset_code, "name": m.name} for m in matches])
     for code in optional_codes:
         matches = db.query(models.InventoryItem).join(models.EquipmentMaster, isouter=True).filter(
             (models.EquipmentMaster.equipment_code == code) | (models.InventoryItem.asset_code == code) | (models.InventoryItem.name.ilike(f"%{code}%"))
-        ).all()
+        )
+        if current_user.company_id:
+            matches = matches.filter(models.InventoryItem.company_id == current_user.company_id)
+        matches = matches.all()
         available_optional.extend([{"id": m.id, "asset_code": m.asset_code, "name": m.name} for m in matches])
     return {"required_codes": required_codes, "optional_codes": optional_codes, "required_counts": required_counts, "optional_counts": optional_counts, "required_matches": available_required, "optional_matches": available_optional}
 
 @router.get("/details")
-def list_booking_details(db: Session = Depends(get_db)):
-    rows = db.query(models.EventBooking).options(
+def list_booking_details(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    query = db.query(models.EventBooking).options(
         joinedload(models.EventBooking.project).joinedload(models.ProjectEvent.dates),
         joinedload(models.EventBooking.equipment).joinedload(models.BookingEquipment.inventory_item),
         joinedload(models.EventBooking.crew).joinedload(models.BookingCrew.crew_member),
-    ).order_by(models.EventBooking.id.desc()).all()
+    )
+    if current_user.company_id:
+        query = query.filter(models.EventBooking.company_id == current_user.company_id)
+    rows = query.order_by(models.EventBooking.id.desc()).all()
     out = []
     for b in rows:
         equipment_rows = _booking_equipment_rows(b)
@@ -645,12 +667,18 @@ def list_qc(db: Session = Depends(get_db)):
     return db.query(models.ReturnQC).order_by(models.ReturnQC.id.desc()).all()
 
 @router.get("/gate-passes", response_model=list[schemas.GatePassRead])
-def list_gate_passes(db: Session = Depends(get_db)):
-    return db.query(models.GatePass).order_by(models.GatePass.id.desc()).all()
+def list_gate_passes(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    query = db.query(models.GatePass).join(models.EventBooking)
+    if current_user.company_id:
+        query = query.filter(models.EventBooking.company_id == current_user.company_id)
+    return query.order_by(models.GatePass.id.desc()).all()
 
 @router.get("/gate-passes/details")
-def list_gate_pass_details(db: Session = Depends(get_db)):
-    rows = db.query(models.GatePass).order_by(models.GatePass.id.desc()).all()
+def list_gate_pass_details(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    query = db.query(models.GatePass).join(models.EventBooking)
+    if current_user.company_id:
+        query = query.filter(models.EventBooking.company_id == current_user.company_id)
+    rows = query.order_by(models.GatePass.id.desc()).all()
     out = []
     for g in rows:
         booking = g.booking

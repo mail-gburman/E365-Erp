@@ -249,10 +249,11 @@ function QuickProjectModal({ open, onClose, onSave, saving, clientSuggestions = 
 }
 
 /* ───────── SEARCH POPUP MODAL ───────── */
-function SearchModal({ open, onClose, title, resourceType, onConfirmItems, availabilityParams }) {
+function SearchModal({ open, onClose, title, resourceType, onConfirmItems, availabilityParams, itemTypes = [] }) {
   const [q, setQ] = useState("");
   const [results, setResults] = useState([]);
   const [staged, setStaged] = useState([]);
+  const itemTypeKey = itemTypes.join(",");
 
   useEffect(() => {
     if (!open) return;
@@ -262,10 +263,10 @@ function SearchModal({ open, onClose, title, resourceType, onConfirmItems, avail
   useEffect(() => {
     if (!open) return;
     const timer = setTimeout(() => {
-      api.resourceSearch(q, resourceType, availabilityParams || {}).then(setResults);
+      api.resourceSearch(q, resourceType, { ...(availabilityParams || {}), item_types: itemTypeKey ? itemTypeKey.split(",") : [] }).then(setResults);
     }, 200);
     return () => clearTimeout(timer);
-  }, [q, resourceType, open, availabilityParams]);
+  }, [q, resourceType, open, availabilityParams, itemTypeKey]);
 
   function toggleStage(item) {
     setStaged(prev =>
@@ -1261,6 +1262,10 @@ export default function BookingsPage() {
   const supportsConditionQc = Boolean(bookingProfile.features.conditionQc);
   const supportsWarehouse = bookingProfile.features.warehouse !== false;
   const bookingDateTypes = getEnabledDateTypes(bookingType);
+  const mainResourceTypes = useMemo(
+    () => bookingProfile.itemTypes.map(([type]) => type).filter((type) => supportsAccessories || type !== "accessory"),
+    [bookingProfile, supportsAccessories]
+  );
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
@@ -1469,8 +1474,10 @@ export default function BookingsPage() {
   const availableCounts = useMemo(() => {
     const activeInventory = inventory.filter((item) => !["inactive", "cancelled"].includes(item.status));
     const bookableInventory = activeInventory.filter((item) => item.status !== "servicing" && item.service_status !== "in_service");
+    const activeMainResources = activeInventory.filter((item) => mainResourceTypes.includes(item.item_type));
+    const bookableMainResources = bookableInventory.filter((item) => mainResourceTypes.includes(item.item_type));
     const overall = {
-      equipment: activeInventory.filter((item) => ["device", "kit", "bundle", "third_party_equipment"].includes(item.item_type)).length,
+      equipment: activeMainResources.length,
       accessories: supportsAccessories ? activeInventory.filter((item) => item.item_type === "accessory").length : 0,
       manpower: crew.filter((person) => !["inactive", "cancelled"].includes(person.status)).length,
       mode: "overall",
@@ -1489,12 +1496,12 @@ export default function BookingsPage() {
     const blockedInventoryIds = new Set(activeBookings.filter(overlapsWindow).flatMap((booking) => (booking.equipment || []).map((item) => item.id)));
     const blockedCrewIds = new Set(activeBookings.filter(overlapsWindow).flatMap((booking) => (booking.crew || []).map((member) => member.id)));
     return {
-      equipment: bookableInventory.filter((item) => ["device", "kit", "bundle", "third_party_equipment"].includes(item.item_type) && !blockedInventoryIds.has(item.id)).length,
+      equipment: bookableMainResources.filter((item) => !blockedInventoryIds.has(item.id)).length,
       accessories: supportsAccessories ? bookableInventory.filter((item) => item.item_type === "accessory" && !blockedInventoryIds.has(item.id)).length : 0,
       manpower: crew.filter((person) => !["inactive", "cancelled"].includes(person.status) && !blockedCrewIds.has(person.id)).length,
       mode: "selected_dates",
     };
-  }, [inventory, crew, availabilityWindow, bookingDetails, projects, supportsAccessories]);
+  }, [inventory, crew, availabilityWindow, bookingDetails, projects, supportsAccessories, mainResourceTypes]);
 
   useEffect(() => {
     if (projectMode !== "new") return;
@@ -2791,10 +2798,10 @@ export default function BookingsPage() {
       />
 
       {/* ──── MODALS ──── */}
-      <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (${bookingProfile.itemTypes.map(([, label]) => label.split(" - ")[0]).slice(0, 3).join(" / ")})`} resourceType="inventory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addEquipment} />
+      <SearchModal open={equipModal} onClose={() => setEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (${bookingProfile.itemTypes.map(([, label]) => label.split(" - ")[0]).slice(0, 3).join(" / ")})`} resourceType="inventory" availabilityParams={availabilityWindow || undefined} itemTypes={mainResourceTypes} onConfirmItems={addEquipment} />
       {supportsAccessories && <SearchModal open={accModal} onClose={() => setAccModal(false)} title="Search Accessories" resourceType="accessory" availabilityParams={availabilityWindow || undefined} onConfirmItems={addAccessories} />}
       <SearchModal open={crewModal} onClose={() => setCrewModal(false)} title="Search Manpower" resourceType="crew" availabilityParams={availabilityWindow || undefined} onConfirmItems={addCrew} />
-      <SearchModal open={modifyEquipModal} onClose={() => setModifyEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (Modify)`} resourceType="inventory" availabilityParams={modifyWindow()} onConfirmItems={addModifyEquipment} />
+      <SearchModal open={modifyEquipModal} onClose={() => setModifyEquipModal(false)} title={`Search ${bookingProfile.resourcePlural} (Modify)`} resourceType="inventory" availabilityParams={modifyWindow()} itemTypes={mainResourceTypes} onConfirmItems={addModifyEquipment} />
       {supportsAccessories && <SearchModal open={modifyAccModal} onClose={() => setModifyAccModal(false)} title="Search Accessories (Modify)" resourceType="accessory" availabilityParams={modifyWindow()} onConfirmItems={addModifyAccessories} />}
       <SearchModal open={modifyCrewModal} onClose={() => setModifyCrewModal(false)} title="Search Manpower (Modify)" resourceType="crew" availabilityParams={modifyWindow()} onConfirmItems={addModifyCrew} />
       <CancelReasonModal open={cancelModal} onClose={() => setCancelModal(false)} onConfirm={doCancel} />

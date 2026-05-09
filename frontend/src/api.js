@@ -121,6 +121,7 @@ export const api = {
       q: q || "",
       resource_type: resourceType,
     });
+    if (options.item_types?.length) params.set("item_types", options.item_types.join(","));
     if (options.project_id) params.set("project_id", String(options.project_id));
     if (options.block_start) params.set("block_start", options.block_start);
     if (options.block_end) params.set("block_end", options.block_end);
