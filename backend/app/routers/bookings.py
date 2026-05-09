@@ -241,6 +241,91 @@ def _job_card_title_for_booking(db: Session, booking: models.EventBooking) -> st
     }.get(booking_type, "Event Equipment Job Card & Challan")
 
 
+def _booking_pdf_profile(db: Session, booking: models.EventBooking) -> dict:
+    company = db.query(models.Company).filter(models.Company.id == booking.company_id).first()
+    booking_type = (company.booking_type if company else "equipment") or "equipment"
+    profiles = {
+        "artist": {
+            "item_heading": "PERFORMANCE / ARTIST DETAILS",
+            "people_heading": "ARTIST TEAM / CREW",
+            "note_heading": "NOTE: PERFORMANCE BOOKING TERMS",
+            "notes": [
+                "Artist access, green-room, soundcheck, and performance timings must follow the approved event schedule.",
+                "Client will provide hospitality, stage access, and security as per agreed rider.",
+                "Any overtime, cancellation, or rider change is chargeable as per the signed agreement.",
+            ],
+            "signatures": ["Client", "Artist Manager", "Event Coordinator"],
+            "challan_title": "ARTIST MOVEMENT SHEET",
+            "challan_item_heading": "ARTIST / PERFORMANCE DETAILS",
+        },
+        "venue": {
+            "item_heading": "VENUE / SPACE DETAILS",
+            "people_heading": "VENUE OPERATIONS TEAM",
+            "note_heading": "NOTE: VENUE BOOKING TERMS",
+            "notes": [
+                "Venue access, setup windows, house rules, and handover timings must be followed.",
+                "Client is responsible for guest flow, permits, and any damage caused during the event.",
+                "Additional hours, cleaning, security, or facility requirements are chargeable as agreed.",
+            ],
+            "signatures": ["Client", "Venue Manager", "Operations Lead"],
+            "challan_title": "VENUE ACCESS SHEET",
+            "challan_item_heading": "VENUE / SPACE DESCRIPTION",
+        },
+        "decor": {
+            "item_heading": "DECOR / INSTALLATION DETAILS",
+            "people_heading": "DECOR INSTALL TEAM",
+            "note_heading": "NOTE: DECOR DISPATCH & INSTALL TERMS",
+            "notes": [
+                "Client/site team must provide access, power, permissions, and safe installation area.",
+                "Decor material must be returned after dismantle except agreed consumables and florals.",
+                "Damage, missing props, or extra fabrication will be chargeable as per agreed scope.",
+            ],
+            "signatures": ["Client", "Install Lead", "Dispatch Lead"],
+            "challan_title": "DECOR DISPATCH CHALLAN",
+            "challan_item_heading": "DECOR / PROP DESCRIPTION",
+        },
+        "catering": {
+            "item_heading": "MENU / PACKAGE DETAILS",
+            "people_heading": "CHEF / SERVICE TEAM",
+            "note_heading": "NOTE: CATERING SERVICE TERMS",
+            "notes": [
+                "Menu, headcount, service time, and dietary instructions must match the approved order.",
+                "Client/site team must provide kitchen access, service area, water, power, and permissions where applicable.",
+                "Extra plates, live counters, delay, wastage, or late-night service will be chargeable as agreed.",
+            ],
+            "signatures": ["Client", "Chef / Manager", "Dispatch Lead"],
+            "challan_title": "CATERING DISPATCH SHEET",
+            "challan_item_heading": "MENU / PACKAGE DESCRIPTION",
+        },
+        "staffing": {
+            "item_heading": "STAFFING / SHIFT DETAILS",
+            "people_heading": "STAFF ROSTER",
+            "note_heading": "NOTE: STAFFING DEPLOYMENT TERMS",
+            "notes": [
+                "Staff reporting time, shift duration, role allocation, and supervisor instructions must be followed.",
+                "Client must provide safe work conditions, meal breaks, access passes, and escalation contact.",
+                "Overtime, replacement staff, no-show penalties, or extended deployment will be charged as agreed.",
+            ],
+            "signatures": ["Client", "Supervisor", "HR / Ops"],
+            "challan_title": "STAFFING DEPLOYMENT SHEET",
+            "challan_item_heading": "STAFFING / SHIFT DESCRIPTION",
+        },
+    }
+    return profiles.get(booking_type, {
+        "item_heading": "EQUIPMENT DETAILS",
+        "people_heading": "MANPOWER",
+        "note_heading": "NOTE: EQUIPMENT DISPATCH TERMS",
+        "notes": [
+            "Client will keep custody of equipment and return it in the same working condition as received.",
+            "Rental is payable for the total booking period irrespective of actual usage.",
+            "Damage, loss, mishandling, accident, or theft is chargeable as per company policy.",
+        ],
+        "signatures": ["Client", "Technician", "Store Keeper"],
+        "challan_title": "ROAD CHALLAN",
+        "challan_item_heading": "EQUIPMENT DESCRIPTION",
+    })
+
+
 def _confirm_booking_resources(db: Session, booking: models.EventBooking, exclude_booking_ids: set[int] | None = None):
     exclude_booking_ids = exclude_booking_ids or {booking.id}
     project = booking.project
@@ -731,6 +816,7 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db), current_user
     destination = booking.destination if booking else "-"
     equipment = aggregate_equipment_rows(_booking_equipment_rows(booking)) if booking else []
     manpower = [{"name": x.crew_member.full_name} for x in booking.crew if booking and x.crew_member]
+    pdf_profile = _booking_pdf_profile(db, booking)
     pdf = make_job_card_pdf(
         _job_card_title_for_booking(db, booking),
         _company_name_for_booking(db, booking),
@@ -744,7 +830,11 @@ def gate_pass_pdf(gate_pass_id: int, db: Session = Depends(get_db), current_user
         ],
         equipment,
         manpower,
-        ["Client to keep custody of equipment and return in same working condition as received."]
+        pdf_profile["notes"],
+        item_heading=pdf_profile["item_heading"],
+        people_heading=pdf_profile["people_heading"],
+        note_heading=pdf_profile["note_heading"],
+        signature_labels=pdf_profile["signatures"],
     )
     return StreamingResponse(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="gatepass_{gp.gate_pass_number}.pdf"'})
 
@@ -782,6 +872,7 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db), current
     extra_contacts = _booking_contacts(booking)[1:]
     if extra_contacts:
         meta.append(("Additional Contacts", ", ".join([c["name"] for c in extra_contacts])))
+    pdf_profile = _booking_pdf_profile(db, booking)
 
     # Off dates: from project.dates where date_type == 'off_day'
     off_dates = []
@@ -806,13 +897,14 @@ def booking_job_card_pdf(booking_id: int, db: Session = Depends(get_db), current
         meta,
         items,
         manpower,
-        [
-            "Client undertakes safe custody of equipment and same-condition return.",
-            "Any damage / loss due to mishandling may be chargeable as per company policy.",
-        ],
+        pdf_profile["notes"],
         supplementary_of=supplementary_of,
         off_dates=off_dates,
         change_summary=change_summary,
+        item_heading=pdf_profile["item_heading"],
+        people_heading=pdf_profile["people_heading"],
+        note_heading=pdf_profile["note_heading"],
+        signature_labels=pdf_profile["signatures"],
     )
     return StreamingResponse(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="jobcard_{booking.job_card_id}.pdf"'})
 
@@ -830,6 +922,7 @@ def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db), cur
     client_name = project.client.name if project and project.client else (project.title if project else "-")
     challan_date = project.shoot_start.strftime("%d/%m/%Y") if project and project.shoot_start else date.today().strftime("%d/%m/%Y")
     items = aggregate_equipment_rows([r for r in _booking_equipment_rows(booking) if r.get("owner_type") != "third_party"])
+    pdf_profile = _booking_pdf_profile(db, booking)
     pdf = make_road_challan_pdf(
         challan_no=booking.job_card_id or f"RC-{booking.id}",
         challan_date=challan_date,
@@ -841,6 +934,10 @@ def booking_road_challan_pdf(booking_id: int, db: Session = Depends(get_db), cur
         deliver_through=booking.contact_person_name or "",
         items=items,
         reference_no=_root_job_card_id(booking),
+        company_line=_company_name_for_booking(db, booking),
+        title=pdf_profile["challan_title"],
+        item_heading=pdf_profile["challan_item_heading"],
+        signature_labels=["RECEIVER'S SIGNATURE", f"AUTHORISED SIGNATORY ({_company_name_for_booking(db, booking)})"],
     )
     return StreamingResponse(pdf, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="challan_{booking.job_card_id}.pdf"'})
 

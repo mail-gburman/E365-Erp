@@ -596,7 +596,21 @@ def _categorize_item(item_name, item_category):
     return "OTHERS"
 
 
-def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, note_lines=None, supplementary_of=None, off_dates=None, change_summary=None):
+def make_job_card_pdf(
+    header_title,
+    company_line,
+    meta_pairs,
+    items,
+    manpower,
+    note_lines=None,
+    supplementary_of=None,
+    off_dates=None,
+    change_summary=None,
+    item_heading="EQUIPMENT DETAILS",
+    people_heading="MANPOWER",
+    note_heading="NOTE: WE, AS A CLIENT UNDERTAKE THE FOLLOWING:",
+    signature_labels=None,
+):
     """
     Generate a Job Card & Challan PDF matching the physical E365 challan format.
 
@@ -618,7 +632,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left_margin, height - 82, width=96, height=42, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 12)
-        _title = "SUPPLEMENTARY JOB CARD & CHALLAN FOR VIDEO EQUIPMENT" if supplementary_of else "JOB CARD & CHALLAN FOR VIDEO EQUIPMENT"
+        _title = f"SUPPLEMENTARY {header_title}" if supplementary_of else header_title
         c.drawString(header_text_x, height - 35, _title)
         c.setFont("Helvetica-Bold", 14)
         c.drawString(header_text_x, height - 52, company_line.upper() if company_line else COMPANY_LEGAL_NAME)
@@ -688,16 +702,21 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
 
     items = aggregate_equipment_rows(items)
 
-    # ── EQUIPMENT TABLE - grouped by category like the real challan ──
-    # Categorize items
+    # ── RESOURCE TABLE ──
     categorized = {}
-    for item in items:
-        section = _categorize_item(item.get("name", ""), item.get("category", ""))
-        if section not in categorized:
-            categorized[section] = []
-        categorized[section].append(item)
+    if item_heading == "EQUIPMENT DETAILS":
+        for item in items:
+            section = _categorize_item(item.get("name", ""), item.get("category", ""))
+            if section not in categorized:
+                categorized[section] = []
+            categorized[section].append(item)
+        section_order = [section_name for section_name, _ in EQUIPMENT_CATEGORIES]
+    else:
+        section_label = item_heading.replace("DETAILS", "").strip().upper() or "BOOKING ITEMS"
+        categorized[section_label] = items
+        section_order = [section_label]
 
-    # Table columns: SL NO | EQUIPMENT DETAILS | QUANTITY (Serial No / Remarks columns removed)
+    # Table columns: SL NO | DETAILS | QUANTITY (Serial No / Remarks columns removed)
     col_sl_x = left_margin
     col_sl_w = 40
     col_qty_w = 90
@@ -713,7 +732,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         c.rect(col_detail_x, y_pos - header_h, col_detail_w, header_h)
         c.rect(col_qty_x, y_pos - header_h, col_qty_w, header_h)
         c.drawCentredString(col_sl_x + col_sl_w / 2, y_pos - 10, "SL NO.")
-        c.drawString(col_detail_x + 3, y_pos - 10, "EQUIPMENT DETAILS")
+        c.drawString(col_detail_x + 3, y_pos - 10, item_heading)
         c.drawCentredString(col_qty_x + col_qty_w / 2, y_pos - 10, "QUANTITY")
         return y_pos - header_h
 
@@ -737,7 +756,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
 
     sl_no = 1
 
-    for section_name, _ in EQUIPMENT_CATEGORIES:
+    for section_name in section_order:
         section_items = categorized.get(section_name, [])
         if not section_items:
             continue
@@ -795,7 +814,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         c.drawString(left_margin + 4, y - 10, off_text[:140] or "None")
         y -= row_h2
 
-    # ── MANPOWER TABLE (names in side-by-side grid cells) ──
+    # ── PEOPLE TABLE (names in side-by-side grid cells) ──
     y -= 8
     if y < 120:
         y = _new_page()
@@ -803,7 +822,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     c.setFont("Helvetica-Bold", 9)
     mp_header_h = 16
     c.rect(left_margin, y - mp_header_h, table_width, mp_header_h)
-    c.drawString(left_margin + 4, y - 12, "MANPOWER")
+    c.drawString(left_margin + 4, y - 12, people_heading)
     y -= mp_header_h
 
     # Grid layout: 4 columns of names side by side
@@ -833,7 +852,7 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
         y = _new_page()
 
     c.setFont("Helvetica-Bold", 8)
-    c.drawString(left_margin, y, "NOTE: WE, AS A CLIENT UNDERTAKE THE FOLLOWING:")
+    c.drawString(left_margin, y, note_heading)
     y -= 12
     c.setFont("Helvetica", 7)
     default_notes = [
@@ -853,10 +872,13 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     if y < 120:
         y = _new_page()
     sig_y = y
+    labels = list(signature_labels or ["Client", "Technician", "Store Keeper"])
+    while len(labels) < 3:
+        labels.append("")
     sig_positions = [
-        (left_margin + 30, "Client"),
-        (left_margin + 170, "Technician"),
-        (left_margin + 340, "Store Keeper"),
+        (left_margin + 30, labels[0]),
+        (left_margin + 170, labels[1]),
+        (left_margin + 340, labels[2]),
     ]
     for sx, label in sig_positions:
         c.line(sx, sig_y, sx + 100, sig_y)
@@ -872,7 +894,22 @@ def make_job_card_pdf(header_title, company_line, meta_pairs, items, manpower, n
     return buf
 
 
-def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_address, vehicle_no, time_out, contact_person, deliver_through, items, reference_no=None):
+def make_road_challan_pdf(
+    challan_no,
+    challan_date,
+    client_name,
+    delivery_address,
+    vehicle_no,
+    time_out,
+    contact_person,
+    deliver_through,
+    items,
+    reference_no=None,
+    company_line=None,
+    title="ROAD CHALLAN",
+    item_heading="ITEM / PACKAGE DESCRIPTION",
+    signature_labels=None,
+):
     """Generate a Road Challan PDF matching the E365 pink challan format."""
     items = aggregate_equipment_rows(items)
     buf = BytesIO()
@@ -889,11 +926,11 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
         if LOGO_PATH.exists():
             c.drawImage(str(LOGO_PATH), left_margin, height - 78, width=60, height=28, preserveAspectRatio=True, mask="auto")
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(header_text_x, height - 35, "ROAD CHALLAN")
+        c.drawString(header_text_x, height - 35, title)
         c.setFont("Helvetica-Bold", 11)
-        c.drawString(header_text_x, height - 52, COMPANY_LEGAL_NAME)
+        c.drawString(header_text_x, height - 52, company_line or COMPANY_LEGAL_NAME)
         c.setFont("Helvetica", 8)
-        c.drawString(header_text_x, height - 64, "326, Santi Pally, Kolkata - 700107 | Tel: 033 4073 4036")
+        c.drawString(header_text_x, height - 64, COMPANY_ADDRESS_LINE)
         # Page number at bottom right
         c.drawRightString(right_margin, 28, f"Page {page_no[0]}")
 
@@ -936,9 +973,9 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
         y -= meta_h
     y -= 4
 
-    # Equipment table columns. Serial numbers, remarks, and 3rd-party markers intentionally omitted.
+    # Resource table columns. Serial numbers, remarks, and 3rd-party markers intentionally omitted.
     cw = [34, tw - 34 - 96, 96]
-    ch = ["SL NO.", "EQUIPMENT DESCRIPTION", "QTY"]
+    ch = ["SL NO.", item_heading, "QTY"]
     cx = [left_margin]
     for w in cw[:-1]:
         cx.append(cx[-1] + w)
@@ -986,8 +1023,9 @@ def make_road_challan_pdf(challan_no, challan_date, client_name, delivery_addres
     c.setFont("Helvetica", 8)
     c.line(left_margin + 20, y, left_margin + 160, y)
     c.line(right_margin - 200, y, right_margin - 40, y)
-    c.drawString(left_margin + 40, y - 14, "RECEIVER'S SIGNATURE")
-    c.drawString(right_margin - 190, y - 14, "AUTHORISED SIGNATORIES (K.P. & S. LLP)")
+    labels = list(signature_labels or ["RECEIVER'S SIGNATURE", "AUTHORISED SIGNATORY"])
+    c.drawString(left_margin + 40, y - 14, labels[0])
+    c.drawString(right_margin - 190, y - 14, labels[1])
 
     # Final page number
     c.setFont("Helvetica", 8)
