@@ -241,6 +241,7 @@ export default function Layout({ children }) {
       return [
         ["/master-companies", "Companies", "🏢"],
         ["/admin", "Master Users", "👤"],
+        ["/activation", "Activation", "🔑"],
         ["/system", "System", "⚙️"],
       ];
     }
@@ -257,9 +258,11 @@ export default function Layout({ children }) {
     ["/accounts", "Accounts", "💰"],
     ["/audit", "Audit & Exports", "📤"],
     ["/admin", "Admin Users", "👤"],
+    ["/activation", "Activation", "🔑"],
     ["/system", "System", "⚙️"],
   ].filter(([href]) => {
     if (href === "/admin") return role === "admin";
+    if (href === "/activation") return role === "admin";
     if (href === "/accounts") return canSeeAccounts;
     return true;
   }));

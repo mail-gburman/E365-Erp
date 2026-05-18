@@ -21,6 +21,7 @@ class Company(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     name = Column(String, unique=True, index=True, nullable=False)
     legal_name = Column(String, nullable=True)
+    installation_id = Column(String, unique=True, index=True, nullable=True)  # Per-company license installation ID
     status = Column(String, default="active", nullable=False)
     contact_person = Column(String, nullable=True)
     phone = Column(String, nullable=True)
@@ -740,3 +741,28 @@ class QuotationItem(TenantMixin, Base):
     amount = Column(Float, default=0.0)
 
     quotation = relationship("Quotation", back_populates="items")
+
+
+class LicenseActivation(Base):
+    """Per-company license activation ledger. Each row is one signed activation code applied."""
+    __tablename__ = "license_activations"
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True, nullable=False)
+    license_id = Column(String, index=True, nullable=False)
+    installation_id = Column(String, index=True, nullable=False)
+    client_name = Column(String, nullable=False)
+    contact_name = Column(String, nullable=True)
+    contact_email = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    plan_name = Column(String, nullable=True)
+    issued_by = Column(String, nullable=True)
+    issued_at = Column(DateTime, nullable=True)
+    valid_from = Column(Date, nullable=False)
+    valid_until = Column(Date, nullable=False)
+    activation_code = Column(Text, nullable=False)
+    activation_code_hash = Column(String, unique=True, index=True, nullable=False)
+    payload_json = Column(Text, nullable=True)
+    activated_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    company = relationship("Company")

@@ -51,6 +51,11 @@ export function getUsername() {
   return localStorage.getItem("e365_username") || "";
 }
 
+export function getCompanyId() {
+  const v = localStorage.getItem("e365_company_id");
+  return v ? parseInt(v, 10) : null;
+}
+
 export function getCompanyName() {
   return localStorage.getItem("e365_company_name") || "";
 }

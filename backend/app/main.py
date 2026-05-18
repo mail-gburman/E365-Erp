@@ -13,6 +13,7 @@ from . import models
 from .seed import seed_db
 from .routers import auth_router, masters, projects, bookings, service_jobs, papers, dashboard, admin_router, system_router, audit_router, accounts, tally
 from .routers import quotes as quotes_router
+from .routers import activation_router
 
 configure_tenant_scoping(models)
 
@@ -263,6 +264,8 @@ _MIGRATIONS = [
     ("user_sessions", "device_id", "VARCHAR"),
     # 0008 — role presets timestamps
     ("role_presets", "updated_at", "DATETIME"),
+    # 0009 — per-company license installation_id
+    ("companies", "installation_id", "VARCHAR"),
 ]
 _TENANT_TABLES = [
     "warehouses", "vendors", "clients", "client_contacts", "inventory_items",
@@ -390,6 +393,7 @@ app.include_router(tally.accounts_tally_router)
 app.include_router(system_router.router)
 app.include_router(audit_router.router)
 app.include_router(quotes_router.router)
+app.include_router(activation_router.router)
 
 @app.get("/")
 def root():

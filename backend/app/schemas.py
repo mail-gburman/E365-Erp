@@ -837,3 +837,65 @@ class QuotationRead(BaseModel):
     project_title: Optional[str] = None
     class Config:
         from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Activation / Licensing schemas
+# ---------------------------------------------------------------------------
+
+class ActivationApply(BaseModel):
+    company_id: int
+    activation_code: str
+
+
+class ActivationLicenseRead(BaseModel):
+    license_id: str
+    installation_id: str
+    client_name: str
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    plan_name: Optional[str] = None
+    issued_by: Optional[str] = None
+    issued_at: Optional[datetime] = None
+    valid_from: date
+    valid_until: date
+    validity_days: int
+    days_remaining: int
+    activated_at: Optional[datetime] = None
+    is_active: bool = True
+    class Config:
+        from_attributes = True
+
+
+class ActivationStatusRead(BaseModel):
+    company_id: int
+    company_name: str
+    enforced: bool
+    configured: bool
+    installation_id: str
+    activated: bool
+    valid: bool
+    reason: str
+    detail: Optional[str] = None
+    license: Optional[ActivationLicenseRead] = None
+    server_date: date
+    class Config:
+        from_attributes = True
+
+
+class ActivationPreviewRead(BaseModel):
+    license_id: str
+    installation_id: str
+    client_name: str
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    plan_name: Optional[str] = None
+    issued_by: Optional[str] = None
+    issued_at: Optional[datetime] = None
+    valid_from: date
+    valid_until: date
+    validity_days: int
+    class Config:
+        from_attributes = True

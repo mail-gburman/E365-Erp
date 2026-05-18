@@ -16,6 +16,7 @@ import AuditPage from "./pages/AuditPage";
 import CalendarPage from "./pages/CalendarPage";
 import CompanyProfilePage from "./pages/CompanyProfilePage";
 import MasterCompaniesPage from "./pages/MasterCompaniesPage";
+import ActivationPage from "./pages/ActivationPage";
 import { getBookingType, getRole, getToken } from "./auth";
 import { applyBookingProfileText, getBookingProfile } from "./bookingProfiles";
 
@@ -94,6 +95,7 @@ export default function App() {
       <Route path="/audit" element={<Protected><AuditPage /></Protected>} />
       <Route path="/company-profile" element={<Protected><CompanyProfilePage /></Protected>} />
       <Route path="/master-companies" element={<Protected><MasterCompaniesPage /></Protected>} />
+      <Route path="/activation" element={<Protected><ActivationPage /></Protected>} />
     </Routes>
   );
 }

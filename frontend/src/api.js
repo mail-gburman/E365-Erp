@@ -413,3 +413,15 @@ export async function fetchBlobUrlAuthorized(url) {
   const blob = await res.blob();
   return URL.createObjectURL(blob);
 }
+
+// ---------------------------------------------------------------------------
+// Activation / Licensing API
+// ---------------------------------------------------------------------------
+export const activationApi = {
+  getStatus: (companyId) => get(`/activation/status/${companyId}`),
+  getAll: () => get("/activation/all"),
+  preview: (companyId, activationCode) =>
+    post("/activation/preview", { company_id: companyId, activation_code: activationCode }),
+  apply: (companyId, activationCode) =>
+    post("/activation/apply", { company_id: companyId, activation_code: activationCode }),
+};
