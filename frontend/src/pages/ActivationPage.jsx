@@ -33,26 +33,26 @@ function SuccessPopup({ status, onClose }) {
         {/* tick */}
         <div style={{ fontSize: 56, marginBottom: 8 }}>✅</div>
         <h2 style={{ marginBottom: 4 }}>Activation Successful</h2>
-        <p style={{ color: "var(--text-muted)", marginBottom: 20 }}>
+        <p style={{ color: "var(--readable-muted, #6b7280)", marginBottom: 20 }}>
           License has been applied to <strong>{status?.company_name}</strong>.
         </p>
 
         {lic && (
           <div className="messageBar" style={{ textAlign: "left", marginBottom: 20 }}>
             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", fontSize: 13 }}>
-              <span style={{ color: "var(--text-muted)" }}>Client</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Client</span>
               <strong>{lic.client_name}</strong>
-              <span style={{ color: "var(--text-muted)" }}>Plan</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Plan</span>
               <span>{lic.plan_name || "-"}</span>
-              <span style={{ color: "var(--text-muted)" }}>Valid from</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Valid from</span>
               <span>{formatDate(lic.valid_from)}</span>
-              <span style={{ color: "var(--text-muted)" }}>Valid until</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Valid until</span>
               <span>{formatDate(lic.valid_until)}</span>
-              <span style={{ color: "var(--text-muted)" }}>Validity</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Validity</span>
               <span>{lic.validity_days} day(s)</span>
-              <span style={{ color: "var(--text-muted)" }}>Days left</span>
-              <strong style={{ color: "var(--success)" }}>{lic.days_remaining}</strong>
-              <span style={{ color: "var(--text-muted)", fontSize: 11 }}>License ID</span>
+              <span style={{ color: "var(--readable-muted, #6b7280)" }}>Days left</span>
+              <strong style={{ color: "var(--e365-teal, #16a34a)" }}>{lic.days_remaining}</strong>
+              <span style={{ color: "var(--readable-muted, #6b7280)", fontSize: 11 }}>License ID</span>
               <span style={{ fontSize: 11 }}>{lic.license_id}</span>
             </div>
           </div>
@@ -123,7 +123,7 @@ function ActivationModal({ companyStatus, onClose, onSuccess }) {
         </div>
 
         <div style={{ padding: "0 4px" }}>
-          <p style={{ color: "var(--text-muted)", marginBottom: 14 }}>{statusText}</p>
+          <p style={{ color: "var(--readable-muted, #6b7280)", marginBottom: 14 }}>{statusText}</p>
 
           {/* Installation ID */}
           <div className="messageBar" style={{ textAlign: "left", marginBottom: 14 }}>
@@ -131,7 +131,7 @@ function ActivationModal({ companyStatus, onClose, onSuccess }) {
             <code style={{ fontSize: 13, userSelect: "all", letterSpacing: "0.03em" }}>
               {companyStatus.installation_id}
             </code>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: "var(--readable-muted, #6b7280)", marginTop: 4 }}>
               Share this ID with your license provider to generate an activation code.
             </div>
           </div>
@@ -144,7 +144,7 @@ function ActivationModal({ companyStatus, onClose, onSuccess }) {
                 Valid: {formatDate(companyStatus.license.valid_from)} — {formatDate(companyStatus.license.valid_until)}<br />
                 Days remaining: <strong>{companyStatus.license.days_remaining}</strong> &nbsp;·&nbsp; Plan: {companyStatus.license.plan_name || "-"}
               </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4 }}>
+              <div style={{ fontSize: 11, color: "var(--readable-muted, #6b7280)", marginTop: 4 }}>
                 {companyStatus.license.license_id}
               </div>
             </div>
@@ -196,17 +196,17 @@ function ActivationModal({ companyStatus, onClose, onSuccess }) {
               <strong>✓ Code looks valid — {preview.client_name}</strong>
               <div style={{ marginTop: 6, fontSize: 13 }}>
                 <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 14px" }}>
-                  <span style={{ color: "var(--text-muted)" }}>Plan</span><span>{preview.plan_name || "-"}</span>
-                  <span style={{ color: "var(--text-muted)" }}>Valid from</span><span>{formatDate(preview.valid_from)}</span>
-                  <span style={{ color: "var(--text-muted)" }}>Valid until</span><span>{formatDate(preview.valid_until)}</span>
-                  <span style={{ color: "var(--text-muted)" }}>Validity</span><span>{preview.validity_days} day(s)</span>
+                  <span style={{ color: "var(--readable-muted, #6b7280)" }}>Plan</span><span>{preview.plan_name || "-"}</span>
+                  <span style={{ color: "var(--readable-muted, #6b7280)" }}>Valid from</span><span>{formatDate(preview.valid_from)}</span>
+                  <span style={{ color: "var(--readable-muted, #6b7280)" }}>Valid until</span><span>{formatDate(preview.valid_until)}</span>
+                  <span style={{ color: "var(--readable-muted, #6b7280)" }}>Validity</span><span>{preview.validity_days} day(s)</span>
                 </div>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="messageBar" style={{ marginTop: 12, color: "var(--danger)" }}>
+            <div className="messageBar" style={{ marginTop: 12, color: "var(--e365-pink, #dc2626)" }}>
               {error}
             </div>
           )}
@@ -223,19 +223,19 @@ function CompanyRow({ s, onManage }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600 }}>{s.company_name}</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: "var(--readable-muted, #6b7280)", marginTop: 2 }}>
             <code style={{ fontSize: 11 }}>{s.installation_id || "—"}</code>
           </div>
           {s.license && (
-            <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: "var(--readable-muted, #6b7280)", marginTop: 4 }}>
               {s.license.client_name} &nbsp;·&nbsp; till {formatDate(s.license.valid_until)} &nbsp;·&nbsp;
-              <strong style={{ color: s.license.days_remaining <= 7 ? "var(--danger)" : "inherit" }}>
+              <strong style={{ color: s.license.days_remaining <= 7 ? "var(--e365-pink, #dc2626)" : "inherit" }}>
                 {s.license.days_remaining}d left
               </strong>
             </div>
           )}
           {s.detail && (
-            <div style={{ fontSize: 12, color: "var(--danger)", marginTop: 4 }}>{s.detail}</div>
+            <div style={{ fontSize: 12, color: "var(--e365-pink, #dc2626)", marginTop: 4 }}>{s.detail}</div>
           )}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
@@ -306,14 +306,14 @@ export default function ActivationPage() {
   return (
     <div style={{ padding: "24px 32px", maxWidth: 860 }}>
       <h1 style={{ marginBottom: 4 }}>License Activation</h1>
-      <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>
+      <p style={{ color: "var(--readable-muted, #6b7280)", marginBottom: 24 }}>
         {isSuperAdmin
           ? "Manage software activation for all companies in this installation."
           : "View and manage the license for your company."}
       </p>
 
       {loading && <div className="messageBar">Loading…</div>}
-      {error && <div className="messageBar" style={{ color: "var(--danger)" }}>{error}</div>}
+      {error && <div className="messageBar" style={{ color: "var(--e365-pink, #dc2626)" }}>{error}</div>}
 
       {!loading && summary && (
         <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
@@ -341,14 +341,14 @@ export default function ActivationPage() {
                   fontFamily: "inherit",
                   fontSize: 13,
                   fontWeight: 500,
-                  color: active ? c.accent : "var(--text-muted, #6b7280)",
+                  color: active ? c.accent : "var(--readable-muted, #6b7280)",
                   transition: "all 0.15s",
                   opacity: filter !== "all" && !active ? 0.5 : 1,
                 }}
               >
                 <span style={{
                   background: active ? c.accent : "var(--border, #d1d5db)",
-                  color: active ? "#fff" : "var(--text-muted, #6b7280)",
+                  color: active ? "#fff" : "var(--readable-muted, #6b7280)",
                   borderRadius: 999,
                   fontSize: 11,
                   fontWeight: 700,

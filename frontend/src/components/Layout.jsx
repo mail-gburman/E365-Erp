@@ -14,6 +14,44 @@ const defaultBrandTheme = {
   blue: "#83e66f",
 };
 
+// Font pairings per theme option.
+// Each font is chosen to visually complement the color weight of the variant:
+//   auto    → Inter       (neutral, modern — works with any palette)
+//   classic → Lora        (elegant serif — pairs with the muted, traditional shade)
+//   bold    → Space Grotesk (geometric, confident — pairs with deep, saturated colours)
+//   soft    → Nunito      (rounded letterforms — pairs with the lighter, warmer palette)
+const THEME_FONTS = {
+  auto:    { family: "Outfit",           weights: "300;400;500;600;700;800;900" },
+  classic: { family: "Playfair Display", weights: "400;500;600;700;800;900" },
+  bold:    { family: "Space Grotesk",    weights: "300;400;500;600;700" },
+  soft:    { family: "Nunito",           weights: "300;400;500;600;700;800;900" },
+};
+
+let _currentFontFamily = "";
+
+function applyThemeFont(themeOption = "auto") {
+  const { family, weights } = THEME_FONTS[themeOption] || THEME_FONTS.auto;
+  if (_currentFontFamily === family) return; // already loaded
+  _currentFontFamily = family;
+
+  // Inject or update a single <link> tag for the Google Font
+  let link = document.querySelector("link[data-e365-font]");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.setAttribute("data-e365-font", "true");
+    document.head.appendChild(link);
+  }
+  const encodedFamily = family.replace(/ /g, "+");
+  link.href = `https://fonts.googleapis.com/css2?family=${encodedFamily}:wght@${weights}&display=swap`;
+
+  // Apply to the document root so all CSS inherits it
+  document.documentElement.style.setProperty(
+    "--font-family",
+    `"${family}", "Outfit", system-ui, -apple-system, sans-serif`
+  );
+}
+
 function buildThemeVariant(base = defaultBrandTheme, option = "auto") {
   if (option === "classic") {
     return {
@@ -199,6 +237,7 @@ export default function Layout({ children }) {
         localStorage.removeItem("e365_booking_type");
         window.dispatchEvent(new Event("company-booking-type-updated"));
         applyBrandTheme(defaultBrandTheme);
+        applyThemeFont("auto");
         return;
       }
       try {
@@ -216,12 +255,17 @@ export default function Layout({ children }) {
           setTenantLogoUrl(objectUrl);
           const logoTheme = await extractThemeFromLogo(objectUrl);
           applyBrandTheme(buildThemeVariant(logoTheme, company.theme_option || "auto"));
+          applyThemeFont(company.theme_option || "auto");
         } else {
           setTenantLogoUrl("");
           applyBrandTheme(buildThemeVariant(defaultBrandTheme, company.theme_option || "auto"));
+          applyThemeFont(company.theme_option || "auto");
         }
       } catch (_) {
-        if (live) applyBrandTheme(defaultBrandTheme);
+        if (live) {
+          applyBrandTheme(defaultBrandTheme);
+          applyThemeFont("auto");
+        }
       }
     }
     loadCompanyBrand();

@@ -8,8 +8,9 @@
   --accent:var(--brand-primary);
 }
 *{box-sizing:border-box;}
-html{font-size:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+html{font-size:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;font-family:var(--font-family,"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif);}
 body{
+  font-family:var(--font-family,"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif);
   background:
     radial-gradient(circle at top left, rgba(var(--brand-secondary-rgb),.18), transparent 25%),
     radial-gradient(circle at bottom right, rgba(var(--brand-primary-rgb),.10), transparent 22%),
@@ -579,11 +580,22 @@ th{color:var(--muted);font-weight:600;}
   display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;
   border-radius:6px;text-transform:uppercase;letter-spacing:.03em;
 }
+.badgeGreen  {background:rgba(34,197,94,.15); color:#16a34a;border:1px solid rgba(34,197,94,.3);}
+.badgeRed    {background:rgba(239,68,68,.15);  color:#dc2626;border:1px solid rgba(239,68,68,.3);}
+.badgeOrange {background:rgba(245,158,11,.15); color:#d97706;border:1px solid rgba(245,158,11,.3);}
+.badgeGray   {background:rgba(148,163,184,.12);color:#64748b;border:1px solid rgba(148,163,184,.3);}
+.badgeBlue   {background:rgba(59,130,246,.15); color:#2563eb;border:1px solid rgba(59,130,246,.3);}
 .badgeThirdParty{background:rgba(251,146,60,.2);color:#fb923c;border:1px solid rgba(251,146,60,.3);}
 .badgeExternal{background:rgba(168,85,247,.2);color:#c084fc;border:1px solid rgba(168,85,247,.3);}
 .badgeUnavail{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25);}
 .badgeMandatory{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.25);margin:0 4px;}
 .badgeOptional{background:rgba(59,130,246,.15);color:#93c5fd;border:1px solid rgba(59,130,246,.25);margin:0 4px;}
+/* dark-on-light overrides for semantic badges */
+:where(.tenantShell,.superAdminShell) .badgeGreen  {background:#dcfce7;color:#15803d;border-color:#bbf7d0;}
+:where(.tenantShell,.superAdminShell) .badgeRed     {background:#fee2e2;color:#b91c1c;border-color:#fca5a5;}
+:where(.tenantShell,.superAdminShell) .badgeOrange  {background:#fef3c7;color:#b45309;border-color:#fde68a;}
+:where(.tenantShell,.superAdminShell) .badgeGray    {background:#f1f5f9;color:#475569;border-color:#cbd5e1;}
+:where(.tenantShell,.superAdminShell) .badgeBlue    {background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;}
 
 /* ──── STATUS BADGES ──── */
 .statusBadge{
@@ -1125,7 +1137,7 @@ body{
     radial-gradient(circle at 72% 12%, rgba(var(--brand-tertiary-rgb),.14), transparent 28%),
     linear-gradient(135deg, #fff 0%, var(--brand-soft) 48%, #f5fbfb 100%);
   color:var(--text);
-  font-family:"Avenir Next","Segoe UI",Helvetica,sans-serif;
+  font-family:var(--font-family,"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif);
 }
 .sidebar{
   background:
@@ -2071,4 +2083,143 @@ button:disabled{opacity:.6;cursor:not-allowed;}
   background:#f1f5f9;
   color:#0f172a !important;
   border-color:#94a3b8;
+}
+
+/* ── COMPREHENSIVE LIGHT-THEME TEXT FIX ──────────────────────────────────────
+   All elements that have color:#fff hardcoded for the dark base theme
+   must be overridden to a readable dark color in superAdminShell / tenantShell.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Inputs, selects, textareas — base theme uses color:#fff on dark panel2 */
+:where(.tenantShell,.superAdminShell) :is(
+  select, textarea,
+  .formSection select,
+  .formSection textarea,
+  .stackForms select,
+  .stackForms textarea
+){
+  background:#fff;
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+
+/* Chips / tag containers */
+:where(.tenantShell,.superAdminShell) .chip{
+  background:rgba(0,0,0,.06);
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+:where(.tenantShell,.superAdminShell) .chip button{
+  color:var(--readable-text);
+}
+
+/* presetBtn (role/permission preset buttons in admin) */
+:where(.tenantShell,.superAdminShell) .presetBtn{
+  background:#fff;
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+:where(.tenantShell,.superAdminShell) .presetBtn:hover{
+  background:#f1f5f9;
+  color:#0f172a;
+}
+
+/* masterListItem — used in registry side-lists */
+:where(.tenantShell,.superAdminShell) .masterListItem{
+  background:#fff;
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+:where(.tenantShell,.superAdminShell) .masterListItem:hover{
+  background:#f8fafc;
+}
+
+/* sectionTitle hardcoded #fff */
+:where(.tenantShell,.superAdminShell) .sectionTitle{
+  color:var(--readable-text);
+}
+
+/* savedRolesTitle */
+:where(.tenantShell,.superAdminShell) .savedRolesTitle{
+  color:var(--readable-text);
+}
+
+/* Accounts page — strong values inside summary grid */
+:where(.tenantShell,.superAdminShell) :is(
+  .accountsSummaryGrid strong,
+  .billingDayCard strong,
+  .accountsTotals strong
+){
+  color:var(--readable-text);
+}
+
+/* Ledger section summary spans */
+:where(.tenantShell,.superAdminShell) .ledgerSectionSummary span{
+  color:var(--readable-text);
+}
+
+/* Location option main text (warehouse/location dropdowns) */
+:where(.tenantShell,.superAdminShell) .locationOption .locMain{
+  color:var(--readable-text);
+}
+:where(.tenantShell,.superAdminShell) .locationOption .locSub{
+  color:var(--readable-muted);
+}
+
+/* Date picker cells */
+:where(.tenantShell,.superAdminShell) .datePickerCell{
+  background:#fff;
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+
+/* dateTypeBtn (day/week/month toggles) */
+:where(.tenantShell,.superAdminShell) .dateTypeBtn{
+  background:#fff;
+  color:var(--readable-text);
+  border-color:var(--readable-line);
+}
+
+/* subMenuTab active state */
+:where(.tenantShell,.superAdminShell) .subMenuTabActive{
+  background:rgba(var(--brand-secondary-rgb),.10);
+  color:var(--readable-text) !important;
+  border-color:rgba(var(--brand-secondary-rgb),.30);
+}
+
+/* profileDropdownItem */
+:where(.tenantShell,.superAdminShell) .profileDropdownItem{
+  color:var(--readable-text);
+}
+:where(.tenantShell,.superAdminShell) .profileDropdownItem:hover{
+  background:rgba(0,0,0,.05);
+}
+
+/* Calendar chips must keep white text (colored background) */
+:where(.tenantShell,.superAdminShell) .calChip{
+  color:#fff;
+}
+
+/* Any remaining element that still bleeds #fff in light theme */
+:where(.tenantShell,.superAdminShell) :is(
+  .formSection,
+  .stackForms,
+  .detailRow span,
+  .detailRow label,
+  .serviceRouteItem,
+  .uploadDropZone,
+  .documentUploadBox,
+  .documentUploadPanel
+){
+  color:var(--readable-text);
+}
+
+/* Catch-all: any direct child text nodes inside .page, .card, .modalCard */
+:where(.tenantShell,.superAdminShell) :is(.page,.card,.modalCard,.formSection,.stackForms,.detailCard){
+  color:var(--readable-text);
+}
+
+/* Active filter / preset highlights keep legible text */
+:where(.tenantShell,.superAdminShell) :is(.presetActive,.pgBtnActive,.dateQuickBtnActive){
+  color:var(--readable-text) !important;
 }

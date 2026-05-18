@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Card from "../components/Card";
 import Pagination, { usePagination } from "../components/Pagination";
 import SearchBar, { buildSuggestions, useSearch } from "../components/SearchBar";
@@ -884,7 +884,13 @@ function ActivityTab() {
   const [sessionSearch, setSessionSearch] = useState("");
   const [auditSearch, setAuditSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const auditPg = usePagination(useSearch(auditLogs, auditSearch), 25);
+  // Enrich audit logs with searchable text from details_json
+  const enrichedAuditLogs = useMemo(() => auditLogs.map(log => {
+    let d = {};
+    try { d = log.details_json ? JSON.parse(log.details_json) : {}; } catch {}
+    return { ...log, _searchable: [log.username, log.action, log.entity_type, log.entity_id, d.ip, d.browser, d.os, d.device_id].filter(Boolean).join(" ") };
+  }), [auditLogs]);
+  const auditPg = usePagination(useSearch(enrichedAuditLogs, auditSearch), 25);
 
   function loadSessions() {
     setLoading(true);
@@ -1056,19 +1062,73 @@ function ActivityTab() {
 
       <Card title="Audit Log">
         <div className="listToolbar">
-          <SearchBar value={auditSearch} onChange={v => { setAuditSearch(v); auditPg.setPage(1); }} suggestions={buildSuggestions(auditLogs)} placeholder="Search by user, action, entity…" />
+          <SearchBar value={auditSearch} onChange={v => { setAuditSearch(v); auditPg.setPage(1); }} suggestions={buildSuggestions(auditLogs)} placeholder="Search by user, action, IP, browser…" />
           <span className="helperText">{auditLogs.length} entries</span>
           <button className="ghostBtn compactBtn" type="button" onClick={loadAudit}>↻ Refresh</button>
         </div>
         <div className="tableWrap">
           <table>
-            <thead><tr><th>ID</th><th>User</th><th>Action</th><th>Entity</th><th>Entity ID</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>User</th>
+                <th>Action</th>
+                <th>IP Address</th>
+                <th>Browser · OS</th>
+                <th>Device ID</th>
+                <th>Section · Record</th>
+              </tr>
+            </thead>
             <tbody>
-              {auditPg.pageData.map(log => (
-                <tr key={log.id}>
-                  <td>{log.id}</td><td>{log.username}</td><td>{log.action}</td><td>{log.entity_type}</td><td>{log.entity_id || "–"}</td>
-                </tr>
-              ))}
+              {auditPg.pageData.map(log => {
+                let d = {};
+                try { d = log.details_json ? JSON.parse(log.details_json) : {}; } catch {}
+                const actionIcon = { login: "🔐", logout: "🚪", create: "➕", update: "✏️", delete: "🗑", reset: "🔄", upload: "📤", revoke: "🔒" }[log.action] || "•";
+                const actionLabel = { login: "Login", logout: "Logout", create: "Created", update: "Updated", delete: "Deleted", reset: "Reset", upload: "Uploaded", revoke: "Revoked" }[log.action] || log.action;
+                const isLocal = d.ip === "127.0.0.1" || d.ip === "::1" || d.ip?.startsWith("::ffff:127.");
+                const ipLabel = d.ip ? (isLocal ? "Localhost" : d.ip) : "—";
+                const envLabel = [d.browser, d.os].filter(Boolean).join(" · ") || "—";
+                const sectionLabel = (log.entity_type || "—").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+                const ts = log.created_at ? new Date(log.created_at) : null;
+                const timeStr = ts ? ts.toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : "—";
+                return (
+                  <tr key={log.id}>
+                    <td style={{ whiteSpace: "nowrap", fontSize: 11 }}>{timeStr}</td>
+                    <td><strong>{log.username}</strong></td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+                      <span title={actionLabel}>{actionIcon}</span>{" "}
+                      <span style={{ fontSize: 12 }}>{actionLabel}</span>
+                    </td>
+                    <td>
+                      {d.ip ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <span style={{ fontSize: 10 }}>{isLocal ? "🖥" : "🌐"}</span>
+                          <code style={{ fontSize: 11 }}>{ipLabel}</code>
+                        </span>
+                      ) : <span style={{ color: "var(--readable-muted,#888)", fontSize: 12 }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                      {envLabel !== "—" ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ fontSize: 10 }}>
+                            {d.browser === "Chrome" ? "🔵" : d.browser === "Firefox" ? "🦊" : d.browser === "Safari" ? "🧭" : "🌐"}
+                          </span>
+                          {envLabel}
+                        </span>
+                      ) : <span style={{ color: "var(--readable-muted,#888)" }}>—</span>}
+                    </td>
+                    <td>
+                      {d.device_id
+                        ? <code style={{ fontSize: 10 }}>{d.device_id}</code>
+                        : <span style={{ color: "var(--readable-muted,#888)", fontSize: 12 }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      <span style={{ fontWeight: 500 }}>{sectionLabel}</span>
+                      {log.entity_id && <span style={{ color: "var(--readable-muted,#888)" }}> #{log.entity_id}</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1112,7 +1172,7 @@ export default function AdminPage() {
               marginBottom: -2,
               cursor: "pointer",
               fontWeight: tab === t.key ? 700 : 400,
-              color: tab === t.key ? "#f1f5f9" : "var(--muted,#888)",
+              color: tab === t.key ? "var(--readable-text, #f1f5f9)" : "var(--readable-muted, var(--muted,#888))",
               fontSize: 15,
               transition: "all 0.15s",
             }}

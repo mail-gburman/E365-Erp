@@ -70,15 +70,20 @@ export function getPermissions() {
 
 export function getOrCreateDeviceId() {
   let deviceId = localStorage.getItem(DEVICE_ID_KEY) || "";
+
+  // Regenerate old-format IDs that embedded the UA string (e.g. "macintel-mozilla-5-0-…")
+  if (deviceId && !deviceId.startsWith("dev-")) {
+    localStorage.removeItem(DEVICE_ID_KEY);
+    deviceId = "";
+  }
+
   if (deviceId) return deviceId;
 
-  const randomPart = typeof crypto !== "undefined" && crypto.randomUUID
-    ? crypto.randomUUID().slice(0, 8)
-    : Math.random().toString(36).slice(2, 10);
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "unknown";
-  const platform = typeof navigator !== "undefined" ? (navigator.platform || "web") : "web";
-  const seed = `${platform}-${ua}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "browser";
-  deviceId = `${seed}-${randomPart}`.slice(0, 64);
+  // Clean format: "dev-<16 random hex chars>"
+  const hex = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 16)
+    : Math.random().toString(16).slice(2, 10) + Math.random().toString(16).slice(2, 10);
+  deviceId = `dev-${hex}`;
   localStorage.setItem(DEVICE_ID_KEY, deviceId);
   return deviceId;
 }
