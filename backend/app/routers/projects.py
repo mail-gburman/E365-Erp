@@ -78,9 +78,12 @@ def _apply_project_date_fields(item, dates):
     item.shoot_end = datetime.combine(overall_end, time.max) if overall_end else item.shoot_end
     item.block_start, item.block_end = _project_window(item.shoot_start, item.shoot_end, dates)
 
-@router.get("/", response_model=list[schemas.ProjectRead], dependencies=[Depends(require_permission("bookings","view"))])
-def list_projects(db: Session = Depends(get_db)):
-    return db.query(models.ProjectEvent).order_by(models.ProjectEvent.shoot_start.desc()).all()
+@router.get("/", response_model=list[schemas.ProjectRead])
+def list_projects(db: Session = Depends(get_db), current_user=Depends(require_permission("bookings","view"))):
+    q = db.query(models.ProjectEvent).order_by(models.ProjectEvent.shoot_start.desc())
+    if current_user.company_id:
+        q = q.filter(models.ProjectEvent.company_id == current_user.company_id)
+    return q.all()
 
 @router.post("/", response_model=schemas.ProjectRead, dependencies=[Depends(require_permission("bookings","add"))])
 def create_project(payload: schemas.ProjectCreate, db: Session = Depends(get_db), current_user = Depends(get_current_user)):

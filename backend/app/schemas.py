@@ -459,6 +459,9 @@ class ProjectRead(ProjectBase):
     dates: List[ProjectDateRead] = Field(default_factory=list)
     block_start: Optional[datetime] = None
     block_end: Optional[datetime] = None
+    # Override with Optional so legacy NULL rows don't break validation
+    off_days: Optional[int] = 0
+    setup_days: Optional[int] = 0
     class Config:
         from_attributes = True
 
