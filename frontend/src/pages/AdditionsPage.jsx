@@ -1122,7 +1122,21 @@ export default function AdditionsPage() {
           <form className="formGrid" onSubmit={saveVendor}>
             <input placeholder="Vendor Code (optional auto)" value={vendorForm.vendor_code} onChange={e=>setVendorForm({...vendorForm, vendor_code:e.target.value})} />
             <input placeholder="Vendor Name" value={vendorForm.name} onChange={e=>setVendorForm({...vendorForm, name:e.target.value})} required />
-            <select value={vendorForm.vendor_type} onChange={e=>setVendorForm({...vendorForm, vendor_type:e.target.value})}><option>service</option><option>equipment</option><option>crew</option><option>logistics</option><option>procurement</option></select>
+            <select value={vendorForm.vendor_type} onChange={e=>setVendorForm({...vendorForm, vendor_type:e.target.value})}>
+              <option value="service">Service</option>
+              <option value="equipment">Equipment</option>
+              <option value="equipment_rental">Equipment Rental</option>
+              <option value="crew">Crew</option>
+              <option value="logistics">Logistics</option>
+              <option value="procurement">Procurement</option>
+              <option value="production">Production</option>
+              <option value="manpower">Manpower</option>
+              <option value="rigging">Rigging</option>
+              <option value="generator">Generator</option>
+              <option value="facility">Facility</option>
+              <option value="repair">Repair</option>
+              <option value="security_agency">Security Agency</option>
+            </select>
             <LocationAutocomplete value={vendorForm.city || ""} onChange={v=>setVendorForm({...vendorForm, city:v})} placeholder="City (location)" />
             <input placeholder="Contact Person" value={vendorForm.contact_person} onChange={e=>setVendorForm({...vendorForm, contact_person:e.target.value})} />
             <PhoneInput value={vendorForm.phone} onChange={v=>setVendorForm({...vendorForm, phone:v})} placeholder="Phone" />
