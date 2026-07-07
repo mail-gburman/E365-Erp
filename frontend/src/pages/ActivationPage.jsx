@@ -13,6 +13,7 @@ function StatusBadge({ s }) {
   if (!s.enforced) return <span className="badge badgeGray">Licensing Off</span>;
   if (s.reason === "active") return <span className="badge badgeGreen">Active</span>;
   if (s.reason === "expired") return <span className="badge badgeRed">Expired</span>;
+  if (s.reason === "deactivated") return <span className="badge badgeRed">Deactivated</span>;
   if (s.reason === "not_activated") return <span className="badge badgeOrange">Not Activated</span>;
   if (s.reason === "activation_tampered") return <span className="badge badgeRed">Tampered</span>;
   if (s.reason === "not_yet_valid") return <span className="badge badgeOrange">Not Yet Valid</span>;
@@ -23,6 +24,7 @@ function StatusBadge({ s }) {
 /* ── Success popup shown after a code is applied ── */
 function SuccessPopup({ status, onClose }) {
   const lic = status?.license;
+  const isDeactivated = status?.reason === "not_activated" || status?.reason === "deactivated" || (!lic && status?.activated === false);
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div
@@ -30,14 +32,15 @@ function SuccessPopup({ status, onClose }) {
         style={{ maxWidth: 480, textAlign: "center" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* tick */}
-        <div style={{ fontSize: 56, marginBottom: 8 }}>✅</div>
-        <h2 style={{ marginBottom: 4 }}>Activation Successful</h2>
+        <div style={{ fontSize: 56, marginBottom: 8 }}>{isDeactivated ? "🔒" : "✅"}</div>
+        <h2 style={{ marginBottom: 4 }}>{isDeactivated ? "License Deactivated" : "Activation Successful"}</h2>
         <p style={{ color: "var(--readable-muted, #6b7280)", marginBottom: 20 }}>
-          License has been applied to <strong>{status?.company_name}</strong>.
+          {isDeactivated
+            ? <>License for <strong>{status?.company_name}</strong> has been <strong style={{ color: "var(--e365-pink, #dc2626)" }}>immediately revoked</strong>.</>
+            : <>License has been applied to <strong>{status?.company_name}</strong>.</>}
         </p>
 
-        {lic && (
+        {lic && !isDeactivated && (
           <div className="messageBar" style={{ textAlign: "left", marginBottom: 20 }}>
             <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", fontSize: 13 }}>
               <span style={{ color: "var(--readable-muted, #6b7280)" }}>Client</span>
@@ -183,15 +186,34 @@ function ActivationModal({ companyStatus, onClose, onSuccess }) {
                 className="primaryBtn"
                 type="submit"
                 disabled={Boolean(busy) || !activationCode.trim()}
-                style={{ flex: 1 }}
+                style={{
+                  flex: 1,
+                  ...(preview?.deactivate ? { background: "var(--e365-pink, #dc2626)", borderColor: "var(--e365-pink, #dc2626)" } : {}),
+                }}
               >
-                {busy === "apply" ? "Activating…" : "Activate"}
+                {busy === "apply" ? (preview?.deactivate ? "Deactivating…" : "Activating…") : (preview?.deactivate ? "Deactivate Now" : "Activate")}
               </button>
             </div>
           </form>
 
           {/* Preview result */}
-          {preview && (
+          {preview && preview.deactivate && (
+            <div className="messageBar" style={{
+              textAlign: "left", marginTop: 14,
+              borderLeft: "4px solid var(--e365-pink, #dc2626)",
+              background: "rgba(220,38,38,0.07)",
+            }}>
+              <strong style={{ color: "var(--e365-pink, #dc2626)" }}>⚠️ DEACTIVATION CODE</strong>
+              <div style={{ marginTop: 6, fontSize: 13, color: "var(--readable, #111)" }}>
+                Applying this code will <strong>immediately revoke all active licenses</strong> for{" "}
+                <strong>{companyStatus.company_name}</strong>. This cannot be undone without a new activation code.
+              </div>
+              <div style={{ marginTop: 6, fontSize: 12, color: "var(--readable-muted, #6b7280)" }}>
+                Issued by: {preview.issued_by || "-"} &nbsp;·&nbsp; License ID: {preview.license_id}
+              </div>
+            </div>
+          )}
+          {preview && !preview.deactivate && (
             <div className="messageBar" style={{ textAlign: "left", marginTop: 14 }}>
               <strong>✓ Code looks valid — {preview.client_name}</strong>
               <div style={{ marginTop: 6, fontSize: 13 }}>

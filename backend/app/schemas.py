@@ -900,5 +900,6 @@ class ActivationPreviewRead(BaseModel):
     valid_from: date
     valid_until: date
     validity_days: int
+    deactivate: bool = False
     class Config:
         from_attributes = True

@@ -137,7 +137,8 @@ def verify_activation_code(code: str) -> dict:
     _parse_datetime(payload["issued_at"])
     valid_from = _parse_date(payload["valid_from"])
     valid_until = _parse_date(payload["valid_until"])
-    if valid_until < valid_from:
+    # Deactivation codes have validity_days=0 and valid_from==valid_until — skip the window check
+    if not payload.get("deactivate") and valid_until < valid_from:
         raise ValueError("Activation code validity window is invalid.")
     return payload
 
@@ -176,6 +177,7 @@ def _verified_license_ledger(
         .filter(
             models.LicenseActivation.company_id == company_id,
             models.LicenseActivation.installation_id == installation_id,
+            models.LicenseActivation.is_active == True,
         )
         .order_by(models.LicenseActivation.activated_at.asc(), models.LicenseActivation.id.asc())
         .all()
@@ -358,9 +360,11 @@ def preview_activation_code(db: Session, company_id: int, code: str) -> dict:
     valid_until = _parse_date(payload["valid_until"])
     license_id = str(payload["license_id"])
     code_hash = hashlib.sha256(code.strip().encode()).hexdigest()
+    is_deactivation = bool(payload.get("deactivate"))
+
     if db.query(models.LicenseActivation).filter(models.LicenseActivation.activation_code_hash == code_hash).first():
         raise ValueError("This activation code has already been used.")
-    if (
+    if not is_deactivation and (
         db.query(models.LicenseActivation)
         .filter(
             models.LicenseActivation.company_id == company_id,
@@ -381,7 +385,8 @@ def preview_activation_code(db: Session, company_id: int, code: str) -> dict:
         "issued_at": _parse_datetime(payload["issued_at"]).replace(tzinfo=None),
         "valid_from": valid_from,
         "valid_until": valid_until,
-        "validity_days": int(payload.get("validity_days") or ((valid_until - valid_from).days + 1)),
+        "validity_days": int(payload["validity_days"]) if payload.get("validity_days") is not None else ((valid_until - valid_from).days + 1),
+        "deactivate": is_deactivation,
     }
 
 
@@ -389,6 +394,41 @@ def apply_activation_code(db: Session, company_id: int, code: str) -> dict:
     preview = preview_activation_code(db, company_id, code)
     payload = verify_activation_code(code)
     code_hash = hashlib.sha256(code.strip().encode()).hexdigest()
+    now = datetime.now(UTC).replace(tzinfo=None)
+
+    if preview.get("deactivate"):
+        # Force-deactivate: mark all existing active licenses inactive
+        (
+            db.query(models.LicenseActivation)
+            .filter(
+                models.LicenseActivation.company_id == company_id,
+                models.LicenseActivation.is_active == True,
+            )
+            .update({"is_active": False}, synchronize_session=False)
+        )
+        # Record the deactivation event as an audit row (is_active=False)
+        db.add(models.LicenseActivation(
+            company_id=company_id,
+            license_id=preview["license_id"],
+            installation_id=preview["installation_id"],
+            client_name=preview["client_name"],
+            contact_name=preview["contact_name"],
+            contact_email=preview["contact_email"],
+            contact_phone=preview["contact_phone"],
+            plan_name="deactivated",
+            issued_by=preview["issued_by"],
+            issued_at=preview["issued_at"],
+            valid_from=preview["valid_from"],
+            valid_until=preview["valid_until"],
+            activation_code=code.strip(),
+            activation_code_hash=code_hash,
+            payload_json=json.dumps(payload, sort_keys=True),
+            activated_at=now,
+            is_active=False,
+        ))
+        db.commit()
+        return activation_status(db, company_id)
+
     db.add(models.LicenseActivation(
         company_id=company_id,
         license_id=preview["license_id"],
@@ -405,7 +445,7 @@ def apply_activation_code(db: Session, company_id: int, code: str) -> dict:
         activation_code=code.strip(),
         activation_code_hash=code_hash,
         payload_json=json.dumps(payload, sort_keys=True),
-        activated_at=datetime.now(UTC).replace(tzinfo=None),
+        activated_at=now,
         is_active=True,
     ))
     db.commit()
