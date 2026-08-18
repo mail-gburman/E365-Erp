@@ -53,3 +53,8 @@ tally_connector/.env
 
 # Frontend env
 frontend/.env
+
+# env files (never commit)
+.env
+tally_connector/.env
+!.env.example
