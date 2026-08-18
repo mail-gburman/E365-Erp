@@ -47,3 +47,9 @@ tally_connector/.env
 
 # Local Codex worktrees / app state
 .claude/worktrees/
+
+# DB dumps
+*.dump
+
+# Frontend env
+frontend/.env

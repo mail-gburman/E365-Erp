@@ -29,7 +29,9 @@ export async function login(username, password) {
   fd.set("username", username);
   fd.set("password", password);
   fd.set("device_id", getOrCreateDeviceId());
-  return fetch(`${API_BASE}/auth/login`, { method: "POST", headers: headers(true), body: fd }).then(parse);
+  const res = await fetch(`${API_BASE}/auth/login`, { method: "POST", headers: headers(true), body: fd });
+  if (res.status === 401) throw new Error("Invalid username or password.");
+  return parse(res);
 }
 export const api = {
   me: () => get("/auth/me"),
